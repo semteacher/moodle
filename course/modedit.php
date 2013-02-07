@@ -393,9 +393,19 @@ if ($mform->is_cancelled()) {
         add_to_log($course->id, "course", "update mod",
                    "../mod/$fromform->modulename/view.php?id=$fromform->coursemodule",
                    "$fromform->modulename $fromform->instance");
-        add_to_log($course->id, $fromform->modulename, "update",
-                   "view.php?id=$fromform->coursemodule",
-                   "$fromform->instance", $fromform->coursemodule);
+		//TDMU-begin block
+		if ($fromform->modulename = "qiuz") {
+			$full_msg = "Start:".date('Y/m/d H:m',$fromform->timeopen)."; End:".date('Y/m/d H:m',$fromform->timeclose)."; Name:".$fromform->name;
+			$short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
+			add_to_log($course->id, $fromform->modulename, "update",
+					"view.php?id=$fromform->coursemodule",
+					$short_msg, $fromform->coursemodule);		
+		} else {//TDMU - else cause contain original code		   
+			add_to_log($course->id, $fromform->modulename, "update",
+					"view.php?id=$fromform->coursemodule",
+					"$fromform->instance", $fromform->coursemodule);
+		}
+        //TDMU-end block
 
     } else if (!empty($fromform->add)) {
 
