@@ -234,6 +234,10 @@ a.skip:active {position: static;display: block;}
 .mform fieldset.hidden {border-width:0;}
 .mform fieldset.group {margin-bottom: 0}
 .mform fieldset.error {border: 1px solid #A00;}
+.mform fieldset.collapsible legend a.fheader {padding: 0 5px 0 20px; background: url([[pix:t/expanded]]) 2px center no-repeat;}
+.mform fieldset.collapsed legend a.fheader {background: url([[pix:t/collapsed]]) 2px center no-repeat;}
+.mform fieldset.collapsed.jsprocessed {border-width: 1px 0 0 0; padding: 0;}
+.mform fieldset.collapsed.jsprocessed div.fcontainer {display: none;}
 .mform .fitem {width:100%;overflow:hidden;margin-top:5px;margin-bottom:1px;clear:right;}
 .mform .fitem .fitemtitle {width:15%;text-align:right;float:left;}
 .mform .fitem .fitemtitle div {display: inline;}
@@ -363,19 +367,6 @@ input#id_externalurl {direction:ltr;}
  */
 .mod_introbox {border:1px solid;padding:10px;}
 table.mod_index {width:100%;}
-
-/**
- * Help
- */
-#help_icon_tooltip div.bd {width: 35em;}
-#help hr {border: none;height: 1px;background: #ccc;}
-#help .center {text-align: center;}
-#help .moreinfo {text-align: right;}
-#help .indent {margin-left: 40px;}
-#help .indent-big {margin-left: 160px;margin-right: 160px;}
-#help #emoticons{text-align: center;clear:both;width: 300px;margin-right: auto;margin-left:auto;}
-#help #emoticons ul{list-style-type: none;}
-#help #emoticons li{margin-bottom: 3px;width: 120px;border-left: 3px solid gray;padding-left: 7px;float: left;}
 
 /**
  * Comments
@@ -514,18 +505,6 @@ body.tag .managelink {padding: 5px;}
  * Web Service
  */
 #webservice-doc-generator td {text-align: left;border: 0px solid black;}
-
-/**
- * Help Content (pop-up)
- */
-#helppopupbox {background-color: #eee; border: 1px solid #848484;z-index: 10000 !important;}
-#helppopupbox .yui3-widget-hd {float:right;margin:3px 3px 0 0;}
-#helppopupbox .yui3-widget-bd {margin:0 1em 1em 1em;border-top:1px solid #eee;}
-#helppopupbox .yui3-widget-ft {text-align: center;}
-#helppopupbox .yui3-widget-ft .closebtn {margin:0 1em 1em 1em;}
-#helppopupbox .helpheading {font-size: 1em;}
-#helppopupbox .spinner {margin:1em;}
-.dir-rtl #helppopupbox .yui3-widget-hd {float:left;margin:3px 0 0 3px;}
 
 /**
  * Custom menu
@@ -1019,6 +998,22 @@ sup {vertical-align: super;}
     padding-bottom:4px;
 }
 
+.moodle-dialogue .moodle-dialogue-bd .content-lightbox {
+    opacity: .75;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background-color: white;
+    text-align: center;
+    padding: 10% 0;
+}
+
+/* Apply a default max-height on tooltip text */
+.moodle-dialogue .tooltiptext {
+    max-height: 300px;
+}
+
 
 /* Question Bank - Question Chooser "Close" button */
 #page-question-edit.dir-rtl a.container-close {right:auto;left:6px;}
@@ -1199,3 +1194,68 @@ html[dir=rtl] .configphp {direction:ltr;text-align:left;}
 
 table.flexible .r0, table.generaltable .r0 {background-color: #F0F0F0;}
 table.flexible .r1, table.generaltable .r1 {background-color: #FAFAFA;}
+
+/* Form element: listing */
+.formlistingradio {padding-bottom: 25px; padding-right: 10px;}
+.formlistinginputradio {float: left;}
+.formlistingmain {min-height: 225px;}
+.formlistingradiocontent {}
+.formlisting {
+    position: relative;
+    margin: 15px 0;
+    padding: 1px 19px 14px;
+    background-color: white;
+    border: 1px solid #DDD;
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    border-radius: 4px;
+}
+
+.formlistingmore {
+    position: absolute;
+    cursor: pointer;
+    bottom: -1px;
+    right: -1px;
+    padding: 3px 7px;
+    font-size: 12px;
+    font-weight: bold;
+    background-color: whiteSmoke;
+    border: 1px solid #DDD;
+    color: #9DA0A4;
+    -webkit-border-radius: 4px 0 4px 0;
+    -moz-border-radius: 4px 0 4px 0;
+    border-radius: 4px 0 4px 0;
+}
+
+.formlistingall {
+    margin: 15px 0;
+    padding: 0px 0px 0px;
+    -webkit-border-radius: 4px;
+    -moz-border-radius: 4px;
+    border-radius: 4px;
+}
+
+.formlistingrow {
+    cursor: pointer;
+    border-bottom: 1px solid;
+    border-color: #E1E1E8;
+    border-left: 1px solid #E1E1E8;
+    border-right: 1px solid #E1E1E8;
+    background-color: #F7F7F9;
+    -webkit-border-radius: 0px 0px 4px 4px;
+    -moz-border-radius: 0px 0px 4px 4px;
+    padding: 6px;
+    top: 50%;
+    left: 50%;
+    min-height: 34px;
+    float:left;
+    width: 150px;
+}
+
+body.jsenabled .formlistingradio {
+    display: none;
+}
+
+body.jsenabled .formlisting {
+    display: block;
+}
