@@ -199,7 +199,11 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
         } else if (isset($SESSION->wantsurl) and (strpos($SESSION->wantsurl, $CFG->wwwroot) === 0 or strpos($SESSION->wantsurl, str_replace('http://', 'https://', $CFG->wwwroot)) === 0)) {
             $urltogo = $SESSION->wantsurl;    /// Because it's an address in this site
             unset($SESSION->wantsurl);
-
+            //TDMU - redirect admins and managers to the site home instead of my_home
+            if (get_home_page() == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', get_context_instance(CONTEXT_SYSTEM)))){
+                $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect
+            }
+            
         } else {
             // no wantsurl stored or external - go to homepage
             $urltogo = $CFG->wwwroot.'/';
@@ -211,6 +215,10 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
                 if ($urltogo == $CFG->wwwroot or $urltogo == $CFG->wwwroot.'/' or $urltogo == $CFG->wwwroot.'/index.php') {
                     $urltogo = $CFG->wwwroot.'/my/';
                 }
+            } else { //TDMU - redirect admins and managers to the site home instead of my_home
+                if ($home_page == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', get_context_instance(CONTEXT_SYSTEM)))){
+                    $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect
+                } 
             }
         }
 
