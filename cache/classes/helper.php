@@ -55,6 +55,13 @@ class cache_helper {
     protected static $instance;
 
     /**
+     * The site identifier used by the cache.
+     * Set the first time get_site_identifier is called.
+     * @var string
+     */
+    protected static $siteidentifier = null;
+
+    /**
      * Returns true if the cache API can be initialised before Moodle has finished initialising itself.
      *
      * This check is essential when trying to cache the likes of configuration information. It checks to make sure that the cache
@@ -305,15 +312,18 @@ class cache_helper {
         foreach ($instance->get_definitions() as $name => $definitionarr) {
             $definition = cache_definition::load($name, $definitionarr);
             if ($definition->invalidates_on_event($event)) {
-                // Create the cache.
-                $cache = $factory->create_cache($definition);
-                // Initialise, in case of a store.
-                if ($cache instanceof cache_store) {
-                    $cache->initialise($definition);
+                // Check if this definition would result in a persistent loader being in use.
+                if ($definition->should_be_persistent()) {
+                    // There may be a persistent cache loader. Lets purge that first so that any persistent data is removed.
+                    $cache = $factory->create_cache_from_definition($definition->get_component(), $definition->get_area());
+                    $cache->purge();
                 }
-                // Purge the cache.
-                $cache->purge();
-
+                // Get all of the store instances that are in use for this store.
+                $stores = $factory->get_store_instances_in_use($definition);
+                foreach ($stores as $store) {
+                    // Purge each store individually.
+                    $store->purge();
+                }
                 // We need to flag the event in the "Event invalidation" cache if it hasn't already happened.
                 if ($invalidationeventset === false) {
                     // Get the event invalidation cache.
@@ -489,11 +499,52 @@ class cache_helper {
      */
     public static function update_definitions($coreonly = false) {
         global $CFG;
-        // Include locallib
+        // Include locallib.
         require_once($CFG->dirroot.'/cache/locallib.php');
         // First update definitions
         cache_config_writer::update_definitions($coreonly);
         // Second reset anything we have already initialised to ensure we're all up to date.
         cache_factory::reset();
+    }
+
+    /**
+     * Update the site identifier stored by the cache API.
+     *
+     * @param string $siteidentifier
+     */
+    public static function update_site_identifier($siteidentifier) {
+        global $CFG;
+        // Include locallib.
+        require_once($CFG->dirroot.'/cache/locallib.php');
+        $factory = cache_factory::instance();
+        $factory->updating_started();
+        $config = $factory->create_config_instance(true);
+        $config->update_site_identifier($siteidentifier);
+        $factory->updating_finished();
+        cache_factory::reset();
+    }
+
+    /**
+     * Returns the site identifier.
+     *
+     * @return string
+     */
+    public static function get_site_identifier() {
+        if (is_null(self::$siteidentifier)) {
+            $factory = cache_factory::instance();
+            $config = $factory->create_config_instance();
+            self::$siteidentifier = $config->get_site_identifier();
+        }
+        return self::$siteidentifier;
+    }
+
+    /**
+     * Returns the site version.
+     *
+     * @return string
+     */
+    public static function get_site_version() {
+        global $CFG;
+        return (string)$CFG->version;
     }
 }

@@ -50,9 +50,9 @@ class behat_forms extends behat_base {
      *
      * @When /^I press "(?P<button_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param string $button
      */
     public function press_button($button) {
-        $button = $this->fixStepArgument($button);
 
         // Ensures the button is present.
         $buttonnode = $this->find_button($button);
@@ -68,15 +68,15 @@ class behat_forms extends behat_base {
      */
     public function i_fill_the_moodle_form_with(TableNode $data) {
 
+        // Expand all fields in case we have.
+        $this->expand_all_fields();
+
         $datahash = $data->getRowsHash();
 
         // The action depends on the field type.
         foreach ($datahash as $locator => $value) {
 
             unset($fieldnode);
-
-            // Removing \\ that escapes " of the steps arguments.
-            $locator = $this->fixStepArgument($locator);
 
             // Getting the NodeElement.
             $fieldnode = $this->find_field($locator);
@@ -85,9 +85,68 @@ class behat_forms extends behat_base {
             $field = $this->get_field($fieldnode, $locator);
 
             // Delegates to the field class.
-            $value = $this->fixStepArgument($value);
             $field->set_value($value);
         }
+    }
+
+    /**
+     * Expands all moodleform's fields, including collapsed fieldsets and advanced fields if they are present.
+     * @Given /^I expand all fieldsets$/
+     */
+    public function i_expand_all_fieldsets() {
+        $this->expand_all_fields();
+    }
+
+    /**
+     * Expands all moodle form fieldsets if they exists.
+     *
+     * Externalized from i_expand_all_fields to call it from
+     * other form-related steps without having to use steps-group calls.
+     *
+     * @throws ElementNotFoundException Thrown by behat_base::find_all
+     * @return void
+     */
+    protected function expand_all_fields() {
+
+        // behat_base::find() throws an exception if there are no elements, we should not fail a test because of this.
+        try {
+
+            // Expand fieldsets.
+            $fieldsets = $this->find_all('css', 'fieldset.collapsed.jsprocessed a.fheader');
+
+            // We are supposed to have fieldsets here, otherwise exception.
+
+            // Funny thing about this, with find_all() we specify a pattern and each element matching the pattern is added to the array
+            // with of xpaths with a [0], [1]... sufix, but when we click on an element it does not matches the specified xpath
+            // anymore (is not collapsed) so [1] becomes [0], that's why we always click on the first XPath match, will be always the next one.
+            $iterations = count($fieldsets);
+            for ($i = 0; $i < $iterations; $i++) {
+                $fieldsets[0]->click();
+            }
+
+        } catch (ElementNotFoundException $e) {
+            // We continue if there are not expanded fields.
+        }
+
+        // Different try & catch as we can have expanded fieldsets with advanced fields on them.
+        try {
+
+            // Show all fields.
+            $showmorestr = get_string('showmore', 'form');
+            $showmores = $this->find_all('xpath', "//a[contains(concat(' ', normalize-space(.), ' '), '" . $showmorestr . "')][contains(concat(' ', normalize-space(@class), ' '), ' morelesstoggler')]");
+
+            // We are supposed to have 'show more's here, otherwise exception.
+
+            // Same funny case, after clicking on the element the [1] showmore link becomes the [0].
+            $iterations = count($showmores);
+            for ($i = 0; $i < $iterations; $i++) {
+                $showmores[0]->click();
+            }
+
+        } catch (ElementNotFoundException $e) {
+            // We continue with the test.
+        }
+
     }
 
     /**
@@ -95,10 +154,10 @@ class behat_forms extends behat_base {
      *
      * @When /^I fill in "(?P<field_string>(?:[^"]|\\")*)" with "(?P<value_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param string $field
+     * @param string $value
      */
     public function fill_field($field, $value) {
-        $field = $this->fixStepArgument($field);
-        $value = $this->fixStepArgument($value);
 
         $fieldnode = $this->find_field($field);
         $fieldnode->setValue($value);
@@ -109,10 +168,10 @@ class behat_forms extends behat_base {
      *
      * @When /^I select "(?P<option_string>(?:[^"]|\\")*)" from "(?P<select_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param string $option
+     * @param string $select
      */
     public function select_option($option, $select) {
-        $select = $this->fixStepArgument($select);
-        $option = $this->fixStepArgument($option);
 
         $selectnode = $this->find_field($select);
         $selectnode->selectOption($option);
@@ -126,9 +185,9 @@ class behat_forms extends behat_base {
      *
      * @When /^I check "(?P<option_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param string $option
      */
     public function check_option($option) {
-        $option = $this->fixStepArgument($option);
 
         $checkboxnode = $this->find_field($option);
         $checkboxnode->check();
@@ -139,9 +198,9 @@ class behat_forms extends behat_base {
      *
      * @When /^I uncheck "(?P<option_string>(?:[^"]|\\")*)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param string $option
      */
     public function uncheck_option($option) {
-        $option = $this->fixStepArgument($option);
 
         $checkboxnode = $this->find_field($option);
         $checkboxnode->uncheck();
@@ -153,23 +212,21 @@ class behat_forms extends behat_base {
      * @Then /^the "(?P<field_string>(?:[^"]|\\")*)" field should match "(?P<value_string>(?:[^"]|\\")*)" value$/
      * @throws ExpectationException
      * @throws ElementNotFoundException Thrown by behat_base::find
-     * @param mixed $locator
-     * @param mixed $value
+     * @param string $locator
+     * @param string $value
      */
     public function the_field_should_match_value($locator, $value) {
 
-        $locator = $this->fixStepArgument($locator);
-        $value = $this->fixStepArgument($value);
-
         $fieldnode = $this->find_field($locator);
 
-        // Gets the field instance.
+        // Get the field.
         $field = $this->get_field($fieldnode, $locator);
+        $fieldvalue = $field->get_value();
 
         // Checks if the provided value matches the current field value.
-        if ($value != $field->get_value()) {
+        if (trim($value) != trim($fieldvalue)) {
             throw new ExpectationException(
-                'The \'' . $locator . '\' value is \'' . $field->get_value() . '\'' ,
+                'The \'' . $locator . '\' value is \'' . $fieldvalue . '\', \'' . $value . '\' expected' ,
                 $this->getSession()
             );
         }
@@ -180,9 +237,9 @@ class behat_forms extends behat_base {
      *
      * @Then /^the "(?P<checkbox_string>(?:[^"]|\\")*)" checkbox should be checked$/
      * @see Behat\MinkExtension\Context\MinkContext
+     * @param string $checkbox
      */
     public function assert_checkbox_checked($checkbox) {
-        $checkbox = $this->fixStepArgument($checkbox);
         $this->assertSession()->checkboxChecked($checkbox);
     }
 
@@ -191,9 +248,9 @@ class behat_forms extends behat_base {
      *
      * @Then /^the "(?P<checkbox_string>(?:[^"]|\\")*)" checkbox should not be checked$/
      * @see Behat\MinkExtension\Context\MinkContext
+     * @param string $checkbox
      */
     public function assert_checkbox_not_checked($checkbox) {
-        $checkbox = $this->fixStepArgument($checkbox);
         $this->assertSession()->checkboxNotChecked($checkbox);
     }
 
@@ -207,9 +264,6 @@ class behat_forms extends behat_base {
      * @param string $option The option text/value
      */
     public function the_select_box_should_contain($select, $option) {
-
-        $select = $this->fixStepArgument($select);
-        $option = $this->fixStepArgument($option);
 
         $selectnode = $this->find_field($select);
 
@@ -234,9 +288,6 @@ class behat_forms extends behat_base {
      */
     public function the_select_box_should_not_contain($select, $option) {
 
-        $select = $this->fixStepArgument($select);
-        $option = $this->fixStepArgument($option);
-
         $selectnode = $this->find_field($select);
 
         $regex = '/' . preg_quote($option, '/') . '/ui';
@@ -249,7 +300,13 @@ class behat_forms extends behat_base {
     }
 
     /**
-     * Gets an instance of the form element field.
+     * Gets an instance of the form field.
+     *
+     * Not all the fields are part of a moodle form, in this
+     * cases it fallsback to the generic form field. Also note
+     * that this generic field type is using a generic setValue()
+     * method from the Behat API, which is not always good to set
+     * the value of form elements.
      *
      * @param NodeElement $fieldnode The current node
      * @param string $locator Just to send an exception that makes sense for the user
@@ -258,10 +315,16 @@ class behat_forms extends behat_base {
     protected function get_field(NodeElement $fieldnode, $locator) {
         global $CFG;
 
-        $locator = $this->fixStepArgument($locator);
+        // Get the field type if is part of a moodleform.
+        if ($this->is_moodleform_field($fieldnode)) {
+            $type = $this->get_node_type($fieldnode, $locator);
+        }
 
-        // Get the field type.
-        $type = $this->get_node_type($fieldnode, $locator);
+        // If is not a moodleforms field use the base field type.
+        if (empty($type)) {
+            $type = 'field';
+        }
+
         $classname = 'behat_form_' . $type;
 
         // Fallsback on the default form field if nothing specific exists.
@@ -277,19 +340,35 @@ class behat_forms extends behat_base {
     }
 
     /**
+     * Detects when the field is a moodleform field type.
+     *
+     * Note that there are fields inside moodleforms that are not
+     * moodleform element; this method can not detect this, this will
+     * be managed by get_node_type, after failing to find the form
+     * element element type.
+     *
+     * @param NodeElement $fieldnode
+     * @return bool
+     */
+    protected function is_moodleform_field(NodeElement $fieldnode) {
+
+        // We already waited when getting the NodeElement and we don't want an exception if it's not part of a moodleform.
+        $parentformfound = $fieldnode->find('xpath', "/ancestor::form[contains(concat(' ', normalize-space(@class), ' '), ' mform ')]/fieldset");
+
+        return ($parentformfound != false);
+    }
+
+    /**
      * Recursive method to find the field type.
      *
      * Depending on the field the felement class node is a level or in another. We
      * look recursively for a parent node with a 'felement' class to find the field type.
      *
-     * @throws ExpectationException
-     * @param NodeElement $fieldnode The current node
-     * @param string $locator Just to send an exception that makes sense for the user
-     * @return mixed String or NodeElement depending if we have reached the felement node
+     * @param NodeElement $fieldnode The current node.
+     * @param string $locator Just to send an exception that makes sense for the user.
+     * @return mixed A NodeElement if we continue looking for the element type and String or false when we are done.
      */
     protected function get_node_type(NodeElement $fieldnode, $locator) {
-
-        $locator = $this->fixStepArgument($locator);
 
         // We look for a parent node with 'felement' class.
         if ($class = $fieldnode->getParent()->getAttribute('class')) {
@@ -299,9 +378,9 @@ class behat_forms extends behat_base {
                 return substr($class, 10);
             }
 
-            // Stop propagation through the DOM, something went wrong!.
+            // Stop propagation through the DOM, if it does not have a felement is not part of a moodle form.
             if (strstr($class, 'fcontainer') != false) {
-                throw new ExpectationException('No field type for ' . $locator . ' found, ensure the field exists', $this->getSession());
+                return false;
             }
         }
 

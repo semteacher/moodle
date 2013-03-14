@@ -43,6 +43,7 @@ list($options, $unrecognized) = cli_get_params(
         'drop'    => false,
         'enable'  => false,
         'disable' => false,
+        'diag'    => false
     ),
     array(
         'h' => 'help'
@@ -59,6 +60,7 @@ Options:
 --drop     Drops the database tables and the dataroot contents
 --enable   Enables test environment and updates tests list
 --disable  Disables test environment
+--diag     Get behat test environment status code
 
 -h, --help     Print out this help
 
@@ -84,6 +86,7 @@ error_reporting(E_ALL | E_STRICT);
 ini_set('display_errors', '1');
 ini_set('log_errors', '1');
 
+// Getting $CFG data.
 require_once(__DIR__ . '/../../../../config.php');
 
 // CFG->behat_prefix must be set and with value different than CFG->prefix and phpunit_prefix.
@@ -141,6 +144,10 @@ foreach ($vars as $var) {
 $CFG->noemailever = true;
 $CFG->passwordsaltmain = 'moodle';
 
+// Unset cache and temp directories to reset them again with the new $CFG->dataroot.
+unset($CFG->cachedir);
+unset($CFG->tempdir);
+
 // Continues setup.
 define('ABORT_AFTER_CONFIG_CANCEL', true);
 require("$CFG->dirroot/lib/setup.php");
@@ -178,6 +185,9 @@ if ($options['install']) {
 } else if ($options['disable']) {
     behat_util::stop_test_mode();
     mtrace("Acceptance tests environment disabled");
+} else if ($options['diag']) {
+    $code = behat_util::get_behat_status();
+    exit($code);
 } else {
     echo $help;
 }

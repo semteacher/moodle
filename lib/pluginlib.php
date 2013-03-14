@@ -362,6 +362,7 @@ class plugin_manager {
     public static function is_deleted_standard_plugin($type, $name) {
         static $plugins = array(
             // do not add 1.9-2.2 plugin removals here
+            'qformat' => array('blackboard'),
         );
 
         if (!isset($plugins[$type])) {
@@ -508,7 +509,7 @@ class plugin_manager {
             ),
 
             'qformat' => array(
-                'aiken', 'blackboard', 'blackboard_six', 'examview', 'gift',
+                'aiken', 'blackboard_six', 'examview', 'gift',
                 'learnwise', 'missingword', 'multianswer', 'webct',
                 'xhtml', 'xml'
             ),
@@ -2857,8 +2858,12 @@ class plugininfo_mod extends plugininfo_base {
         $versionfile = $this->full_path('version.php');
 
         $module = new stdClass();
+        $plugin = new stdClass();
         if (is_readable($versionfile)) {
             include($versionfile);
+        }
+        if (!isset($module->version) and isset($plugin->version)) {
+            $module = $plugin;
         }
         return $module;
     }
