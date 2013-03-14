@@ -76,6 +76,12 @@ class cache_factory {
     protected $cachesfromparams = array();
 
     /**
+     * An array of stores organised by definitions.
+     * @var array
+     */
+    protected $definitionstores = array();
+
+    /**
      * An array of instantiated stores.
      * @var array
      */
@@ -203,6 +209,7 @@ class cache_factory {
         }
         // Get the class. Note this is a late static binding so we need to use get_called_class.
         $definition = cache_definition::load_adhoc($mode, $component, $area, $options);
+        $config = $this->create_config_instance();
         $definition->set_identifiers($identifiers);
         $cache = $this->create_cache($definition, $identifiers);
         if ($definition->should_be_persistent()) {
@@ -271,7 +278,25 @@ class cache_factory {
         // order to address the issues.
         $store = $this->stores[$name]->create_clone($details);
         $store->initialise($definition);
+        $definitionid = $definition->get_id();
+        if (!isset($this->definitionstores[$definitionid])) {
+            $this->definitionstores[$definitionid] = array();
+        }
+        $this->definitionstores[$definitionid][] = $store;
         return $store;
+    }
+
+    /**
+     * Returns an array of cache stores that have been initialised for use in definitions.
+     * @param cache_definition $definition
+     * @return array
+     */
+    public function get_store_instances_in_use(cache_definition $definition) {
+        $id = $definition->get_id();
+        if (!isset($this->definitionstores[$id])) {
+            return array();
+        }
+        return $this->definitionstores[$id];
     }
 
     /**
