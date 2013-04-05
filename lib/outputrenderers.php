@@ -364,8 +364,15 @@ class core_renderer extends renderer_base {
         // flow player embedding support
         $this->page->requires->js_function_call('M.util.load_flowplayer');
 
-        // Set up help link popups for all links with the helplinkpopup class
+        // Set up help link popups for all links with the helptooltip class
         $this->page->requires->js_init_call('M.util.help_popups.setup');
+
+        // Setup help icon overlays.
+        $this->page->requires->yui_module('moodle-core-popuphelp', 'M.core.init_popuphelp');
+        $this->page->requires->strings_for_js(array(
+            'morehelp',
+            'loadinghelp',
+        ), 'moodle');
 
         $this->page->requires->js_function_call('setTimeout', array('fix_column_widths()', 20));
 
@@ -594,7 +601,7 @@ class core_renderer extends renderer_base {
             } else if (is_role_switched($course->id)) { // Has switched roles
                 $rolename = '';
                 if ($role = $DB->get_record('role', array('id'=>$USER->access['rsw'][$context->path]))) {
-                    $rolename = ': '.format_string($role->name);
+                    $rolename = ': '.role_get_name($role, $context);
                 }
                 $loggedinas = get_string('loggedinas', 'moodle', $username).$rolename;
                 if ($withlinks) {
@@ -749,6 +756,9 @@ class core_renderer extends renderer_base {
         if (session_is_loggedinas()) {
             $this->page->add_body_class('userloggedinas');
         }
+
+        // Give themes a chance to init/alter the page object.
+        $this->page->theme->init_page($this->page);
 
         $this->page->set_state(moodle_page::STATE_PRINTING_HEADER);
 
@@ -1221,13 +1231,20 @@ class core_renderer extends renderer_base {
      */
     public function blocks_for_region($region) {
         $blockcontents = $this->page->blocks->get_content_for_region($region, $this);
-
+        $blocks = $this->page->blocks->get_blocks_for_region($region);
+        $lastblock = null;
+        $zones = array();
+        foreach ($blocks as $block) {
+            $zones[] = $block->title;
+        }
         $output = '';
+
         foreach ($blockcontents as $bc) {
             if ($bc instanceof block_contents) {
                 $output .= $this->block($bc, $region);
+                $lastblock = $bc->title;
             } else if ($bc instanceof block_move_target) {
-                $output .= $this->block_move_target($bc);
+                $output .= $this->block_move_target($bc, $zones, $lastblock);
             } else {
                 throw new coding_exception('Unexpected type of thing (' . get_class($bc) . ') found in list of block contents.');
             }
@@ -1239,10 +1256,17 @@ class core_renderer extends renderer_base {
      * Output a place where the block that is currently being moved can be dropped.
      *
      * @param block_move_target $target with the necessary details.
+     * @param array $zones array of areas where the block can be moved to
+     * @param string $previous the block located before the area currently being rendered.
      * @return string the HTML to be output.
      */
-    public function block_move_target($target) {
-        return html_writer::tag('a', html_writer::tag('span', $target->text, array('class' => 'accesshide')), array('href' => $target->url, 'class' => 'blockmovetarget'));
+    public function block_move_target($target, $zones, $previous) {
+        if ($previous == null) {
+            $position = get_string('moveblockbefore', 'block', $zones[0]);
+        } else {
+            $position = get_string('moveblockafter', 'block', $previous);
+        }
+        return html_writer::tag('a', html_writer::tag('span', $position, array('class' => 'accesshide')), array('href' => $target->url, 'class' => 'blockmovetarget'));
     }
 
     /**
@@ -1524,8 +1548,6 @@ class core_renderer extends renderer_base {
 
         if ($select->helpicon instanceof help_icon) {
             $output .= $this->render($select->helpicon);
-        } else if ($select->helpicon instanceof old_help_icon) {
-            $output .= $this->render($select->helpicon);
         }
         $output .= html_writer::select($select->options, $select->name, $select->selected, $select->nothing, $select->attributes);
 
@@ -1614,8 +1636,6 @@ class core_renderer extends renderer_base {
         }
 
         if ($select->helpicon instanceof help_icon) {
-            $output .= $this->render($select->helpicon);
-        } else if ($select->helpicon instanceof old_help_icon) {
             $output .= $this->render($select->helpicon);
         }
 
@@ -1886,66 +1906,9 @@ class core_renderer extends renderer_base {
      * Returns HTML to display a help icon.
      *
      * @deprecated since Moodle 2.0
-     * @param string $helpidentifier The keyword that defines a help page
-     * @param string $title A descriptive text for accessibility only
-     * @param string $component component name
-     * @param string|bool $linktext true means use $title as link text, string means link text value
-     * @return string HTML fragment
      */
     public function old_help_icon($helpidentifier, $title, $component = 'moodle', $linktext = '') {
-        debugging('The method old_help_icon() is deprecated, please fix the code and use help_icon() method instead', DEBUG_DEVELOPER);
-        $icon = new old_help_icon($helpidentifier, $title, $component);
-        if ($linktext === true) {
-            $icon->linktext = $title;
-        } else if (!empty($linktext)) {
-            $icon->linktext = $linktext;
-        }
-        return $this->render($icon);
-    }
-
-    /**
-     * Implementation of user image rendering.
-     *
-     * @param old_help_icon $helpicon A help icon instance
-     * @return string HTML fragment
-     */
-    protected function render_old_help_icon(old_help_icon $helpicon) {
-        global $CFG;
-
-        // first get the help image icon
-        $src = $this->pix_url('help');
-
-        if (empty($helpicon->linktext)) {
-            $alt = $helpicon->title;
-        } else {
-            $alt = get_string('helpwiththis');
-        }
-
-        $attributes = array('src'=>$src, 'alt'=>$alt, 'class'=>'iconhelp');
-        $output = html_writer::empty_tag('img', $attributes);
-
-        // add the link text if given
-        if (!empty($helpicon->linktext)) {
-            // the spacing has to be done through CSS
-            $output .= $helpicon->linktext;
-        }
-
-        // now create the link around it - we need https on loginhttps pages
-        $url = new moodle_url($CFG->httpswwwroot.'/help.php', array('component' => $helpicon->component, 'identifier' => $helpicon->helpidentifier, 'lang'=>current_language()));
-
-        // note: this title is displayed only if JS is disabled, otherwise the link will have the new ajax tooltip
-        $title = get_string('helpprefix2', '', trim($helpicon->title, ". \t"));
-
-        $attributes = array('href'=>$url, 'title'=>$title, 'aria-haspopup' => 'true');
-        $id = html_writer::random_id('helpicon');
-        $attributes['id'] = $id;
-        $output = html_writer::tag('a', $output, $attributes);
-
-        $this->page->requires->js_init_call('M.util.help_icon.add', array(array('id'=>$id, 'url'=>$url->out(false))));
-        $this->page->requires->string_for_js('close', 'form');
-
-        // and finally span
-        return html_writer::tag('span', $output, array('class' => 'helplink'));
+        throw new coding_exception('old_help_icon() can not be used any more, please see help_icon().');
     }
 
     /**
@@ -2002,14 +1965,11 @@ class core_renderer extends renderer_base {
         // note: this title is displayed only if JS is disabled, otherwise the link will have the new ajax tooltip
         $title = get_string('helpprefix2', '', trim($title, ". \t"));
 
-        $attributes = array('href'=>$url, 'title'=>$title, 'aria-haspopup' => 'true', 'class' => 'tooltip');
+        $attributes = array('href' => $url, 'title' => $title, 'aria-haspopup' => 'true');
         $output = html_writer::tag('a', $output, $attributes);
 
-        $this->page->requires->js_init_call('M.util.help_icon.setup');
-        $this->page->requires->string_for_js('close', 'form');
-
         // and finally span
-        return html_writer::tag('span', $output, array('class' => 'helplink'));
+        return html_writer::tag('span', $output, array('class' => 'helptooltip'));
     }
 
     /**
@@ -2387,12 +2347,16 @@ EOD;
             }
             error_reporting($CFG->debug);
 
-            // Header not yet printed
-            if (isset($_SERVER['SERVER_PROTOCOL'])) {
-                // server protocol should be always present, because this render
-                // can not be used from command line or when outputting custom XML
-                @header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+            // Output not yet started.
+            $protocol = (isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0');
+            if (empty($_SERVER['HTTP_RANGE'])) {
+                @header($protocol . ' 404 Not Found');
+            } else {
+                // Must stop byteserving attempts somehow,
+                // this is weird but Chrome PDF viewer can be stopped only with 407!
+                @header($protocol . ' 407 Proxy Authentication Required');
             }
+
             $this->page->set_context(null); // ugly hack - make sure page context is set to something, we do not want bogus warnings here
             $this->page->set_url('/'); // no url
             //$this->page->set_pagelayout('base'); //TODO: MDL-20676 blocks on error pages are weird, unfortunately it somehow detect the pagelayout from URL :-(

@@ -137,12 +137,21 @@ class moodle_exception extends Exception {
 
         if (get_string_manager()->string_exists($errorcode, $module)) {
             $message = get_string($errorcode, $module, $a);
+            $haserrorstring = true;
         } else {
             $message = $module . '/' . $errorcode;
+            $haserrorstring = false;
         }
 
         if (defined('PHPUNIT_TEST') and PHPUNIT_TEST and $debuginfo) {
             $message = "$message ($debuginfo)";
+        }
+
+        if (!$haserrorstring and defined('PHPUNIT_TEST') and PHPUNIT_TEST) {
+            // Append the contents of $a to $debuginfo so helpful information isn't lost.
+            // This emulates what {@link get_exception_info()} does. Unfortunately that
+            // function is not used by phpunit.
+            $message .= PHP_EOL.'$a contents: '.print_r($a, true);
         }
 
         parent::__construct($message, 0);
@@ -515,6 +524,22 @@ function get_exception_info($ex) {
     } else {
         $message = $module . '/' . $errorcode;
         $debuginfo .= PHP_EOL.'$a contents: '.print_r($a, true);
+    }
+
+    // Remove some absolute paths from message and debugging info.
+    $searches = array();
+    $replaces = array();
+    $cfgnames = array('tempdir', 'cachedir', 'themedir',
+        'langmenucachefile', 'langcacheroot', 'dataroot', 'dirroot');
+    foreach ($cfgnames as $cfgname) {
+        if (property_exists($CFG, $cfgname)) {
+            $searches[] = $CFG->$cfgname;
+            $replaces[] = "[$cfgname]";
+        }
+    }
+    if (!empty($searches)) {
+        $message   = str_replace($searches, $replaces, $message);
+        $debuginfo = str_replace($searches, $replaces, $debuginfo);
     }
 
     // Be careful, no guarantee weblib.php is loaded.
@@ -1140,8 +1165,8 @@ function disable_output_buffering() {
  */
 function redirect_if_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2012110201;
-    if (empty($CFG->version) or (int)$CFG->version < $lastmajordbchanges or
+    $lastmajordbchanges = 2013022500.01;
+    if (empty($CFG->version) or (float)$CFG->version < $lastmajordbchanges or
             during_initial_install() or !empty($CFG->adminsetuppending)) {
         try {
             @session_get_instance()->terminate_current();
@@ -1522,12 +1547,9 @@ width: 80%; -moz-border-radius: 20px; padding: 15px">
         }
 
         // In the name of protocol correctness, monitoring and performance
-        // profiling, set the appropriate error headers for machine consumption
-        if (isset($_SERVER['SERVER_PROTOCOL'])) {
-            // Avoid it with cron.php. Note that we assume it's HTTP/1.x
-            // The 503 ode here means our Moodle does not work at all, the error happened too early
-            @header($_SERVER['SERVER_PROTOCOL'] . ' 503 Service Unavailable');
-        }
+        // profiling, set the appropriate error headers for machine consumption.
+        $protocol = (isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0');
+        @header($protocol . ' 503 Service Unavailable');
 
         // better disable any caching
         @header('Content-Type: text/html; charset=utf-8');

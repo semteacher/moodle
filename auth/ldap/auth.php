@@ -529,6 +529,9 @@ class auth_plugin_ldap extends auth_plugin_base {
         profile_save_data($user);
 
         $this->update_user_record($user->username);
+        // This will also update the stored hash to the latest algorithm
+        // if the existing hash is using an out-of-date algorithm (or the
+        // legacy md5 algorithm).
         update_internal_user_password($user, $plainslashedpassword);
 
         $user = $DB->get_record('user', array('id'=>$user->id));
@@ -1731,10 +1734,6 @@ class auth_plugin_ldap extends auth_plugin_base {
         if (!function_exists('ldap_connect')) { // Is php-ldap really there?
             echo $OUTPUT->notification(get_string('auth_ldap_noextension', 'auth_ldap'));
             return;
-        }
-
-        if (!ldap_paged_results_supported($this->config->ldap_version)) {
-            echo $OUTPUT->notification(get_string('pagedresultsnotsupp', 'auth_ldap'));
         }
 
         include($CFG->dirroot.'/auth/ldap/config.html');
