@@ -35,7 +35,7 @@ class mod_choice_mod_form extends moodleform_mod {
         $menuoptions = array();
         $menuoptions[0] = get_string('disable');
         $menuoptions[1] = get_string('enable');
-        $mform->addElement('header', 'timerestricthdr', get_string('limit', 'choice'));
+        $mform->addElement('header', 'limithdr', get_string('limit', 'choice'));
         $mform->addElement('select', 'limitanswers', get_string('limitanswers', 'choice'), $menuoptions);
         $mform->addHelpButton('limitanswers', 'limitanswers', 'choice');
 
@@ -50,6 +50,7 @@ class mod_choice_mod_form extends moodleform_mod {
         $repeateloptions['limit']['default'] = 0;
         $repeateloptions['limit']['disabledif'] = array('limitanswers', 'eq', 0);
         $repeateloptions['limit']['rule'] = 'numeric';
+        $repeateloptions['limit']['type'] = PARAM_INT;
 
         $repeateloptions['option']['helpbutton'] = array('choiceoptions', 'choice');
         $mform->setType('option', PARAM_CLEANHTML);
@@ -59,8 +60,10 @@ class mod_choice_mod_form extends moodleform_mod {
         $this->repeat_elements($repeatarray, $repeatno,
                     $repeateloptions, 'option_repeats', 'option_add_fields', 3);
 
-
-
+        // Make the first option required
+        if ($mform->elementExists('option[0]')) {
+            $mform->addRule('option[0]', get_string('atleastoneoption', 'choice'), 'required', null, 'client');
+        }
 
 //-------------------------------------------------------------------------------
         $mform->addElement('header', 'timerestricthdr', get_string('timerestrict', 'choice'));
@@ -114,23 +117,6 @@ class mod_choice_mod_form extends moodleform_mod {
             $default_values['timerestrict'] = 1;
         }
 
-    }
-
-    function validation($data, $files) {
-        $errors = parent::validation($data, $files);
-
-        $choices = 0;
-        foreach ($data['option'] as $option){
-            if (trim($option) != ''){
-                $choices++;
-            }
-        }
-
-        if ($choices < 1) {
-           $errors['option[0]'] = get_string('atleastoneoption', 'choice');
-        }
-
-        return $errors;
     }
 
     function get_data() {
