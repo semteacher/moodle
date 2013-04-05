@@ -1277,7 +1277,8 @@ function download_file_content($url, $headers=null, $postdata=null, $fullrespons
         //reinstate affected curl options
         curl_setopt_array ($ch, array(
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_NOBODY         => false)
+            CURLOPT_NOBODY         => false,
+            CURLOPT_HTTPGET        => true)
         );
     }
 
@@ -1492,6 +1493,8 @@ function &get_mimetypes_array() {
         'm'    => array ('type'=>'text/plain', 'icon'=>'sourcecode'),
         'mbz'  => array ('type'=>'application/vnd.moodle.backup', 'icon'=>'moodle'),
         'mdb'  => array ('type'=>'application/x-msaccess', 'icon'=>'base'),
+        'mht'  => array ('type'=>'message/rfc822', 'icon'=>'archive'),
+        'mhtml'=> array ('type'=>'message/rfc822', 'icon'=>'archive'),
         'mov'  => array ('type'=>'video/quicktime', 'icon'=>'quicktime', 'groups'=>array('video','web_video'), 'string'=>'video'),
         'movie'=> array ('type'=>'video/x-sgi-movie', 'icon'=>'quicktime', 'groups'=>array('video'), 'string'=>'video'),
         'm3u'  => array ('type'=>'audio/x-mpegurl', 'icon'=>'mp3', 'groups'=>array('audio'), 'string'=>'audio'),

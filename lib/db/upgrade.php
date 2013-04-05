@@ -1610,9 +1610,7 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2012120301.13);
     }
 
-    // This is checking to see if the site has been running a specific version with a bug in it
-    // because this upgrade step is slow and is only needed if the site has been running with the affected versions.
-    if ($oldversion >= 2012062504.08 && $oldversion < 2012062504.13) {
+    if ($oldversion < 2012120302.01) {
         // Retrieve the list of course_sections as a recordset to save memory.
         // This is to fix a regression caused by MDL-37939.
         // In this case the upgrade step is fixing records where:
@@ -1670,7 +1668,23 @@ function xmldb_main_upgrade($oldversion) {
         }
         $coursesections->close();
 
-        // No save point needed for this change
+        upgrade_main_savepoint(true, 2012120302.01);
+    }
+
+    if ($oldversion < 2012120303.02) {
+        // Fixing possible wrong MIME type for MIME HTML (MHTML) files.
+        $extensions = array('%.mht', '%.mhtml');
+        $select = $DB->sql_like('filename', '?', false);
+        foreach ($extensions as $extension) {
+            $DB->set_field_select(
+                'files',
+                'mimetype',
+                'message/rfc822',
+                $select,
+                array($extension)
+            );
+        }
+        upgrade_main_savepoint(true, 2012120303.02);
     }
 
     return true;
