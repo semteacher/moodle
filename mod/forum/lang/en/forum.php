@@ -135,6 +135,8 @@ $string['displaymode'] = 'Display mode';
 $string['displayperiod'] = 'Display period';
 $string['displaystart'] = 'Display start';
 $string['displaystart_help'] = 'This setting specifies whether a forum post should be displayed from a certain date. Note that administrators can always view forum posts.';
+$string['displaywordcount'] = 'Display word count';
+$string['displaywordcount_help'] = 'This setting specifies whether the word count of each post should be displayed or not.';
 $string['eachuserforum'] = 'Each person posts one discussion';
 $string['edit'] = 'Edit';
 $string['editedby'] = 'Edited by {$a->name} - original submission {$a->date}';
@@ -167,7 +169,7 @@ $string['forum:editanypost'] = 'Edit any post';
 $string['forum:exportdiscussion'] = 'Export whole discussion';
 $string['forum:exportownpost'] = 'Export own post';
 $string['forum:exportpost'] = 'Export post';
-$string['forumintro'] = 'Forum introduction';
+$string['forumintro'] = 'Description';
 $string['forum:managesubscriptions'] = 'Manage subscriptions';
 $string['forum:movediscussions'] = 'Move discussions';
 $string['forum:postwithoutthrottling'] = 'Exempt from post threshold';
@@ -185,7 +187,7 @@ $string['forumtrackednot'] = 'Unread posts are not being tracked';
 $string['forumtype'] = 'Forum type';
 $string['forumtype_help'] = 'There are 5 forum types:
 
-* A single simple discussion - A single discussion topic which everyone can reply to
+* A single simple discussion - A single discussion topic which everyone can reply to (cannot be used with separate groups)
 * Each person posts one discussion - Each student can post exactly one new discussion topic, which everyone can then reply to
 * Q and A forum - Students must first post their perspectives before viewing other students\' posts
 * Standard forum displayed in a blog-like format - An open forum where anyone can start a new discussion at any time, and in which discussion topics are displayed on one page with "Discuss this topic" links
@@ -279,7 +281,6 @@ $string['nopostforum'] = 'Sorry, you are not allowed to post to this forum';
 $string['noposts'] = 'No posts';
 $string['nopostsmadebyuser'] = '{$a} has made no posts';
 $string['nopostsmadebyyou'] = 'You haven\'t made any posts';
-$string['nopostscontaining'] = 'No posts containing \'{$a}\' were found';
 $string['noquestions'] = 'There are no questions yet in this forum';
 $string['nosubscribers'] = 'There are no subscribers yet for this forum';
 $string['notexists'] = 'Discussion no longer exists';

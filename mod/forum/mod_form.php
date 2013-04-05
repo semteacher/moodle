@@ -72,7 +72,6 @@ class mod_forum_mod_form extends moodleform_mod {
 
         $choices = get_max_upload_sizes($CFG->maxbytes, $COURSE->maxbytes);
         $choices[1] = get_string('uploadnotallowed');
-        $choices[0] = get_string('courseuploadlimit') . ' ('.display_size($COURSE->maxbytes).')';
         $mform->addElement('select', 'maxbytes', get_string('maxattachmentsize', 'forum'), $choices);
         $mform->addHelpButton('maxbytes', 'maxattachmentsize', 'forum');
         $mform->setDefault('maxbytes', $CFG->forum_maxbytes);
@@ -82,9 +81,14 @@ class mod_forum_mod_form extends moodleform_mod {
         $mform->addHelpButton('maxattachments', 'maxattachments', 'forum');
         $mform->setDefault('maxattachments', $CFG->forum_maxattachments);
 
+        $mform->addElement('selectyesno', 'displaywordcount', get_string('displaywordcount', 'forum'));
+        $mform->addHelpButton('displaywordcount', 'displaywordcount', 'forum');
+        $mform->setDefault('displaywordcount', 0);
+        $mform->setAdvanced('displaywordcount');
+
         if ($CFG->enablerssfeeds && isset($CFG->forum_enablerssfeeds) && $CFG->forum_enablerssfeeds) {
 //-------------------------------------------------------------------------------
-            $mform->addElement('header', '', get_string('rss'));
+            $mform->addElement('header', 'rssheader', get_string('rss'));
             $choices = array();
             $choices[0] = get_string('none');
             $choices[1] = get_string('discussions', 'forum');
@@ -108,10 +112,11 @@ class mod_forum_mod_form extends moodleform_mod {
             $choices[50] = '50';
             $mform->addElement('select', 'rssarticles', get_string('rssarticles'), $choices);
             $mform->addHelpButton('rssarticles', 'rssarticles', 'forum');
+            $mform->disabledIf('rssarticles', 'rsstype', 'eq', '0');
         }
 
 //-------------------------------------------------------------------------------
-        $mform->addElement('header', '', get_string('blockafter', 'forum'));
+        $mform->addElement('header', 'blockafterheader', get_string('blockafter', 'forum'));
         $options = array();
         $options[0] = get_string('blockperioddisabled','forum');
         $options[60*60*24]   = '1 '.get_string('day');
