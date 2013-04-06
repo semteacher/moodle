@@ -138,7 +138,7 @@ abstract class question_edit_form extends question_wizard_form {
                 $contexts = $this->contexts->having_cap('moodle/question:add');
             }
 
-            // Adding question
+            // Adding question.
             $mform->addElement('questioncategory', 'category', get_string('category', 'question'),
                     array('contexts' => $contexts));
         } else if (!($this->question->formoptions->canmove ||
@@ -153,14 +153,14 @@ abstract class question_edit_form extends question_wizard_form {
                     array('contexts' => $this->contexts->having_cap('moodle/question:add')));
 
         } else {
-            // Editing question with permission to move from category or save as new q
+            // Editing question with permission to move from category or save as new q.
             $currentgrp = array();
             $currentgrp[0] = $mform->createElement('questioncategory', 'category',
                     get_string('categorycurrent', 'question'),
                     array('contexts' => array($this->categorycontext)));
             if ($this->question->formoptions->canedit ||
                     $this->question->formoptions->cansaveasnew) {
-                //not move only form
+                // Not move only form.
                 $currentgrp[1] = $mform->createElement('checkbox', 'usecurrentcat', '',
                         get_string('categorycurrentuse', 'question'));
                 $mform->setDefault('usecurrentcat', 1);
@@ -175,7 +175,7 @@ abstract class question_edit_form extends question_wizard_form {
                     array('contexts' => array($this->categorycontext)));
             if ($this->question->formoptions->canedit ||
                     $this->question->formoptions->cansaveasnew) {
-                //not move only form
+                // Not move only form.
                 $mform->disabledIf('categorymoveto', 'usecurrentcat', 'checked');
             }
         }
@@ -242,7 +242,7 @@ abstract class question_edit_form extends question_wizard_form {
 
         $buttonarray = array();
         if (!empty($this->question->id)) {
-            // Editing / moving question
+            // Editing / moving question.
             if ($this->question->formoptions->movecontext) {
                 $buttonarray[] = $mform->createElement('submit', 'submitbutton',
                         get_string('moveq', 'question'));
@@ -256,7 +256,7 @@ abstract class question_edit_form extends question_wizard_form {
             }
             $buttonarray[] = $mform->createElement('cancel');
         } else {
-            // Adding new question
+            // Adding new question.
             $buttonarray[] = $mform->createElement('submit', 'submitbutton',
                     get_string('savechanges'));
             $buttonarray[] = $mform->createElement('cancel');
@@ -294,11 +294,13 @@ abstract class question_edit_form extends question_wizard_form {
     protected function get_per_answer_fields($mform, $label, $gradeoptions,
             &$repeatedoptions, &$answersoption) {
         $repeated = array();
-        $repeated[] = $mform->createElement('header', 'answerhdr', $label);
-        $repeated[] = $mform->createElement('text', 'answer',
-                get_string('answer', 'question'), array('size' => 80));
-        $repeated[] = $mform->createElement('select', 'fraction',
+        $answeroptions = array();
+        $answeroptions[] = $mform->createElement('text', 'answer',
+                $label, array('size' => 40));
+        $answeroptions[] = $mform->createElement('select', 'fraction',
                 get_string('grade'), $gradeoptions);
+        $repeated[] = $mform->createElement('group', 'answeroptions',
+                 $label, $answeroptions, null, false);
         $repeated[] = $mform->createElement('editor', 'feedback',
                 get_string('feedback', 'question'), array('rows' => 5), $this->editoroptions);
         $repeatedoptions['answer']['type'] = PARAM_RAW;
@@ -319,25 +321,23 @@ abstract class question_edit_form extends question_wizard_form {
      */
     protected function add_per_answer_fields(&$mform, $label, $gradeoptions,
             $minoptions = QUESTION_NUMANS_START, $addoptions = QUESTION_NUMANS_ADD) {
+        $mform->addElement('header', 'answerhdr',
+                    get_string('answers', 'question'), '');
+        $mform->setExpanded('answerhdr', 1);
         $answersoption = '';
         $repeatedoptions = array();
         $repeated = $this->get_per_answer_fields($mform, $label, $gradeoptions,
                 $repeatedoptions, $answersoption);
 
         if (isset($this->question->options)) {
-            $countanswers = count($this->question->options->$answersoption);
+            $repeatsatstart = count($this->question->options->$answersoption);
         } else {
-            $countanswers = 0;
-        }
-        if ($this->question->formoptions->repeatelements) {
-            $repeatsatstart = max($minoptions, $countanswers + $addoptions);
-        } else {
-            $repeatsatstart = $countanswers;
+            $repeatsatstart = $minoptions;
         }
 
         $this->repeat_elements($repeated, $repeatsatstart, $repeatedoptions,
                 'noanswers', 'addanswers', $addoptions,
-                $this->get_more_choices_string());
+                $this->get_more_choices_string(), true);
     }
 
     /**
@@ -371,22 +371,34 @@ abstract class question_edit_form extends question_wizard_form {
         }
     }
 
+    /**
+     * Create the form elements required by one hint.
+     * @param string $withclearwrong whether this quesiton type uses the 'Clear wrong' option on hints.
+     * @param string $withshownumpartscorrect whether this quesiton type uses the 'Show num parts correct' option on hints.
+     * @return array form field elements for one hint.
+     */
     protected function get_hint_fields($withclearwrong = false, $withshownumpartscorrect = false) {
         $mform = $this->_form;
 
+        $repeatedoptions = array();
         $repeated = array();
-        $repeated[] = $mform->createElement('header', 'hinthdr', get_string('hintn', 'question'));
-        $repeated[] = $mform->createElement('editor', 'hint', get_string('hinttext', 'question'),
+        $repeated[] = $mform->createElement('editor', 'hint', get_string('hintn', 'question'),
                 array('rows' => 5), $this->editoroptions);
         $repeatedoptions['hint']['type'] = PARAM_RAW;
 
+        $optionelements = array();
         if ($withclearwrong) {
-            $repeated[] = $mform->createElement('advcheckbox', 'hintclearwrong',
+            $optionelements[] = $mform->createElement('advcheckbox', 'hintclearwrong',
                     get_string('options', 'question'), get_string('clearwrongparts', 'question'));
         }
         if ($withshownumpartscorrect) {
-            $repeated[] = $mform->createElement('advcheckbox', 'hintshownumcorrect', '',
+            $optionelements[] = $mform->createElement('advcheckbox', 'hintshownumcorrect', '',
                     get_string('shownumpartscorrect', 'question'));
+        }
+
+        if (count($optionelements)) {
+            $repeated[] = $mform->createElement('group', 'hintoptions',
+                 get_string('hintnoptions', 'question'), $optionelements, null, false);
         }
 
         return array($repeated, $repeatedoptions);
@@ -418,7 +430,6 @@ abstract class question_edit_form extends question_wizard_form {
         }
         $mform->addElement('select', 'penalty',
                 get_string('penaltyforeachincorrecttry', 'question'), $penaltyoptions);
-        $mform->addRule('penalty', null, 'required', null, 'client');
         $mform->addHelpButton('penalty', 'penaltyforeachincorrecttry', 'question');
         $mform->setDefault('penalty', 0.3333333);
 
@@ -437,13 +448,13 @@ abstract class question_edit_form extends question_wizard_form {
         list($repeated, $repeatedoptions) = $this->get_hint_fields(
                 $withclearwrong, $withshownumpartscorrect);
         $this->repeat_elements($repeated, $repeatsatstart, $repeatedoptions,
-                'numhints', 'addhint', 1, get_string('addanotherhint', 'question'));
+                'numhints', 'addhint', 1, get_string('addanotherhint', 'question'), true);
     }
 
     public function set_data($question) {
         question_bank::get_qtype($question->qtype)->set_default_options($question);
 
-        // prepare question text
+        // Prepare question text.
         $draftid = file_get_submitted_draft_itemid('questiontext');
 
         if (!empty($question->questiontext)) {
@@ -462,7 +473,7 @@ abstract class question_edit_form extends question_wizard_form {
                 editors_get_preferred_format() : $question->questiontextformat;
         $question->questiontext['itemid'] = $draftid;
 
-        // prepare general feedback
+        // Prepare general feedback.
         $draftid = file_get_submitted_draft_itemid('generalfeedback');
 
         if (empty($question->generalfeedback)) {
@@ -498,7 +509,7 @@ abstract class question_edit_form extends question_wizard_form {
             }
         }
 
-        // subclass adds data_preprocessing code here
+        // Subclass adds data_preprocessing code here.
         $question = $this->data_preprocessing($question);
 
         parent::set_data($question);
@@ -528,7 +539,7 @@ abstract class question_edit_form extends question_wizard_form {
         $key = 0;
         foreach ($question->options->answers as $answer) {
             if ($withanswerfiles) {
-                // Prepare the feedback editor to display files in draft area
+                // Prepare the feedback editor to display files in draft area.
                 $draftitemid = file_get_submitted_draft_itemid('answer['.$key.']');
                 $question->answer[$key]['text'] = file_prepare_draft_area(
                     $draftitemid,          // draftid
@@ -556,10 +567,10 @@ abstract class question_edit_form extends question_wizard_form {
             // that ->_defaultValues['fraction[0]'] has already been set, but we
             // are using object notation here, so we will be setting
             // ->_defaultValues['fraction'][0]. That does not work, so we have
-            // to unset ->_defaultValues['fraction[0]']
+            // to unset ->_defaultValues['fraction[0]'].
             unset($this->_form->_defaultValues["fraction[$key]"]);
 
-            // Prepare the feedback editor to display files in draft area
+            // Prepare the feedback editor to display files in draft area.
             $draftitemid = file_get_submitted_draft_itemid('feedback['.$key.']');
             $question->feedback[$key]['text'] = file_prepare_draft_area(
                 $draftitemid,          // draftid
@@ -631,7 +642,7 @@ abstract class question_edit_form extends question_wizard_form {
         foreach ($question->hints as $hint) {
             $question->hint[$key] = array();
 
-            // prepare feedback editor to display files in draft area
+            // Prepare feedback editor to display files in draft area.
             $draftitemid = file_get_submitted_draft_itemid('hint['.$key.']');
             $question->hint[$key]['text'] = file_prepare_draft_area(
                 $draftitemid,          // draftid
@@ -665,6 +676,12 @@ abstract class question_edit_form extends question_wizard_form {
                 && empty($fromform['usecurrentcat']) && !$this->question->formoptions->canmove) {
             $errors['currentgrp'] = get_string('nopermissionmove', 'question');
         }
+
+        // Default mark.
+        if (array_key_exists('defaultmark', $fromform) && $fromform['defaultmark'] < 0) {
+            $errors['defaultmark'] = get_string('defaultmarkmustbepositive', 'question');
+        }
+
         return $errors;
     }
 

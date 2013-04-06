@@ -1210,11 +1210,15 @@ class moodle1_file_manager implements loggable {
      */
     public function migrate_file($sourcepath, $filepath = '/', $filename = null, $sortorder = 0, $timecreated = null, $timemodified = null) {
 
-        $sourcefullpath = $this->basepath.'/'.$sourcepath;
+        // Normalise Windows paths a bit.
+        $sourcepath = str_replace('\\', '/', $sourcepath);
 
-        if ($sourcefullpath !== clean_param($sourcefullpath, PARAM_PATH)) {
-            throw new moodle1_convert_exception('file_invalid_path', $sourcefullpath);
+        // PARAM_PATH must not be used on full OS path!
+        if ($sourcepath !== clean_param($sourcepath, PARAM_PATH)) {
+            throw new moodle1_convert_exception('file_invalid_path', $sourcepath);
         }
+
+        $sourcefullpath = $this->basepath.'/'.$sourcepath;
 
         if (!is_readable($sourcefullpath)) {
             throw new moodle1_convert_exception('file_not_readable', $sourcefullpath);
@@ -1274,6 +1278,12 @@ class moodle1_file_manager implements loggable {
      * @return array ids of the migrated files, empty array if the $rootpath not found
      */
     public function migrate_directory($rootpath, $relpath='/') {
+
+        // Check the trailing slash in the $rootpath
+        if (substr($rootpath, -1) === '/') {
+            debugging('moodle1_file_manager::migrate_directory() expects $rootpath without the trailing slash', DEBUG_DEVELOPER);
+            $rootpath = substr($rootpath, 0, strlen($rootpath) - 1);
+        }
 
         if (!file_exists($this->basepath.'/'.$rootpath.$relpath)) {
             return array();

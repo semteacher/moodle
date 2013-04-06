@@ -89,29 +89,40 @@ EOD;
     }
 
     /**
-     * Return generator for given plugin
-     * @param string $component
-     * @return mixed plugin data generator
+     * Return generator for given plugin or component.
+     * @param string $component the component name, e.g. 'mod_forum' or 'core_question'.
+     * @return component_generator_base or rather an instance of the appropriate subclass.
      */
     public function get_plugin_generator($component) {
         list($type, $plugin) = normalize_component($component);
-
-        if ($type !== 'mod' and $type !== 'block') {
-            throw new coding_exception("Plugin type $type does not support generators yet");
+        $cleancomponent = $type . '_' . $plugin;
+        if ($cleancomponent != $component) {
+            debugging("Please specify the component you want a generator for as " .
+                    "{$cleancomponent}, not {$component}.", DEBUG_DEVELOPER);
+            $component = $cleancomponent;
         }
 
-        $dir = get_plugin_directory($type, $plugin);
-
-        if (!isset($this->generators[$type.'_'.$plugin])) {
-            $lib = "$dir/tests/generator/lib.php";
-            if (!include_once($lib)) {
-                throw new coding_exception("Plugin $component does not support data generator, missing tests/generator/lib");
-            }
-            $classname = $type.'_'.$plugin.'_generator';
-            $this->generators[$type.'_'.$plugin] = new $classname($this);
+        if (isset($this->generators[$component])) {
+            return $this->generators[$component];
         }
 
-        return $this->generators[$type.'_'.$plugin];
+        $dir = get_component_directory($component);
+        $lib = $dir . '/tests/generator/lib.php';
+        if (!$dir || !is_readable($lib)) {
+            throw new coding_exception("Component {$component} does not support " .
+                    "generators yet. Missing tests/generator/lib.php.");
+        }
+
+        include_once($lib);
+        $classname = $component . '_generator';
+
+        if (!class_exists($classname)) {
+            throw new coding_exception("Component {$component} does not support " .
+                    "data generators yet. Class {$classname} not found.");
+        }
+
+        $this->generators[$component] = new $classname($this);
+        return $this->generators[$component];
     }
 
     /**
@@ -164,8 +175,12 @@ EOD;
             }
         }
 
-        if (!isset($record['password'])) {
-            $record['password'] = 'lala';
+        if (isset($record['password'])) {
+            $record['password'] = hash_internal_user_password($record['password']);
+        } else {
+            // The auth plugin may not fully support this,
+            // but it is still better/faster than hashing random stuff.
+            $record['password'] = AUTH_PASSWORD_NOT_CACHED;
         }
 
         if (!isset($record['email'])) {
@@ -192,8 +207,6 @@ EOD;
         $record['timemodified'] = $record['timecreated'];
         $record['lastip'] = '0.0.0.0';
 
-        $record['password'] = hash_internal_user_password($record['password']);
-
         if ($record['deleted']) {
             $delname = $record['email'].'.'.time();
             while ($DB->record_exists('user', array('username'=>$delname))) {
@@ -218,11 +231,11 @@ EOD;
      * Create a test course category
      * @param array|stdClass $record
      * @param array $options
-     * @return stdClass course category record
+     * @return coursecat course category record
      */
     public function create_category($record=null, array $options=null) {
         global $DB, $CFG;
-        require_once("$CFG->dirroot/course/lib.php");
+        require_once("$CFG->libdir/coursecatlib.php");
 
         $this->categorycount++;
         $i = $this->categorycount;
@@ -233,43 +246,15 @@ EOD;
             $record['name'] = 'Course category '.$i;
         }
 
-        if (!isset($record['idnumber'])) {
-            $record['idnumber'] = '';
-        }
-
         if (!isset($record['description'])) {
             $record['description'] = "Test course category $i\n$this->loremipsum";
         }
 
-        if (!isset($record['descriptionformat'])) {
-            $record['descriptionformat'] = FORMAT_MOODLE;
+        if (!isset($record['idnumber'])) {
+            $record['idnumber'] = '';
         }
 
-        if (!isset($record['parent'])) {
-            $record['parent'] = 0;
-        }
-
-        if (empty($record['parent'])) {
-            $parent = new stdClass();
-            $parent->path = '';
-            $parent->depth = 0;
-        } else {
-            $parent = $DB->get_record('course_categories', array('id'=>$record['parent']), '*', MUST_EXIST);
-        }
-        $record['depth'] = $parent->depth+1;
-
-        $record['sortorder'] = 0;
-        $record['timemodified'] = time();
-        $record['timecreated'] = $record['timemodified'];
-
-        $catid = $DB->insert_record('course_categories', $record);
-        $path = $parent->path . '/' . $catid;
-        $DB->set_field('course_categories', 'path', $path, array('id'=>$catid));
-        context_coursecat::instance($catid);
-
-        fix_course_sortorder();
-
-        return $DB->get_record('course_categories', array('id'=>$catid), '*', MUST_EXIST);
+        return coursecat::create($record);
     }
 
     /**
@@ -619,6 +604,26 @@ EOD;
         }
 
         return $DB->get_record('scale', array('id'=>$id), '*', MUST_EXIST);
+    }
+
+    /**
+     * Helper method which combines $defaults with the values specified in $record.
+     * If $record is an object, it is converted to an array.
+     * Then, for each key that is in $defaults, but not in $record, the value
+     * from $defaults is copied.
+     * @param array $defaults the default value for each field with
+     * @param array|stdClass $record
+     * @return array updated $record.
+     */
+    public function combine_defaults_and_record(array $defaults, $record) {
+        $record = (array) $record;
+
+        foreach ($defaults as $key => $defaults) {
+            if (!array_key_exists($key, $record)) {
+                $record[$key] = $defaults;
+            }
+        }
+        return $record;
     }
 
     /**
