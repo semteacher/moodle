@@ -4,6 +4,7 @@ defined('MOODLE_INTERNAL') || die;
 
 require_once($CFG->libdir.'/formslib.php');
 require_once($CFG->libdir.'/completionlib.php');
+require_once($CFG->libdir. '/coursecatlib.php');
 
 class course_edit_form extends moodleform {
     protected $course;
@@ -48,9 +49,7 @@ class course_edit_form extends moodleform {
         // verify permissions to change course category or keep current
         if (empty($course->id)) {
             if (has_capability('moodle/course:create', $categorycontext)) {
-                $displaylist = array();
-                $parentlist = array();
-                make_categories_list($displaylist, $parentlist, 'moodle/course:create');
+                $displaylist = coursecat::make_categories_list('moodle/course:create');
                 $mform->addElement('select', 'category', get_string('category'), $displaylist);
                 $mform->addHelpButton('category', 'category');
                 $mform->setDefault('category', $category->id);
@@ -61,12 +60,10 @@ class course_edit_form extends moodleform {
             }
         } else {
             if (has_capability('moodle/course:changecategory', $coursecontext)) {
-                $displaylist = array();
-                $parentlist = array();
-                make_categories_list($displaylist, $parentlist, 'moodle/course:create');
+                $displaylist = coursecat::make_categories_list('moodle/course:create');
                 if (!isset($displaylist[$course->category])) {
                     //always keep current
-                    $displaylist[$course->category] = format_string($DB->get_field('course_categories', 'name', array('id'=>$course->category)));
+                    $displaylist[$course->category] = coursecat::get($course->category)->get_formatted_name();
                 }
                 $mform->addElement('select', 'category', get_string('category'), $displaylist);
                 $mform->addHelpButton('category', 'category');
@@ -108,9 +105,16 @@ class course_edit_form extends moodleform {
         $mform->addElement('editor','summary_editor', get_string('coursesummary'), null, $editoroptions);
         $mform->addHelpButton('summary_editor', 'coursesummary');
         $mform->setType('summary_editor', PARAM_RAW);
+        $summaryfields = 'summary_editor';
+
+        if ($overviewfilesoptions = course_overviewfiles_options($course)) {
+            $mform->addElement('filemanager', 'overviewfiles_filemanager', get_string('courseoverviewfiles'), null, $overviewfilesoptions);
+            $mform->addHelpButton('overviewfiles_filemanager', 'courseoverviewfiles');
+            $summaryfields .= ',overviewfiles_filemanager';
+        }
 
         if (!empty($course->id) and !has_capability('moodle/course:changesummary', $coursecontext)) {
-            $mform->hardFreeze('summary_editor');
+            $mform->hardFreeze($summaryfields);
         }
 
         $courseformats = get_sorted_course_formats(true);
@@ -190,13 +194,15 @@ class course_edit_form extends moodleform {
         }
 
 //--------------------------------------------------------------------------------
+        // Just a placeholder..
         $mform->addElement('hidden', 'addcourseformatoptionshere');
+        $mform->setType('addcourseformatoptionshere', PARAM_BOOL);
 
 //--------------------------------------------------------------------------------
         enrol_course_edit_form($mform, $course, $context);
 
 //--------------------------------------------------------------------------------
-        $mform->addElement('header','', get_string('groups', 'group'));
+        $mform->addElement('header','groups', get_string('groups', 'group'));
 
         $choices = array();
         $choices[NOGROUPS] = get_string('groupsnone', 'group');
@@ -219,7 +225,7 @@ class course_edit_form extends moodleform {
         $mform->addElement('select', 'defaultgroupingid', get_string('defaultgrouping', 'group'), $options);
 
 //--------------------------------------------------------------------------------
-        $mform->addElement('header','', get_string('availability'));
+        $mform->addElement('header','availability', get_string('availability'));
 
         $choices = array();
         $choices['0'] = get_string('courseavailablenot');
@@ -237,7 +243,7 @@ class course_edit_form extends moodleform {
         }
 
 //--------------------------------------------------------------------------------
-        $mform->addElement('header','', get_string('language'));
+        $mform->addElement('header','language', get_string('language'));
 
         $languages=array();
         $languages[''] = get_string('forceno');
@@ -247,22 +253,14 @@ class course_edit_form extends moodleform {
 
 //--------------------------------------------------------------------------------
         if (completion_info::is_enabled_for_site()) {
-            $mform->addElement('header','', get_string('progress','completion'));
+            $mform->addElement('header','progress', get_string('progress','completion'));
             $mform->addElement('select', 'enablecompletion', get_string('completion','completion'),
                 array(0=>get_string('completiondisabled','completion'), 1=>get_string('completionenabled','completion')));
             $mform->setDefault('enablecompletion', $courseconfig->enablecompletion);
-
-            $mform->addElement('advcheckbox', 'completionstartonenrol', get_string('completionstartonenrol', 'completion'));
-            $mform->setDefault('completionstartonenrol', $courseconfig->completionstartonenrol);
-            $mform->disabledIf('completionstartonenrol', 'enablecompletion', 'eq', 0);
         } else {
             $mform->addElement('hidden', 'enablecompletion');
             $mform->setType('enablecompletion', PARAM_INT);
             $mform->setDefault('enablecompletion',0);
-
-            $mform->addElement('hidden', 'completionstartonenrol');
-            $mform->setType('completionstartonenrol', PARAM_INT);
-            $mform->setDefault('completionstartonenrol',0);
         }
 
 /// customizable role names in this course
@@ -276,9 +274,6 @@ class course_edit_form extends moodleform {
             foreach ($roles as $role) {
                 $mform->addElement('text', 'role_'.$role->id, get_string('yourwordforx', '', $role->localname));
                 $mform->setType('role_'.$role->id, PARAM_TEXT);
-                if (!in_array($role->id, $assignableroles)) {
-                    $mform->setAdvanced('role_'.$role->id);
-                }
             }
         }
 
@@ -314,7 +309,7 @@ class course_edit_form extends moodleform {
         $formatvalue = $mform->getElementValue('format');
         if (is_array($formatvalue) && !empty($formatvalue)) {
             $courseformat = course_get_format((object)array('format' => $formatvalue[0]));
-            $newel = $mform->createElement('header', '', get_string('courseformatoptions', 'moodle',
+            $newel = $mform->createElement('header', 'courseformatoptions', get_string('courseformatoptions', 'moodle',
                     $courseformat->get_format_name()));
             $mform->insertElementBefore($newel, 'addcourseformatoptionshere');
 

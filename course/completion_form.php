@@ -51,7 +51,7 @@ class course_completion_form extends moodleform {
 
         // Check if there is existing criteria completions
         if ($completion->is_course_locked()) {
-            $mform->addElement('header', '', get_string('completionsettingslocked', 'completion'));
+            $mform->addElement('header', 'completionsettingslocked', get_string('completionsettingslocked', 'completion'));
             $mform->addElement('static', '', '', get_string('err_settingslocked', 'completion'));
             $mform->addElement('submit', 'settingsunlock', get_string('unlockcompletiondelete', 'completion'));
         }
@@ -97,9 +97,8 @@ class course_completion_form extends moodleform {
             }
 
             // Get category list
-            $list = array();
-            $parents = array();
-            make_categories_list($list, $parents);
+            require_once($CFG->libdir. '/coursecatlib.php');
+            $list = coursecat::make_categories_list();
 
             // Get course list for select box
             $selectbox = array();
