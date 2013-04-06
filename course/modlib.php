@@ -493,9 +493,20 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
     add_to_log($course->id, "course", "update mod",
                "../mod/$moduleinfo->modulename/view.php?id=$moduleinfo->coursemodule",
                "$moduleinfo->modulename $moduleinfo->instance");
-    add_to_log($course->id, $moduleinfo->modulename, "update",
-               "view.php?id=$moduleinfo->coursemodule",
-               "$moduleinfo->instance", $moduleinfo->coursemodule);
+    //TDMU-begin block
+    if ($moduleinfo->modulename = "quiz") {
+        $full_msg = "Start:".date('Y/m/d H:m',$moduleinfo->timeopen)."; End:".date('Y/m/d H:m',$moduleinfo->timeclose)."; Name:".$moduleinfo->name;
+        $short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
+        add_to_log($course->id, $moduleinfo->modulename, "update",
+                "view.php?id=$moduleinfo->coursemodule",
+                $short_msg, $moduleinfo->coursemodule);		
+    } else {//TDMU - else cause contain original code		   
+        add_to_log($course->id, $moduleinfo->modulename, "update",
+                "view.php?id=$moduleinfo->coursemodule",
+                "$moduleinfo->instance", $moduleinfo->coursemodule);
+    }
+    //TDMU-end block			   
+
 
     $moduleinfo = edit_module_post_actions($moduleinfo, $course, 'mod_updated');
 
