@@ -2817,6 +2817,11 @@ function get_login_url() {
 function require_login($courseorid = NULL, $autologinguest = true, $cm = NULL, $setwantsurltome = true, $preventredirect = false) {
     global $CFG, $SESSION, $USER, $PAGE, $SITE, $DB, $OUTPUT;
 
+    // Must not redirect when byteserving already started.
+    if (!empty($_SERVER['HTTP_RANGE'])) {
+        $preventredirect = true;
+    }
+
     // setup global $COURSE, themes, language and locale
     if (!empty($courseorid)) {
         if (is_object($courseorid)) {
@@ -8109,6 +8114,7 @@ function get_core_subsystems() {
             'admin'       => $CFG->admin,
             'auth'        => 'auth',
             'backup'      => 'backup/util/ui',
+            'badges'      => 'badges',
             'block'       => 'blocks',
             'blog'        => 'blog',
             'bulkusers'   => NULL,
@@ -8183,10 +8189,18 @@ function get_core_subsystems() {
 function get_plugin_types($fullpaths=true) {
     global $CFG;
 
-    static $info     = null;
-    static $fullinfo = null;
+    $cache = cache::make('core', 'plugintypes');
 
-    if (!$info) {
+    if ($fullpaths) {
+        $cached = $cache->get(1);
+    } else {
+        $cached = $cache->get(0);
+    }
+
+    if ($cached !== false) {
+        return $cached;
+
+    } else {
         $info = array('qtype'         => 'question/type',
                       'mod'           => 'mod',
                       'auth'          => 'auth',
@@ -8235,9 +8249,12 @@ function get_plugin_types($fullpaths=true) {
         foreach ($info as $type => $dir) {
             $fullinfo[$type] = $CFG->dirroot.'/'.$dir;
         }
-    }
 
-    return ($fullpaths ? $fullinfo : $info);
+        $cache->set(0, $info);
+        $cache->set(1, $fullinfo);
+
+        return ($fullpaths ? $fullinfo : $info);
+    }
 }
 
 /**
@@ -8247,6 +8264,12 @@ function get_plugin_types($fullpaths=true) {
  */
 function get_plugin_list($plugintype) {
     global $CFG;
+
+    $cache = cache::make('core', 'pluginlist');
+    $cached = $cache->get($plugintype);
+    if ($cached !== false) {
+        return $cached;
+    }
 
     $ignored = array('CVS', '_vti_cnf', 'simpletest', 'db', 'yui', 'tests');
     if ($plugintype == 'auth') {
@@ -8281,10 +8304,12 @@ function get_plugin_list($plugintype) {
     } else {
         $types = get_plugin_types(true);
         if (!array_key_exists($plugintype, $types)) {
+            $cache->set($plugintype, array());
             return array();
         }
         $fulldir = $types[$plugintype];
         if (!file_exists($fulldir)) {
+            $cache->set($plugintype, array());
             return array();
         }
         $fulldirs[] = $fulldir;
@@ -8317,6 +8342,7 @@ function get_plugin_list($plugintype) {
 
     //TODO: implement better sorting once we migrated all plugin names to 'pluginname', ksort does not work for unicode, that is why we have to sort by the dir name, not the strings!
     ksort($result);
+    $cache->set($plugintype, $result);
     return $result;
 }
 
@@ -9062,48 +9088,6 @@ function can_use_rotated_text() {
 }
 
 /**
- * Hack to find out the GD version by parsing phpinfo output
- *
- * @return int GD version (1, 2, or 0)
- */
-function check_gd_version() {
-    $gdversion = 0;
-
-    if (function_exists('gd_info')){
-        $gd_info = gd_info();
-        if (substr_count($gd_info['GD Version'], '2.')) {
-            $gdversion = 2;
-        } else if (substr_count($gd_info['GD Version'], '1.')) {
-            $gdversion = 1;
-        }
-
-    } else {
-        ob_start();
-        phpinfo(INFO_MODULES);
-        $phpinfo = ob_get_contents();
-        ob_end_clean();
-
-        $phpinfo = explode("\n", $phpinfo);
-
-
-        foreach ($phpinfo as $text) {
-            $parts = explode('</td>', $text);
-            foreach ($parts as $key => $val) {
-                $parts[$key] = trim(strip_tags($val));
-            }
-            if ($parts[0] == 'GD Version') {
-                if (substr_count($parts[1], '2.0')) {
-                    $parts[1] = '2.0';
-                }
-                $gdversion = intval($parts[1]);
-            }
-        }
-    }
-
-    return $gdversion;   // 1, 2 or 0
-}
-
-/**
  * Determine if moodle installation requires update
  *
  * Checks version numbers of main code and all modules to see
@@ -9119,7 +9103,18 @@ function moodle_needs_upgrading() {
         return true;
     }
 
-    // main versio nfirst
+    // We have to purge plugin related caches now to be sure we have fresh data
+    // and new plugins can be detected.
+    cache::make('core', 'plugintypes')->purge();
+    cache::make('core', 'pluginlist')->purge();
+    cache::make('core', 'plugininfo_base')->purge();
+    cache::make('core', 'plugininfo_mod')->purge();
+    cache::make('core', 'plugininfo_block')->purge();
+    cache::make('core', 'plugininfo_filter')->purge();
+    cache::make('core', 'plugininfo_repository')->purge();
+    cache::make('core', 'plugininfo_portfolio')->purge();
+
+    // Check the main version first.
     $version = null;
     include($CFG->dirroot.'/version.php');  // defines $version and upgrades
     if ($version > $CFG->version) {
@@ -11208,12 +11203,15 @@ function get_home_page() {
  * Gets the name of a course to be displayed when showing a list of courses.
  * By default this is just $course->fullname but user can configure it. The
  * result of this function should be passed through print_string.
- * @param object $course Moodle course object
+ * @param stdClass|course_in_list $course Moodle course object
  * @return string Display name of course (either fullname or short + fullname)
  */
 function get_course_display_name_for_list($course) {
     global $CFG;
     if (!empty($CFG->courselistshortnames)) {
+        if (!($course instanceof stdClass)) {
+            $course = (object)convert_to_array($course);
+        }
         return get_string('courseextendednamedisplay', '', $course);
     } else {
         return $course->fullname;

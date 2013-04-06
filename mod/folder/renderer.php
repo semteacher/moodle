@@ -61,7 +61,8 @@ class mod_folder_renderer extends plugin_renderer_base {
         $output .= $this->output->box($this->render(new folder_tree($folder, $cm)),
                 'generalbox foldertree');
 
-        if (has_capability('mod/folder:managefiles', $context)) {
+        // Do not append the edit button on the course page.
+        if ($folder->display != FOLDER_DISPLAY_INLINE && has_capability('mod/folder:managefiles', $context)) {
             $output .= $this->output->container(
                     $this->output->single_button(new moodle_url('/mod/folder/edit.php',
                     array('id' => $cm->id)), get_string('edit')),
@@ -78,7 +79,11 @@ class mod_folder_renderer extends plugin_renderer_base {
         $content .= '<div id="'.$id.'" class="filemanager">';
         $content .= $this->htmllize_tree($tree, array('files' => array(), 'subdirs' => array($tree->dir)));
         $content .= '</div>';
-        $this->page->requires->js_init_call('M.mod_folder.init_tree', array($id, true));
+        $show_expanded = true;
+        if (empty($tree->folder->show_expanded)) {
+            $show_expanded = false;
+        }
+        $this->page->requires->js_init_call('M.mod_folder.init_tree', array($id, $show_expanded));
         return $content;
     }
 

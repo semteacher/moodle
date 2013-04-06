@@ -601,7 +601,7 @@ class core_renderer extends renderer_base {
             } else if (is_role_switched($course->id)) { // Has switched roles
                 $rolename = '';
                 if ($role = $DB->get_record('role', array('id'=>$USER->access['rsw'][$context->path]))) {
-                    $rolename = ': '.format_string($role->name);
+                    $rolename = ': '.role_get_name($role, $context);
                 }
                 $loggedinas = get_string('loggedinas', 'moodle', $username).$rolename;
                 if ($withlinks) {
@@ -756,6 +756,9 @@ class core_renderer extends renderer_base {
         if (session_is_loggedinas()) {
             $this->page->add_body_class('userloggedinas');
         }
+
+        // Give themes a chance to init/alter the page object.
+        $this->page->theme->init_page($this->page);
 
         $this->page->set_state(moodle_page::STATE_PRINTING_HEADER);
 
@@ -1228,13 +1231,20 @@ class core_renderer extends renderer_base {
      */
     public function blocks_for_region($region) {
         $blockcontents = $this->page->blocks->get_content_for_region($region, $this);
-
+        $blocks = $this->page->blocks->get_blocks_for_region($region);
+        $lastblock = null;
+        $zones = array();
+        foreach ($blocks as $block) {
+            $zones[] = $block->title;
+        }
         $output = '';
+
         foreach ($blockcontents as $bc) {
             if ($bc instanceof block_contents) {
                 $output .= $this->block($bc, $region);
+                $lastblock = $bc->title;
             } else if ($bc instanceof block_move_target) {
-                $output .= $this->block_move_target($bc);
+                $output .= $this->block_move_target($bc, $zones, $lastblock);
             } else {
                 throw new coding_exception('Unexpected type of thing (' . get_class($bc) . ') found in list of block contents.');
             }
@@ -1246,10 +1256,17 @@ class core_renderer extends renderer_base {
      * Output a place where the block that is currently being moved can be dropped.
      *
      * @param block_move_target $target with the necessary details.
+     * @param array $zones array of areas where the block can be moved to
+     * @param string $previous the block located before the area currently being rendered.
      * @return string the HTML to be output.
      */
-    public function block_move_target($target) {
-        return html_writer::tag('a', html_writer::tag('span', $target->text, array('class' => 'accesshide')), array('href' => $target->url, 'class' => 'blockmovetarget'));
+    public function block_move_target($target, $zones, $previous) {
+        if ($previous == null) {
+            $position = get_string('moveblockbefore', 'block', $zones[0]);
+        } else {
+            $position = get_string('moveblockafter', 'block', $previous);
+        }
+        return html_writer::tag('a', html_writer::tag('span', $position, array('class' => 'accesshide')), array('href' => $target->url, 'class' => 'blockmovetarget'));
     }
 
     /**
@@ -2330,12 +2347,16 @@ EOD;
             }
             error_reporting($CFG->debug);
 
-            // Header not yet printed
-            if (isset($_SERVER['SERVER_PROTOCOL'])) {
-                // server protocol should be always present, because this render
-                // can not be used from command line or when outputting custom XML
-                @header($_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found');
+            // Output not yet started.
+            $protocol = (isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0');
+            if (empty($_SERVER['HTTP_RANGE'])) {
+                @header($protocol . ' 404 Not Found');
+            } else {
+                // Must stop byteserving attempts somehow,
+                // this is weird but Chrome PDF viewer can be stopped only with 407!
+                @header($protocol . ' 407 Proxy Authentication Required');
             }
+
             $this->page->set_context(null); // ugly hack - make sure page context is set to something, we do not want bogus warnings here
             $this->page->set_url('/'); // no url
             //$this->page->set_pagelayout('base'); //TODO: MDL-20676 blocks on error pages are weird, unfortunately it somehow detect the pagelayout from URL :-(

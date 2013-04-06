@@ -104,7 +104,7 @@ class behat_base extends Behat\MinkExtension\Context\RawMinkContext {
                 $exceptionlocator = $locator[1];
 
                 // If we are in a @javascript session all contents would be displayed as HTML characters.
-                if (get_class($this->getSession()->getDriver()) === 'Behat\Mink\Driver\Selenium2Driver') {
+                if ($this->running_javascript()) {
                     $locator[1] = html_entity_decode($locator[1], ENT_NOQUOTES);
                 }
 
@@ -143,6 +143,9 @@ class behat_base extends Behat\MinkExtension\Context\RawMinkContext {
                     // We are in the container node.
                     if (strpos($union, '.') === 0) {
                         $union = substr($union, 1);
+                    } else if (strpos($union, '/') !== 0) {
+                        // Adding the path separator in case it is not there.
+                        $union = '/' . $union;
                     }
                     $unions[$key] = $args['node']->getXpath() . $union;
                 }
@@ -400,6 +403,15 @@ class behat_base extends Behat\MinkExtension\Context\RawMinkContext {
         }
 
         return $this->transform_selector($selectortype, $element);
+    }
+
+    /**
+     * Returns whether the scenario is running in a browser that can run Javascript or not.
+     *
+     * @return boolean
+     */
+    protected function running_javascript() {
+        return get_class($this->getSession()->getDriver()) === 'Moodle\BehatExtension\Driver\MoodleSelenium2Driver';
     }
 
 }
