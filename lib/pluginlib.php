@@ -97,6 +97,17 @@ class plugin_manager {
     }
 
     /**
+     * Returns the result of {@link get_plugin_types()} ordered for humans
+     *
+     * @see self::reorder_plugin_types()
+     * @param bool $fullpaths false means relative paths from dirroot
+     * @return array (string)name => (string)location
+     */
+    public function get_plugin_types($fullpaths = true) {
+        return $this->reorder_plugin_types(get_plugin_types($fullpaths));
+    }
+
+    /**
      * Returns a tree of known plugins and information about them
      *
      * @param bool $disablecache force reload, cache can be used otherwise
@@ -119,8 +130,7 @@ class plugin_manager {
                 }
             }
             $this->pluginsinfo = array();
-            $plugintypes = get_plugin_types();
-            $plugintypes = $this->reorder_plugin_types($plugintypes);
+            $plugintypes = $this->get_plugin_types();
             foreach ($plugintypes as $plugintype => $plugintyperootdir) {
                 if (in_array($plugintype, array('base', 'general'))) {
                     throw new coding_exception('Illegal usage of reserved word for plugin type');
@@ -217,6 +227,35 @@ class plugin_manager {
     public function plugin_name($plugin) {
         list($type, $name) = normalize_component($plugin);
         return $this->pluginsinfo[$type][$name]->displayname;
+    }
+
+    /**
+     * Returns a localized name of a plugin typed in singular form
+     *
+     * Most plugin types define their names in core_plugin lang file. In case of subplugins,
+     * we try to ask the parent plugin for the name. In the worst case, we will return
+     * the value of the passed $type parameter.
+     *
+     * @param string $type the type of the plugin, e.g. mod or workshopform
+     * @return string
+     */
+    public function plugintype_name($type) {
+
+        if (get_string_manager()->string_exists('type_' . $type, 'core_plugin')) {
+            // for most plugin types, their names are defined in core_plugin lang file
+            return get_string('type_' . $type, 'core_plugin');
+
+        } else if ($parent = $this->get_parent_of_subplugin($type)) {
+            // if this is a subplugin, try to ask the parent plugin for the name
+            if (get_string_manager()->string_exists('subplugintype_' . $type, $parent)) {
+                return $this->plugin_name($parent) . ' / ' . get_string('subplugintype_' . $type, $parent);
+            } else {
+                return $this->plugin_name($parent) . ' / ' . $type;
+            }
+
+        } else {
+            return $type;
+        }
     }
 
     /**
@@ -360,8 +399,18 @@ class plugin_manager {
      * @return bool
      */
     public static function is_deleted_standard_plugin($type, $name) {
-        static $plugins = array(
-            // do not add 1.9-2.2 plugin removals here
+
+        // Example of the array structure:
+        // $plugins = array(
+        //     'block' => array('admin', 'admin_tree'),
+        //     'mod' => array('assignment'),
+        // );
+        // Do not include plugins that were removed during upgrades to versions that are
+        // not supported as source versions for upgrade any more. For example, at MOODLE_23_STABLE
+        // branch, listed should be no plugins that were removed at 1.9.x - 2.1.x versions as
+        // Moodle 2.3 supports upgrades from 2.2.x only.
+        $plugins = array(
+            'qformat' => array('blackboard'),
         );
 
         if (!isset($plugins[$type])) {
@@ -377,7 +426,7 @@ class plugin_manager {
      * @return false|array array of standard plugins or false if the type is unknown
      */
     public static function standard_plugins_list($type) {
-        static $standard_plugins = array(
+        $standard_plugins = array(
 
             'assignment' => array(
                 'offline', 'online', 'upload', 'uploadsingle'
@@ -398,7 +447,7 @@ class plugin_manager {
             ),
 
             'block' => array(
-                'activity_modules', 'admin_bookmarks', 'blog_menu',
+                'activity_modules', 'admin_bookmarks', 'badges', 'blog_menu',
                 'blog_recent', 'blog_tags', 'calendar_month',
                 'calendar_upcoming', 'comments', 'community',
                 'completionstatus', 'course_list', 'course_overview',
@@ -508,7 +557,7 @@ class plugin_manager {
             ),
 
             'qformat' => array(
-                'aiken', 'blackboard', 'blackboard_six', 'examview', 'gift',
+                'aiken', 'blackboard_six', 'examview', 'gift',
                 'learnwise', 'missingword', 'multianswer', 'webct',
                 'xhtml', 'xml'
             ),
@@ -531,7 +580,7 @@ class plugin_manager {
 
             'report' => array(
                 'backups', 'completion', 'configlog', 'courseoverview',
-                'log', 'loglive', 'outline', 'participation', 'progress', 'questioninstances', 'security', 'stats'
+                'log', 'loglive', 'outline', 'participation', 'progress', 'questioninstances', 'security', 'stats', 'performance'
             ),
 
             'repository' => array(
@@ -552,7 +601,7 @@ class plugin_manager {
             ),
 
             'theme' => array(
-                'afterburner', 'anomaly', 'arialist', 'base', 'binarius',
+                'afterburner', 'anomaly', 'arialist', 'base', 'binarius', 'bootstrap',
                 'boxxie', 'brick', 'canvas', 'formal_white', 'formfactor',
                 'fusion', 'leatherbound', 'magazine', 'mymobile', 'nimble',
                 'nonzero', 'overlay', 'serenity', 'sky_high', 'splash',
@@ -560,9 +609,10 @@ class plugin_manager {
             ),
 
             'tool' => array(
-                'assignmentupgrade', 'behat', 'capability', 'customlang', 'dbtransfer',
-                'generator', 'health', 'innodb', 'langimport', 'multilangupgrade', 'phpunit',
-                'profiling', 'qeupgradehelper', 'replace', 'spamcleaner', 'timezoneimport',
+                'assignmentupgrade', 'behat', 'capability', 'customlang',
+                'dbtransfer', 'generator', 'health', 'innodb', 'installaddon',
+                'langimport', 'multilangupgrade', 'phpunit', 'profiling',
+                'qeupgradehelper', 'replace', 'spamcleaner', 'timezoneimport',
                 'unittest', 'uploaduser', 'unsuproles', 'xmldb'
             ),
 
@@ -2160,15 +2210,28 @@ abstract class plugininfo_base {
     /**
      * Load the data from version.php.
      *
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return stdClass the object called $plugin defined in version.php
      */
-    protected function load_version_php() {
+    protected function load_version_php($disablecache=false) {
+
+        $cache = cache::make('core', 'plugininfo_base');
+
+        $versionsphp = $cache->get('versions_php');
+
+        if (!$disablecache and $versionsphp !== false and isset($versionsphp[$this->component])) {
+            return $versionsphp[$this->component];
+        }
+
         $versionfile = $this->full_path('version.php');
 
         $plugin = new stdClass();
         if (is_readable($versionfile)) {
             include($versionfile);
         }
+        $versionsphp[$this->component] = $plugin;
+        $cache->set('versions_php', $versionsphp);
+
         return $plugin;
     }
 
@@ -2460,30 +2523,34 @@ abstract class plugininfo_base {
     }
 
     /**
-     * Provides access to plugin versions from {config_plugins}
+     * Provides access to plugin versions from the {config_plugins} table
      *
      * @param string $plugin plugin name
-     * @param double $disablecache optional, defaults to false
-     * @return int|false the stored value or false if not found
+     * @param bool $disablecache do not attempt to obtain data from the cache
+     * @return int|bool the stored value or false if not found
      */
     protected function get_version_from_config_plugins($plugin, $disablecache=false) {
         global $DB;
-        static $pluginversions = null;
 
-        if (is_null($pluginversions) or $disablecache) {
+        $cache = cache::make('core', 'plugininfo_base');
+
+        $pluginversions = $cache->get('versions_db');
+
+        if ($pluginversions === false or $disablecache) {
             try {
                 $pluginversions = $DB->get_records_menu('config_plugins', array('name' => 'version'), 'plugin', 'plugin,value');
             } catch (dml_exception $e) {
                 // before install
                 $pluginversions = array();
             }
+            $cache->set('versions_db', $pluginversions);
         }
 
-        if (!array_key_exists($plugin, $pluginversions)) {
+        if (isset($pluginversions[$plugin])) {
+            return $pluginversions[$plugin];
+        } else {
             return false;
         }
-
-        return $pluginversions[$plugin];
     }
 }
 
@@ -2620,23 +2687,27 @@ class plugininfo_block extends plugininfo_base {
     /**
      * Provides access to the records in {block} table
      *
-     * @param bool $disablecache do not use internal static cache
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return array array of stdClasses
      */
     protected static function get_blocks_info($disablecache=false) {
         global $DB;
-        static $blocksinfocache = null;
 
-        if (is_null($blocksinfocache) or $disablecache) {
+        $cache = cache::make('core', 'plugininfo_block');
+
+        $blocktypes = $cache->get('blocktypes');
+
+        if ($blocktypes === false or $disablecache) {
             try {
-                $blocksinfocache = $DB->get_records('block', null, 'name', 'name,id,version,visible');
+                $blocktypes = $DB->get_records('block', null, 'name', 'name,id,version,visible');
             } catch (dml_exception $e) {
                 // before install
-                $blocksinfocache = array();
+                $blocktypes = array();
             }
+            $cache->set('blocktypes', $blocktypes);
         }
 
-        return $blocksinfocache;
+        return $blocktypes;
     }
 }
 
@@ -2704,13 +2775,6 @@ class plugininfo_filter extends plugininfo_base {
         // do nothing, the name is set in self::get_plugins()
     }
 
-    /**
-     * @see load_version_php()
-     */
-    protected function load_version_php() {
-        return parent::load_version_php();
-    }
-
     public function is_enabled() {
 
         $globalstates = self::get_global_states();
@@ -2760,20 +2824,25 @@ class plugininfo_filter extends plugininfo_base {
      *
      * The legacy filter name is available as ->legacyname property.
      *
-     * @param bool $disablecache
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return array
      */
     protected static function get_global_states($disablecache=false) {
         global $DB;
-        static $globalstatescache = null;
 
-        if ($disablecache or is_null($globalstatescache)) {
-            $globalstatescache = array();
+        $cache = cache::make('core', 'plugininfo_filter');
+
+        $globalstates = $cache->get('globalstates');
+
+        if ($globalstates === false or $disablecache) {
 
             if (!$DB->get_manager()->table_exists('filter_active')) {
                 // Not installed yet.
-                return $globalstatescache;
+                $cache->set('globalstates', array());
+                return array();
             }
+
+            $globalstates = array();
 
             foreach (filter_get_global_states() as $name => $info) {
                 if (strpos($name, '/') !== false) {
@@ -2781,14 +2850,16 @@ class plugininfo_filter extends plugininfo_base {
                     continue;
                 }
 
-                $filterinfo                 = new stdClass();
-                $filterinfo->active         = $info->active;
-                $filterinfo->sortorder      = $info->sortorder;
-                $globalstatescache[$name]   = $filterinfo;
+                $filterinfo = new stdClass();
+                $filterinfo->active = $info->active;
+                $filterinfo->sortorder = $info->sortorder;
+                $globalstates[$name] = $filterinfo;
             }
+
+            $cache->set('globalstates', $globalstates);
         }
 
-        return $globalstatescache;
+        return $globalstates;
     }
 }
 
@@ -2851,15 +2922,33 @@ class plugininfo_mod extends plugininfo_base {
 
     /**
      * Load the data from version.php.
+     *
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return object the data object defined in version.php.
      */
-    protected function load_version_php() {
+    protected function load_version_php($disablecache=false) {
+
+        $cache = cache::make('core', 'plugininfo_base');
+
+        $versionsphp = $cache->get('versions_php');
+
+        if (!$disablecache and $versionsphp !== false and isset($versionsphp[$this->component])) {
+            return $versionsphp[$this->component];
+        }
+
         $versionfile = $this->full_path('version.php');
 
         $module = new stdClass();
+        $plugin = new stdClass();
         if (is_readable($versionfile)) {
             include($versionfile);
         }
+        if (!isset($module->version) and isset($plugin->version)) {
+            $module = $plugin;
+        }
+        $versionsphp[$this->component] = $module;
+        $cache->set('versions_php', $versionsphp);
+
         return $module;
     }
 
@@ -2920,23 +3009,27 @@ class plugininfo_mod extends plugininfo_base {
     /**
      * Provides access to the records in {modules} table
      *
-     * @param bool $disablecache do not use internal static cache
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return array array of stdClasses
      */
     protected static function get_modules_info($disablecache=false) {
         global $DB;
-        static $modulesinfocache = null;
 
-        if (is_null($modulesinfocache) or $disablecache) {
+        $cache = cache::make('core', 'plugininfo_mod');
+
+        $modulesinfo = $cache->get('modulesinfo');
+
+        if ($modulesinfo === false or $disablecache) {
             try {
-                $modulesinfocache = $DB->get_records('modules', null, 'name', 'name,id,version,visible');
+                $modulesinfo = $DB->get_records('modules', null, 'name', 'name,id,version,visible');
             } catch (dml_exception $e) {
                 // before install
-                $modulesinfocache = array();
+                $modulesinfo = array();
             }
+            $cache->set('modulesinfo', $modulesinfo);
         }
 
-        return $modulesinfocache;
+        return $modulesinfo;
     }
 }
 
@@ -2995,17 +3088,13 @@ class plugininfo_auth extends plugininfo_base {
 
     public function is_enabled() {
         global $CFG;
-        /** @var null|array list of enabled authentication plugins */
-        static $enabled = null;
 
         if (in_array($this->name, array('nologin', 'manual'))) {
             // these two are always enabled and can't be disabled
             return null;
         }
 
-        if (is_null($enabled)) {
-            $enabled = array_flip(explode(',', $CFG->auth));
-        }
+        $enabled = array_flip(explode(',', $CFG->auth));
 
         return isset($enabled[$this->name]);
     }
@@ -3047,17 +3136,13 @@ class plugininfo_enrol extends plugininfo_base {
 
     public function is_enabled() {
         global $CFG;
-        /** @var null|array list of enabled enrolment plugins */
-        static $enabled = null;
 
         // We do not actually need whole enrolment classes here so we do not call
         // {@link enrol_get_plugins()}. Note that this may produce slightly different
         // results, for example if the enrolment plugin does not contain lib.php
         // but it is listed in $CFG->enrol_plugins_enabled
 
-        if (is_null($enabled)) {
-            $enabled = array_flip(explode(',', $CFG->enrol_plugins_enabled));
-        }
+        $enabled = array_flip(explode(',', $CFG->enrol_plugins_enabled));
 
         return isset($enabled[$this->name]);
     }
@@ -3185,18 +3270,22 @@ class plugininfo_repository extends plugininfo_base {
     /**
      * Provides access to the records in {repository} table
      *
-     * @param bool $disablecache do not use internal static cache
+     * @param bool $disablecache do not attempt to obtain data from the cache
      * @return array array of stdClasses
      */
     protected static function get_enabled_repositories($disablecache=false) {
         global $DB;
-        static $repositories = null;
 
-        if (is_null($repositories) or $disablecache) {
-            $repositories = $DB->get_records('repository', null, 'type', 'type,visible,sortorder');
+        $cache = cache::make('core', 'plugininfo_repository');
+
+        $enabled = $cache->get('enabled');
+
+        if ($enabled === false or $disablecache) {
+            $enabled = $DB->get_records('repository', null, 'type', 'type,visible,sortorder');
+            $cache->set('enabled', $enabled);
         }
 
-        return $repositories;
+        return $enabled;
     }
 }
 
@@ -3214,30 +3303,38 @@ class plugininfo_portfolio extends plugininfo_base {
     }
 
     /**
-     * Provides access to the records in {portfolio_instance} table
+     * Returns list of enabled portfolio plugins
      *
-     * @param bool $disablecache do not use internal static cache
-     * @return array array of stdClasses
+     * Portfolio plugin is enabled if there is at least one record in the {portfolio_instance}
+     * table for it.
+     *
+     * @param bool $disablecache do not attempt to obtain data from the cache
+     * @return array array of stdClasses with properties plugin and visible indexed by plugin
      */
     protected static function get_enabled_portfolios($disablecache=false) {
         global $DB;
-        static $portfolios = null;
 
-        if (is_null($portfolios) or $disablecache) {
-            $portfolios = array();
-            $instances  = $DB->get_recordset('portfolio_instance', null, 'plugin');
+        $cache = cache::make('core', 'plugininfo_portfolio');
+
+        $enabled = $cache->get('enabled');
+
+        if ($enabled === false or $disablecache) {
+            $enabled = array();
+            $instances = $DB->get_recordset('portfolio_instance', null, '', 'plugin,visible');
             foreach ($instances as $instance) {
-                if (isset($portfolios[$instance->plugin])) {
+                if (isset($enabled[$instance->plugin])) {
                     if ($instance->visible) {
-                        $portfolios[$instance->plugin]->visible = $instance->visible;
+                        $enabled[$instance->plugin]->visible = $instance->visible;
                     }
                 } else {
-                    $portfolios[$instance->plugin] = $instance;
+                    $enabled[$instance->plugin] = $instance;
                 }
             }
+            $instances->close();
+            $cache->set('enabled', $enabled);
         }
 
-        return $portfolios;
+        return $enabled;
     }
 }
 

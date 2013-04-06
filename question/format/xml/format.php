@@ -170,16 +170,23 @@ class qformat_xml extends qformat_default {
         }
         $fs = get_file_storage();
         $itemid = file_get_unused_draft_itemid();
+        $filenames = array();
         foreach ($xml as $file) {
+            $filename = $file['@']['name'];
+            if (in_array($filename, $filenames)) {
+                debugging('Duplicate file in XML: ' . $filename, DEBUG_DEVELOPER);
+                continue;
+            }
             $filerecord = array(
                 'contextid' => context_user::instance($USER->id)->id,
                 'component' => 'user',
                 'filearea'  => 'draft',
                 'itemid'    => $itemid,
                 'filepath'  => '/',
-                'filename'  => $file['@']['name'],
+                'filename'  => $filename,
             );
             $fs->create_file_from_string($filerecord, base64_decode($file['#']));
+            $filenames[] = $filename;
         }
         return $itemid;
     }
@@ -722,6 +729,10 @@ class qformat_xml extends qformat_default {
                 array('#', 'attachments', 0, '#'), 0);
         $qo->graderinfo = $this->import_text_with_files($question,
                 array('#', 'graderinfo', 0), '', $this->get_format($qo->questiontextformat));
+        $qo->responsetemplate['text'] = $this->getpath($question,
+                array('#', 'responsetemplate', 0, '#', 'text', 0, '#'), '', true);
+        $qo->responsetemplate['format'] = $this->trans_format($this->getpath($question,
+                array('#', 'responsetemplate', 0, '@', 'format'), $this->get_format($qo->questiontextformat)));
 
         return $qo;
     }
@@ -1254,6 +1265,10 @@ class qformat_xml extends qformat_default {
                 $expout .= $this->write_files($fs->get_area_files($contextid, 'qtype_essay',
                         'graderinfo', $question->id));
                 $expout .= "    </graderinfo>\n";
+                $expout .= "    <responsetemplate " .
+                        $this->format($question->options->responsetemplateformat) . ">\n";
+                $expout .= $this->writetext($question->options->responsetemplate, 3);
+                $expout .= "    </responsetemplate>\n";
                 break;
 
             case 'calculated':

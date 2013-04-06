@@ -353,7 +353,8 @@ $CFG->admin = 'admin';
 //
 //     $CFG->themedir = '/location/of/extra/themes';
 //
-// It is possible to specify different cache and temp directories, use local fast filesystem.
+// It is possible to specify different cache and temp directories, use local fast filesystem
+// for normal web servers. Server clusters MUST use shared filesystem for cachedir!
 // The directories must not be accessible via web.
 //
 //     $CFG->tempdir = '/var/www/moodle/temp';
@@ -437,6 +438,16 @@ $CFG->admin = 'admin';
 //
 //      $CFG->disableupdatenotifications = true;
 //
+// Use the following flag to completely disable the Automatic updates deployment
+// feature and hide it from the server administration UI.
+//
+//      $CFG->disableupdateautodeploy = true;
+//
+// Use the following flag to completely disable the On-click add-on installation
+// feature and hide it from the server administration UI.
+//
+//      $CFG->disableonclickaddoninstall = true;
+//
 // As of version 2.4 Moodle serves icons as SVG images if the users browser appears
 // to support SVG.
 // For those wanting to control the serving of SVG images the following setting can
@@ -466,6 +477,9 @@ $CFG->admin = 'admin';
 //
 // Prevent theme caching
 // $CFG->themerev = -1; // NOT FOR PRODUCTION SERVERS!
+//
+// Prevent JS caching
+// $CFG->jsrev = -1; // NOT FOR PRODUCTION SERVERS!
 //
 // Prevent core_string_manager on-disk cache
 // $CFG->langstringcache = false; // NOT FOR PRODUCTION SERVERS!

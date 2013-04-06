@@ -386,13 +386,6 @@ function process_group_tag($tagcontents) {
                             $this->log_line('No ' . $imsname . ' description tag found for ' . $coursecode . ' coursecode, using ' . $coursecode . ' instead');
                             $course->{$courseattr} = $coursecode;
                         }
-
-                        if ($courseattr == 'summary') {
-                            $format = FORMAT_HTML;
-                        } else {
-                            $format = FORMAT_PLAIN;
-                        }
-                        $course->{$courseattr} = format_text($course->$courseattr, $format);
                     }
 
                     $course->idnumber = $coursecode;
@@ -405,7 +398,6 @@ function process_group_tag($tagcontents) {
                     $course->groupmode = $courseconfig->groupmode;
                     $course->groupmodeforce = $courseconfig->groupmodeforce;
                     $course->enablecompletion = $courseconfig->enablecompletion;
-                    $course->completionstartonenrol = $courseconfig->completionstartonenrol;
                     // Insert default names for teachers/students, from the current language
 
                     // Handle course categorisation (taken from the group.org.orgunit field if present)
