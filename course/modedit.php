@@ -394,7 +394,7 @@ if ($mform->is_cancelled()) {
                    "../mod/$fromform->modulename/view.php?id=$fromform->coursemodule",
                    "$fromform->modulename $fromform->instance");
 		//TDMU-begin block
-        if ($fromform->modulename = "quiz") {
+        if ($fromform->modulename == "quiz") {
             $full_msg = "Start: ".date('Y/m/d H:i',$fromform->timeopen)."; End: ".date('Y/m/d H:i',$fromform->timeclose)."; Name: ".$fromform->name;
             $short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
             add_to_log($course->id, $fromform->modulename, "update", 
