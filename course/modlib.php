@@ -494,7 +494,7 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
                "../mod/$moduleinfo->modulename/view.php?id=$moduleinfo->coursemodule",
                "$moduleinfo->modulename $moduleinfo->instance");
     //TDMU-begin block
-    if ($moduleinfo->modulename = "quiz") {
+    if ($moduleinfo->modulename == "quiz") {
         $full_msg = "Start:".date('Y/m/d H:m',$moduleinfo->timeopen)."; End:".date('Y/m/d H:m',$moduleinfo->timeclose)."; Name:".$moduleinfo->name;
         $short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
         add_to_log($course->id, $moduleinfo->modulename, "update",
