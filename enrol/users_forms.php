@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -18,8 +17,7 @@
 /**
  * Various enrol UI forms
  *
- * @package    core
- * @subpackage enrol
+ * @package    core_enrol
  * @copyright  2010 Petr Skoda {@link http://skodak.org}
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -157,10 +155,10 @@ class enrol_users_filter_form extends moodleform {
         // names if applied. The reason for not restricting to roles that can
         // be assigned at course level is that upper-level roles display in the
         // enrolments table so it makes sense to let users filter by them.
-        $allroles = get_all_roles($manager->get_context());
+        $allroles = $manager->get_all_roles();
         $rolenames = array();
         foreach ($allroles as $id => $role) {
-            $rolenames[$id] = $role->name;
+            $rolenames[$id] = $role->localname;
         }
         $mform->addElement('select', 'role', get_string('role'),
                 array(0 => get_string('all')) + $rolenames);

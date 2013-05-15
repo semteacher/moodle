@@ -354,8 +354,11 @@ class assign {
         $o = '';
         $mform = null;
         $notices = array();
+        $nextpageparams = array();
 
-        $nextpageparams = array('id'=>$this->get_course_module()->id);
+        if (!empty($this->get_course_module()->id)) {
+            $nextpageparams['id'] = $this->get_course_module()->id;
+        }
 
         // Handle form submissions first.
         if ($action == 'savesubmission') {
@@ -516,7 +519,7 @@ class assign {
         $update->courseid = $formdata->course;
         $update->intro = $formdata->intro;
         $update->introformat = $formdata->introformat;
-        $update->alwaysshowdescription = $formdata->alwaysshowdescription;
+        $update->alwaysshowdescription = !empty($formdata->alwaysshowdescription);
         $update->submissiondrafts = $formdata->submissiondrafts;
         $update->requiresubmissionstatement = $formdata->requiresubmissionstatement;
         $update->sendnotifications = $formdata->sendnotifications;
@@ -837,7 +840,7 @@ class assign {
         $update->course = $formdata->course;
         $update->intro = $formdata->intro;
         $update->introformat = $formdata->introformat;
-        $update->alwaysshowdescription = $formdata->alwaysshowdescription;
+        $update->alwaysshowdescription = !empty($formdata->alwaysshowdescription);
         $update->submissiondrafts = $formdata->submissiondrafts;
         $update->requiresubmissionstatement = $formdata->requiresubmissionstatement;
         $update->sendnotifications = $formdata->sendnotifications;
@@ -846,7 +849,9 @@ class assign {
         $update->cutoffdate = $formdata->cutoffdate;
         $update->allowsubmissionsfromdate = $formdata->allowsubmissionsfromdate;
         $update->grade = $formdata->grade;
-        $update->completionsubmit = !empty($formdata->completionsubmit);
+        if (!empty($formdata->completionunlocked)) {
+            $update->completionsubmit = !empty($formdata->completionsubmit);
+        }
         $update->teamsubmission = $formdata->teamsubmission;
         $update->requireallteammemberssubmit = $formdata->requireallteammemberssubmit;
         $update->teamsubmissiongroupingid = $formdata->teamsubmissiongroupingid;
@@ -1730,7 +1735,7 @@ class assign {
         require_once($CFG->dirroot . '/mod/assign/extensionform.php');
 
         $o = '';
-        $batchusers = optional_param('selectedusers', '', PARAM_TEXT);
+        $batchusers = optional_param('selectedusers', '', PARAM_SEQUENCE);
         $data = new stdClass();
         $data->extensionduedate = null;
         $userid = 0;
@@ -2242,6 +2247,8 @@ class assign {
 
         // More efficient to load this here.
         require_once($CFG->libdir.'/filelib.php');
+
+        require_capability('mod/assign:grade', $this->context);
 
         // Load all users with submit.
         $students = get_enrolled_users($this->context, "mod/assign:submit");
@@ -3091,6 +3098,9 @@ class assign {
     public function can_view_submission($userid) {
         global $USER;
 
+        if (is_siteadmin()) {
+            return true;
+        }
         if (!is_enrolled($this->get_course_context(), $userid)) {
             return false;
         }
@@ -3407,22 +3417,22 @@ class assign {
                                                       $this->get_return_params());
 
                 $o .= $this->get_renderer()->render($feedbackstatus);
+            }
 
-                $allsubmissions = $this->get_all_submissions($user->id);
+            $allsubmissions = $this->get_all_submissions($user->id);
 
-                if (count($allsubmissions) > 1) {
-                    $allgrades = $this->get_all_grades($user->id);
-                    $history = new assign_attempt_history($allsubmissions,
-                                                          $allgrades,
-                                                          $this->get_submission_plugins(),
-                                                          $this->get_feedback_plugins(),
-                                                          $this->get_course_module()->id,
-                                                          $this->get_return_action(),
-                                                          $this->get_return_params(),
-                                                          false);
+            if (count($allsubmissions) > 1) {
+                $allgrades = $this->get_all_grades($user->id);
+                $history = new assign_attempt_history($allsubmissions,
+                                                      $allgrades,
+                                                      $this->get_submission_plugins(),
+                                                      $this->get_feedback_plugins(),
+                                                      $this->get_course_module()->id,
+                                                      $this->get_return_action(),
+                                                      $this->get_return_params(),
+                                                      false);
 
-                    $o .= $this->get_renderer()->render($history);
-                }
+                $o .= $this->get_renderer()->render($history);
             }
 
         }
@@ -4292,7 +4302,7 @@ class assign {
         // Need submit permission to submit an assignment.
         require_capability('mod/assign:grantextension', $this->context);
 
-        $batchusers = optional_param('selectedusers', '', PARAM_TEXT);
+        $batchusers = optional_param('selectedusers', '', PARAM_SEQUENCE);
         $userid = 0;
         if (!$batchusers) {
             $userid = required_param('userid', PARAM_INT);
@@ -5017,7 +5027,7 @@ class assign {
         } else {
             $usergrade = '-';
             if (isset($gradinginfo->items[0]->grades[$userid]) &&
-                    !$grading_info->items[0]->grades[$userid]->hidden) {
+                    !$gradinginfo->items[0]->grades[$userid]->hidden) {
                 $usergrade = $gradinginfo->items[0]->grades[$userid]->str_grade;
             }
             $gradestring = $usergrade;
@@ -5315,7 +5325,7 @@ class assign {
         }
 
         $flags = $this->get_user_flags($userid, true);
-        $flags->locked = 1;
+        $flags->locked = 0;
         $this->update_user_flags($flags);
 
         $user = $DB->get_record('user', array('id' => $userid), '*', MUST_EXIST);

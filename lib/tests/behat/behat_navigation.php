@@ -46,17 +46,23 @@ class behat_navigation extends behat_base {
      */
     public function i_expand_node($nodetext) {
 
-        $xpath = "//ul[contains(concat(' ', normalize-space(@class), ' '), ' block_tree ')]
-/child::li
-/child::p[contains(concat(' ', normalize-space(@class), ' '), ' branch')]
-/child::span[contains(concat(' ', normalize-space(.), ' '), '" . $nodetext . "')]
-|
-//ul[contains(concat(' ', normalize-space(@class), ' '), ' block_tree ')]
-/descendant::li[not(contains(concat(' ', normalize-space(@class), ' '), ' collapsed'))]
-/descendant::li
-/child::p[contains(concat(' ', normalize-space(@class), ' '), ' branch')]
-/child::span[contains(concat(' ', normalize-space(.), ' '), '" . $nodetext . "')]
-";
+        // This step is useless with Javascript disabled as Moodle auto expands
+        // all of tree's nodes; adding this because of scenarios that shares the
+        // same steps with and without Javascript enabled.
+        if (!$this->running_javascript()) {
+            return false;
+        }
+
+        $xpath = "//ul[contains(concat(' ', normalize-space(@class), ' '), ' block_tree ')]" .
+            "/child::li" .
+            "/child::p[contains(concat(' ', normalize-space(@class), ' '), ' branch')]" .
+            "/child::span[contains(concat(' ', normalize-space(.), ' '), '" . $nodetext . "')]" .
+            "|" .
+            "//ul[contains(concat(' ', normalize-space(@class), ' '), ' block_tree ')]" .
+            "/descendant::li[not(contains(concat(' ', normalize-space(@class), ' '), ' collapsed'))]" .
+            "/descendant::li" .
+            "/child::p[contains(concat(' ', normalize-space(@class), ' '), ' branch')]" .
+            "/child::span[contains(concat(' ', normalize-space(.), ' '), '" . $nodetext . "')]";
 
         $node = $this->find('xpath', $xpath);
         $node->click();

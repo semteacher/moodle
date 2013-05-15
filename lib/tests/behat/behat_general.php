@@ -64,6 +64,33 @@ class behat_general extends behat_base {
     }
 
     /**
+     * Switches to the specified window. Useful when interacting with popup windows.
+     *
+     * @Given /^I switch to "(?P<window_name_string>(?:[^"]|\\")*)" window$/
+     * @param string $windowname
+     */
+    public function switch_to_window($windowname) {
+        $this->getSession()->switchToWindow($windowname);
+    }
+
+    /**
+     * Switches to the main Moodle window. Useful when you finish interacting with popup windows.
+     *
+     * @Given /^I switch to the main window$/
+     */
+    public function switch_to_the_main_window() {
+        $this->getSession()->switchToWindow();
+    }
+
+    /**
+     * Accepts the currently displayed alert dialog.
+     * @Given /^I accept the currently displayed dialog$/
+     */
+    public function accept_currently_displayed_alert_dialog() {
+        $this->getSession()->getDriver()->getWebDriverSession()->accept_alert();
+    }
+
+    /**
      * Clicks link with specified id|title|alt|text.
      *
      * @When /^I follow "(?P<link_string>(?:[^"]|\\")*)"$/
@@ -136,6 +163,52 @@ class behat_general extends behat_base {
 
         $node = $this->get_node_in_container($selectortype, $element, $nodeselectortype, $nodeelement);
         $node->click();
+    }
+
+    /**
+     * Click on the specified element inside a table row containing the specified text.
+     *
+     * @Given /^I click on "(?P<element_string>(?:[^"]|\\")*)" "(?P<selector_string>(?:[^"]|\\")*)" in the "(?P<row_text_string>(?:[^"]|\\")*)" table row$/
+     * @throws ElementNotFoundException
+     * @param string $element Element we look for
+     * @param string $selectortype The type of what we look for
+     * @param string $tablerowtext The table row text
+     */
+    public function i_click_on_in_the_table_row($element, $selectortype, $tablerowtext) {
+
+        // The table row container.
+        $nocontainerexception = new ElementNotFoundException($this->getSession(), '"' . $tablerowtext . '" row text ');
+        $tablerowtext = str_replace("'", "\'", $tablerowtext);
+        $rownode = $this->find('xpath', "//tr[contains(., '" . $tablerowtext . "')]", $nocontainerexception);
+
+        // Looking for the element DOM node inside the specified row.
+        list($selector, $locator) = $this->transform_selector($selectortype, $element);
+        $elementnode = $this->find($selector, $locator, false, $rownode);
+        $elementnode->click();
+    }
+
+    /**
+     * Drags and drops the specified element to the specified container. This step is experimental.
+     *
+     * The steps definitions calling this step as part of them should
+     * manage the wait times by themselves as the times and when the
+     * waits should be done depends on what is being dragged & dropper.
+     *
+     * @Given /^I drag "(?P<element_string>(?:[^"]|\\")*)" "(?P<selector1_string>(?:[^"]|\\")*)" and I drop it in "(?P<container_element_string>(?:[^"]|\\")*)" "(?P<selector2_string>(?:[^"]|\\")*)"$/
+     * @param string $element
+     * @param string $selectortype
+     * @param string $containerelement
+     * @param string $containerselectortype
+     */
+    public function i_drag_and_i_drop_it_in($element, $selectortype, $containerelement, $containerselectortype) {
+
+        list($sourceselector, $sourcelocator) = $this->transform_selector($selectortype, $element);
+        $sourcexpath = $this->getSession()->getSelectorsHandler()->selectorToXpath($sourceselector, $sourcelocator);
+
+        list($containerselector, $containerlocator) = $this->transform_selector($containerselectortype, $containerelement);
+        $destinationxpath = $this->getSession()->getSelectorsHandler()->selectorToXpath($containerselector, $containerlocator);
+
+        $this->getSession()->getDriver()->dragTo($sourcexpath, $destinationxpath);
     }
 
     /**

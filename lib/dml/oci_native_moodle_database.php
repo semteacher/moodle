@@ -469,15 +469,20 @@ class oci_native_moodle_database extends moodle_database {
      * @return array array of database_column_info objects indexed with column names
      */
     public function get_columns($table, $usecache=true) {
-        if ($usecache and isset($this->columns[$table])) {
-            return $this->columns[$table];
+
+        if ($usecache) {
+            $properties = array('dbfamily' => $this->get_dbfamily(), 'settings' => $this->get_settings_hash());
+            $cache = cache::make('core', 'databasemeta', $properties);
+            if ($data = $cache->get($table)) {
+                return $data;
+            }
         }
 
         if (!$table) { // table not specified, return empty array directly
             return array();
         }
 
-        $this->columns[$table] = array();
+        $structure = array();
 
         // We give precedence to CHAR_LENGTH for VARCHAR2 columns over WIDTH because the former is always
         // BYTE based and, for cross-db operations, we want CHAR based results. See MDL-29415
@@ -656,10 +661,14 @@ class oci_native_moodle_database extends moodle_database {
                 $info->meta_type     = '?';
             }
 
-            $this->columns[$table][$info->name] = new database_column_info($info);
+            $structure[$info->name] = new database_column_info($info);
         }
 
-        return $this->columns[$table];
+        if ($usecache) {
+            $result = $cache->set($table, $structure);
+        }
+
+        return $structure;
     }
 
     /**
@@ -1540,43 +1549,123 @@ class oci_native_moodle_database extends moodle_database {
     }
 
     public function sql_concat() {
-        // NOTE: Oracle concat implementation isn't ANSI compliant when using NULLs (the result of
-        // any concatenation with NULL must return NULL) because of his inability to differentiate
-        // NULLs and empty strings. So this function will cause some tests to fail. Hopefully
-        // it's only a side case and it won't affect normal concatenation operations in Moodle.
         $arr = func_get_args();
-        if ($this->oci_package_installed()) {
-            foreach ($arr as $k => $v) {
-                if (strpos($v, "'") === 0) {
-                    continue;
-                }
-                $arr[$k] = "MOODLELIB.UNDO_DIRTY_HACK($v)";
-            }
-        }
-        $s = implode(' || ', $arr);
-        if ($s === '') {
+        if (empty($arr)) {
             return " ' ' ";
         }
-        return " MOODLELIB.DIRTY_HACK($s) ";
+        foreach ($arr as $k => $v) {
+            if ($v === "' '") {
+                $arr[$k] = "'*OCISP*'"; // New mega hack.
+            }
+        }
+        $s = $this->recursive_concat($arr);
+        return " MOODLELIB.UNDO_MEGA_HACK($s) ";
     }
 
-    public function sql_concat_join($separator="' '", $elements=array()) {
-        if ($this->oci_package_installed()) {
-            foreach ($elements as $k => $v) {
-                if (strpos($v, "'") === 0) {
-                    continue;
-                }
-                $elements[$k] = "MOODLELIB.UNDO_DIRTY_HACK($v)";
+    public function sql_concat_join($separator="' '", $elements = array()) {
+        if ($separator === "' '") {
+            $separator = "'*OCISP*'"; // New mega hack.
+        }
+        foreach ($elements as $k => $v) {
+            if ($v === "' '") {
+                $elements[$k] = "'*OCISP*'"; // New mega hack.
             }
         }
         for ($n = count($elements)-1; $n > 0 ; $n--) {
             array_splice($elements, $n, 0, $separator);
         }
-        $s = implode(' || ', $elements);
-        if ($s === '') {
+        if (empty($elements)) {
             return " ' ' ";
         }
-        return " MOODLELIB.DIRTY_HACK($s) ";
+        $s = $this->recursive_concat($elements);
+        return " MOODLELIB.UNDO_MEGA_HACK($s) ";
+    }
+
+    /**
+     * Constructs 'IN()' or '=' sql fragment
+     *
+     * Method overriding {@link moodle_database::get_in_or_equal} to be able to get
+     * more than 1000 elements working, to avoid ORA-01795. We use a pivoting technique
+     * to be able to transform the params into virtual rows, so the original IN()
+     * expression gets transformed into a subquery. Once more, be noted that we shouldn't
+     * be using ever get_in_or_equal() with such number of parameters (proper subquery and/or
+     * chunking should be used instead).
+     *
+     * @param mixed $items A single value or array of values for the expression.
+     * @param int $type Parameter bounding type : SQL_PARAMS_QM or SQL_PARAMS_NAMED.
+     * @param string $prefix Named parameter placeholder prefix (a unique counter value is appended to each parameter name).
+     * @param bool $equal True means we want to equate to the constructed expression, false means we don't want to equate to it.
+     * @param mixed $onemptyitems This defines the behavior when the array of items provided is empty. Defaults to false,
+     *              meaning throw exceptions. Other values will become part of the returned SQL fragment.
+     * @throws coding_exception | dml_exception
+     * @return array A list containing the constructed sql fragment and an array of parameters.
+     */
+    public function get_in_or_equal($items, $type=SQL_PARAMS_QM, $prefix='param', $equal=true, $onemptyitems=false) {
+        list($sql, $params) = parent::get_in_or_equal($items, $type, $prefix,  $equal, $onemptyitems);
+
+        // Less than 1000 elements, nothing to do.
+        if (count($params) < 1000) {
+            return array($sql, $params); // Return unmodified.
+        }
+
+        // Extract the interesting parts of the sql to rewrite.
+        if (preg_match('!(^.*IN \()([^\)]*)(.*)$!', $sql, $matches) === false) {
+            return array($sql, $params); // Return unmodified.
+        }
+
+        $instart = $matches[1];
+        $insql = $matches[2];
+        $inend = $matches[3];
+        $newsql = '';
+
+        // Some basic verification about the matching going ok.
+        $insqlarr = explode(',', $insql);
+        if (count($insqlarr) !== count($params)) {
+            return array($sql, $params); // Return unmodified.
+        }
+
+        // Arrived here, we need to chunk and pivot the params, building a new sql (params remain the same).
+        $addunionclause = false;
+        while ($chunk = array_splice($insqlarr, 0, 125)) { // Each chunk will handle up to 125 (+125 +1) elements (DECODE max is 255).
+            $chunksize = count($chunk);
+            if ($addunionclause) {
+                $newsql .= "\n    UNION ALL";
+            }
+            $newsql .= "\n        SELECT DECODE(pivot";
+            $counter = 1;
+            foreach ($chunk as $element) {
+                $newsql .= ",\n            {$counter}, " . trim($element);
+                $counter++;
+            }
+            $newsql .= ")";
+            $newsql .= "\n        FROM dual";
+            $newsql .= "\n        CROSS JOIN (SELECT LEVEL AS pivot FROM dual CONNECT BY LEVEL <= {$chunksize})";
+            $addunionclause = true;
+        }
+
+        // Rebuild the complete IN() clause and return it.
+        return array($instart . $newsql . $inend, $params);
+    }
+
+    /**
+     * Mega hacky magic to work around crazy Oracle NULL concats.
+     * @param array $args
+     * @return string
+     */
+    protected function recursive_concat(array $args) {
+        $count = count($args);
+        if ($count == 1) {
+            $arg = reset($args);
+            return $arg;
+        }
+        if ($count == 2) {
+            $args[] = "' '";
+            // No return here intentionally.
+        }
+        $first = array_shift($args);
+        $second = array_shift($args);
+        $third = $this->recursive_concat($args);
+        return "MOODLELIB.TRICONCAT($first, $second, $third)";
     }
 
     /**
