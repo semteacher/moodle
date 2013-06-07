@@ -55,6 +55,11 @@ use Behat\Behat\Event\SuiteEvent as SuiteEvent,
 class behat_hooks extends behat_base {
 
     /**
+     * @var Last browser session start time.
+     */
+    protected static $lastbrowsersessionstart = 0;
+
+    /**
      * Gives access to moodle codebase, ensures all is ready and sets up the test lock.
      *
      * Includes config.php to use moodle codebase with $CFG->behat_*
@@ -102,6 +107,12 @@ class behat_hooks extends behat_base {
         }
         // Avoid parallel tests execution, it continues when the previous lock is released.
         test_lock::acquire('behat');
+
+        // Store the browser reset time if reset after N seconds is specified in config.php.
+        if (!empty($CFG->behat_restart_browser_after)) {
+            // Store the initial browser session opening.
+            self::$lastbrowsersessionstart = time();
+        }
     }
 
     /**
@@ -137,6 +148,15 @@ class behat_hooks extends behat_base {
         // Assing valid data to admin user (some generator-related code needs a valid user).
         $user = $DB->get_record('user', array('username' => 'admin'));
         session_set_user($user);
+
+        // Reset the browser if specified in config.php.
+        if (!empty($CFG->behat_restart_browser_after) && $this->running_javascript()) {
+            $now = time();
+            if (self::$lastbrowsersessionstart + $CFG->behat_restart_browser_after < $now) {
+                $this->getSession()->restart();
+                self::$lastbrowsersessionstart = $now;
+            }
+        }
 
         // Start always in the the homepage.
         $this->getSession()->visit($this->locate_path('/'));
@@ -257,14 +277,18 @@ class behat_hooks extends behat_base {
             }
 
             // Any other backtrace.
-            $backtracespattern = '/(line [0-9]* of [^:]*: call to [\->&;:a-zA-Z_\x7f-\xff][\->&;:a-zA-Z0-9_\x7f-\xff]*)/';
-            if (preg_match_all($backtracespattern, $this->getSession()->getPage()->getContent(), $backtraces)) {
-                $msgs = array();
-                foreach ($backtraces[0] as $backtrace) {
-                    $msgs[] = $backtrace . '()';
+            // First looking through xpath as it is faster than get and parse the whole page contents,
+            // we get the contents and look for matches once we found something to suspect that there is a backtrace.
+            if ($this->getSession()->getDriver()->find("(//html/descendant::*[contains(., ': call to ')])[1]")) {
+                $backtracespattern = '/(line [0-9]* of [^:]*: call to [\->&;:a-zA-Z_\x7f-\xff][\->&;:a-zA-Z0-9_\x7f-\xff]*)/';
+                if (preg_match_all($backtracespattern, $this->getSession()->getPage()->getContent(), $backtraces)) {
+                    $msgs = array();
+                    foreach ($backtraces[0] as $backtrace) {
+                        $msgs[] = $backtrace . '()';
+                    }
+                    $msg = "Other backtraces found:\n" . implode("\n", $msgs);
+                    throw new \Exception(htmlentities($msg));
                 }
-                $msg = "Other backtraces found:\n" . implode("\n", $msgs);
-                throw new \Exception(htmlentities($msg));
             }
 
         } catch (NoSuchWindow $e) {

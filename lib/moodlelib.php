@@ -4724,9 +4724,6 @@ function delete_course($courseorid, $showfeedback = true) {
         return false;
     }
 
-    // Handle course badges.
-    badges_handle_course_deletion($courseid);
-
     // make the course completely empty
     remove_course_contents($courseid, $showfeedback);
 
@@ -4768,6 +4765,7 @@ function delete_course($courseorid, $showfeedback = true) {
  */
 function remove_course_contents($courseid, $showfeedback = true, array $options = null) {
     global $CFG, $DB, $OUTPUT;
+    require_once($CFG->libdir.'/badgeslib.php');
     require_once($CFG->libdir.'/completionlib.php');
     require_once($CFG->libdir.'/questionlib.php');
     require_once($CFG->libdir.'/gradelib.php');
@@ -4775,6 +4773,9 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     require_once($CFG->dirroot.'/tag/coursetagslib.php');
     require_once($CFG->dirroot.'/comment/lib.php');
     require_once($CFG->dirroot.'/rating/lib.php');
+
+    // Handle course badges.
+    badges_handle_course_deletion($courseid);
 
     // NOTE: these concatenated strings are suboptimal, but it is just extra info...
     $strdeleted = get_string('deleted').' - ';
@@ -9669,9 +9670,10 @@ function format_float($float, $decimalpoints=1, $localized=true, $stripzeros=fal
  * Do NOT try to do any math operations before this conversion on any user submitted floats!
  *
  * @param string $locale_float locale aware float representation
- * @return float
+ * @param bool $strict If true, then check the input and return false if it is not a valid number.
+ * @return mixed float|bool - false or the parsed float.
  */
-function unformat_float($locale_float) {
+function unformat_float($locale_float, $strict = false) {
     $locale_float = trim($locale_float);
 
     if ($locale_float == '') {
@@ -9679,8 +9681,13 @@ function unformat_float($locale_float) {
     }
 
     $locale_float = str_replace(' ', '', $locale_float); // no spaces - those might be used as thousand separators
+    $locale_float = str_replace(get_string('decsep', 'langconfig'), '.', $locale_float);
 
-    return (float)str_replace(get_string('decsep', 'langconfig'), '.', $locale_float);
+    if ($strict && !is_numeric($locale_float)) {
+        return false;
+    }
+
+    return (float)$locale_float;
 }
 
 /**
@@ -10602,8 +10609,8 @@ function get_performance_info() {
     $info['html'] .= '<span class="included">Included '.$info['includecount'].' files</span> ';
     $info['txt']  .= 'includecount: '.$info['includecount'].' ';
 
-    if (!empty($CFG->early_install_lang)) {
-        // We can not track more performance before installation, sorry.
+    if (!empty($CFG->early_install_lang) or empty($PAGE)) {
+        // We can not track more performance before installation or before PAGE init, sorry.
         return $info;
     }
 
