@@ -2509,7 +2509,8 @@ class assign {
                                                                   array('cm'=>$this->get_course_module()->id,
                                                                         'submissiondrafts'=>$this->get_instance()->submissiondrafts,
                                                                         'duedate'=>$this->get_instance()->duedate,
-                                                                        'feedbackplugins'=>$this->get_feedback_plugins()),
+                                                                        'feedbackplugins'=>$this->get_feedback_plugins(),
+                                                                        'context'=>$this->get_context()),
                                                                   'post', '',
                                                                   array('class'=>'gradingbatchoperationsform'));
 
@@ -2762,7 +2763,8 @@ class assign {
                                                               array('cm'=>$this->get_course_module()->id,
                                                                     'submissiondrafts'=>$this->get_instance()->submissiondrafts,
                                                                     'duedate'=>$this->get_instance()->duedate,
-                                                                    'feedbackplugins'=>$this->get_feedback_plugins()),
+                                                                    'feedbackplugins'=>$this->get_feedback_plugins(),
+                                                                    'context'=>$this->get_context()),
                                                               'post',
                                                               '',
                                                               array('class'=>'gradingbatchoperationsform'));
@@ -3143,7 +3145,7 @@ class assign {
             return false;
         }
         $assign = clone $this->get_instance();
-        $assign->cmidnumber = $this->get_course_module()->id;
+        $assign->cmidnumber = $this->get_course_module()->idnumber;
 
         return assign_grade_item_update($assign, $gradebookgrade);
     }
