@@ -35,5 +35,3 @@ $version  = 2013051400.04;              // 20130514      = branching date YYYYMM
 
 $release  = '2.5+ (Build: 20130606)';    // Human-friendly version name
 
-$branch   = '25';                       // this version's branch
-$maturity = MATURITY_STABLE;            // this version's maturity level
