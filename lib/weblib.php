@@ -909,20 +909,37 @@ function close_window($delay = 0, $reloadopener = false) {
  * @return string The link to user documentation for this current page
  */
 function page_doc_link($text='') {
-    global $CFG, $PAGE, $OUTPUT;
-
-    if (empty($CFG->docroot) || during_initial_install()) {
-        return '';
-    }
-    if (!has_capability('moodle/site:doclinks', $PAGE->context)) {
-        return '';
-    }
-
-    $path = $PAGE->docspath;
+    global $OUTPUT, $PAGE;
+    $path = page_get_doc_link_path($PAGE);
     if (!$path) {
         return '';
     }
     return $OUTPUT->doc_link($path, $text);
+}
+
+/**
+ * Returns the path to use when constructing a link to the docs.
+ *
+ * @since 2.5.1 2.6
+ * @global stdClass $CFG
+ * @param moodle_page $page
+ * @return string
+ */
+function page_get_doc_link_path(moodle_page $page) {
+    global $CFG;
+
+    if (empty($CFG->docroot) || during_initial_install()) {
+        return '';
+    }
+    if (!has_capability('moodle/site:doclinks', $page->context)) {
+        return '';
+    }
+
+    $path = $page->docspath;
+    if (!$path) {
+        return '';
+    }
+    return $path;
 }
 
 
@@ -2577,19 +2594,20 @@ function redirect($url, $message='', $delay=-1) {
 function obfuscate_text($plaintext) {
 
     $i=0;
-    $length = strlen($plaintext);
+    $length = textlib::strlen($plaintext);
     $obfuscated='';
     $prev_obfuscated = false;
     while ($i < $length) {
-        $c = ord($plaintext{$i});
-        $numerical = ($c >= ord('0')) && ($c <= ord('9'));
+        $char = textlib::substr($plaintext, $i, 1);
+        $ord = textlib::utf8ord($char);
+        $numerical = ($ord >= ord('0')) && ($ord <= ord('9'));
         if ($prev_obfuscated and $numerical ) {
-            $obfuscated.='&#'.ord($plaintext{$i}).';';
+            $obfuscated.='&#'.$ord.';';
         } else if (rand(0,2)) {
-            $obfuscated.='&#'.ord($plaintext{$i}).';';
+            $obfuscated.='&#'.$ord.';';
             $prev_obfuscated = true;
         } else {
-            $obfuscated.=$plaintext{$i};
+            $obfuscated.=$char;
             $prev_obfuscated = false;
         }
       $i++;
