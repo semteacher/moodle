@@ -823,6 +823,45 @@ class accesslib_testcase extends advanced_testcase {
     }
 
     /**
+     * Test role default allows.
+     */
+    public function test_get_default_role_archetype_allows() {
+        $archetypes = get_role_archetypes();
+        foreach ($archetypes as $archetype) {
+
+            $result = get_default_role_archetype_allows('assign', $archetype);
+            $this->assertTrue(is_array($result));
+
+            $result = get_default_role_archetype_allows('override', $archetype);
+            $this->assertTrue(is_array($result));
+
+            $result = get_default_role_archetype_allows('switch', $archetype);
+            $this->assertTrue(is_array($result));
+        }
+
+        $result = get_default_role_archetype_allows('assign', '');
+        $this->assertSame(array(), $result);
+
+        $result = get_default_role_archetype_allows('override', '');
+        $this->assertSame(array(), $result);
+
+        $result = get_default_role_archetype_allows('switch', '');
+        $this->assertSame(array(), $result);
+
+        $result = get_default_role_archetype_allows('assign', 'wrongarchetype');
+        $this->assertSame(array(), $result);
+        $this->assertDebuggingCalled();
+
+        $result = get_default_role_archetype_allows('override', 'wrongarchetype');
+        $this->assertSame(array(), $result);
+        $this->assertDebuggingCalled();
+
+        $result = get_default_role_archetype_allows('switch', 'wrongarchetype');
+        $this->assertSame(array(), $result);
+        $this->assertDebuggingCalled();
+    }
+
+    /**
      * Test allowing of role assignments.
      * @return void
      */
@@ -2327,6 +2366,12 @@ class accesslib_testcase extends advanced_testcase {
         $this->resetDebugging();
         $this->assertEquals(count($children), $DB->count_records('context')-1);
         unset($children);
+
+        // Make sure a debugging is thrown.
+        get_context_instance($record->contextlevel, $record->instanceid);
+        $this->assertDebuggingCalled('get_context_instance() is deprecated, please use context_xxxx::instance() instead.', DEBUG_DEVELOPER);
+        get_context_instance_by_id($record->id);
+        $this->assertDebuggingCalled('get_context_instance_by_id() is deprecated, please use context::instance_by_id($id) instead.', DEBUG_DEVELOPER);
 
         $DB->delete_records('context', array('contextlevel'=>CONTEXT_BLOCK));
         create_contexts();

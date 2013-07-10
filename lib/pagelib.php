@@ -899,7 +899,7 @@ class moodle_page {
     /**
      * Set the main context to which this page belongs.
      *
-     * @param context $context a context object, normally obtained with get_context_instance.
+     * @param context $context a context object. You normally get this with context_xxxx::instance().
      */
     public function set_context($context) {
         if ($context === null) {
@@ -1852,7 +1852,14 @@ class moodle_page {
      */
     public function apply_theme_region_manipulations($region) {
         if ($this->blockmanipulations && isset($this->blockmanipulations[$region])) {
-            return $this->blockmanipulations[$region];
+            $regionwas = $region;
+            $regionnow = $this->blockmanipulations[$region];
+            if ($this->blocks->is_known_region($regionwas) && $this->blocks->is_known_region($regionnow)) {
+                // Both the before and after regions are known so we can swap them over.
+                return $regionnow;
+            }
+            // We didn't know about both, we won't swap them over.
+            return $regionwas;
         }
         return $region;
     }
