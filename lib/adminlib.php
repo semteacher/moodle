@@ -115,6 +115,8 @@ define('INSECURE_DATAROOT_ERROR', 2);
 /**
  * Automatically clean-up all plugin data and remove the plugin DB tables
  *
+ * NOTE: do not call directly, use new /admin/plugins.php?uninstall=component instead!
+ *
  * @param string $type The plugin type, eg. 'mod', 'qtype', 'workshopgrading' etc.
  * @param string $name The plugin name, eg. 'forum', 'multichoice', 'accumulative' etc.
  * @uses global $OUTPUT to produce notices and other messages
@@ -126,14 +128,15 @@ function uninstall_plugin($type, $name) {
     // This may take a long time.
     @set_time_limit(0);
 
-    // recursively uninstall all module/editor subplugins first
-    if ($type === 'mod' || $type === 'editor') {
-        $base = get_component_directory($type . '_' . $name);
+    // Recursively uninstall all subplugins first.
+    $subplugintypes = core_component::get_plugin_types_with_subplugins();
+    if (isset($subplugintypes[$type])) {
+        $base = core_component::get_plugin_directory($type, $name);
         if (file_exists("$base/db/subplugins.php")) {
             $subplugins = array();
             include("$base/db/subplugins.php");
             foreach ($subplugins as $subplugintype=>$dir) {
-                $instances = get_plugin_list($subplugintype);
+                $instances = core_component::get_plugin_list($subplugintype);
                 foreach ($instances as $subpluginname => $notusedpluginpath) {
                     uninstall_plugin($subplugintype, $subpluginname);
                 }
@@ -3574,7 +3577,7 @@ class admin_setting_sitesetselect extends admin_setting_configselect {
      * @return string empty or error message
      */
     public function write_setting($data) {
-        global $DB, $SITE;
+        global $DB, $SITE, $COURSE;
         if (!in_array($data, array_keys($this->choices))) {
             return get_string('errorsetting', 'admin');
         }
@@ -3583,10 +3586,19 @@ class admin_setting_sitesetselect extends admin_setting_configselect {
         $temp                 = $this->name;
         $record->$temp        = $data;
         $record->timemodified = time();
-        // update $SITE
-        $SITE->{$this->name} = $data;
+
         course_get_format($SITE)->update_course_format_options($record);
-        return ($DB->update_record('course', $record) ? '' : get_string('errorsetting', 'admin'));
+        $DB->update_record('course', $record);
+
+        // Reset caches.
+        $SITE = $DB->get_record('course', array('id'=>$SITE->id), '*', MUST_EXIST);
+        if ($SITE->id == $COURSE->id) {
+            $COURSE = $SITE;
+        }
+        format_base::reset_course_cache($SITE->id);
+
+        return '';
+
     }
 }
 
@@ -3768,17 +3780,22 @@ class admin_setting_sitesetcheckbox extends admin_setting_configcheckbox {
      * @return string empty string or error message
      */
     public function write_setting($data) {
-        global $DB, $SITE;
+        global $DB, $SITE, $COURSE;
         $record = new stdClass();
         $record->id            = $SITE->id;
         $record->{$this->name} = ($data == '1' ? 1 : 0);
         $record->timemodified  = time();
-        // update $SITE
-        $SITE->{$this->name} = $data;
+
         course_get_format($SITE)->update_course_format_options($record);
         $DB->update_record('course', $record);
-        // There is something wrong in cache updates somewhere, let's reset everything.
-        format_base::reset_course_cache();
+
+        // Reset caches.
+        $SITE = $DB->get_record('course', array('id'=>$SITE->id), '*', MUST_EXIST);
+        if ($SITE->id == $COURSE->id) {
+            $COURSE = $SITE;
+        }
+        format_base::reset_course_cache($SITE->id);
+
         return '';
     }
 }
@@ -3825,7 +3842,7 @@ class admin_setting_sitesettext extends admin_setting_configtext {
      * @return string empty or error message
      */
     public function write_setting($data) {
-        global $DB, $SITE;
+        global $DB, $SITE, $COURSE;
         $data = trim($data);
         $validated = $this->validate($data);
         if ($validated !== true) {
@@ -3836,12 +3853,17 @@ class admin_setting_sitesettext extends admin_setting_configtext {
         $record->id            = $SITE->id;
         $record->{$this->name} = $data;
         $record->timemodified  = time();
-        // update $SITE
-        $SITE->{$this->name} = $data;
+
         course_get_format($SITE)->update_course_format_options($record);
         $DB->update_record('course', $record);
-        // There is something wrong in cache updates somewhere, let's reset everything.
-        format_base::reset_course_cache();
+
+        // Reset caches.
+        $SITE = $DB->get_record('course', array('id'=>$SITE->id), '*', MUST_EXIST);
+        if ($SITE->id == $COURSE->id) {
+            $COURSE = $SITE;
+        }
+        format_base::reset_course_cache($SITE->id);
+
         return '';
     }
 }
@@ -3877,16 +3899,22 @@ class admin_setting_special_frontpagedesc extends admin_setting {
      * @return string empty or error message
      */
     public function write_setting($data) {
-        global $DB, $SITE;
+        global $DB, $SITE, $COURSE;
         $record = new stdClass();
         $record->id            = $SITE->id;
         $record->{$this->name} = $data;
         $record->timemodified  = time();
-        $SITE->{$this->name} = $data;
+
         course_get_format($SITE)->update_course_format_options($record);
         $DB->update_record('course', $record);
-        // There is something wrong in cache updates somewhere, let's reset everything.
-        format_base::reset_course_cache();
+
+        // Reset caches.
+        $SITE = $DB->get_record('course', array('id'=>$SITE->id), '*', MUST_EXIST);
+        if ($SITE->id == $COURSE->id) {
+            $COURSE = $SITE;
+        }
+        format_base::reset_course_cache($SITE->id);
+
         return '';
     }
 
@@ -5102,7 +5130,7 @@ class admin_setting_manageenrols extends admin_setting {
         $strsettings  = get_string('settings');
         $strenable    = get_string('enable');
         $strdisable   = get_string('disable');
-        $struninstall = get_string('uninstallplugin', 'admin');
+        $struninstall = get_string('uninstallplugin', 'core_admin');
         $strusage     = get_string('enrolusage', 'enrol');
         $strversion   = get_string('version');
 
@@ -5205,18 +5233,16 @@ class admin_setting_manageenrols extends admin_setting {
             // Add settings link.
             if (!$version) {
                 $settings = '';
-            } else if ($url = $plugininfo->get_settings_url()) {
-                $settings = html_writer::link($url, $strsettings);
+            } else if ($surl = $plugininfo->get_settings_url()) {
+                $settings = html_writer::link($surl, $strsettings);
             } else {
                 $settings = '';
             }
 
             // Add uninstall info.
-            if ($version) {
-                $url = new moodle_url($plugininfo->get_uninstall_url(), array('return'=>'settings'));
-                $uninstall = html_writer::link($url, $struninstall);
-            } else {
-                $uninstall = '';
+            $uninstall = '';
+            if ($uninstallurl = plugin_manager::instance()->get_uninstall_url('enrol_'.$enrol)) {
+                $uninstall = html_writer::link($uninstallurl, $struninstall);
             }
 
             // Add a row to the table.
@@ -5836,7 +5862,7 @@ class admin_setting_manageeditors extends admin_setting {
         // display strings
         $txt = get_strings(array('administration', 'settings', 'edit', 'name', 'enable', 'disable',
             'up', 'down', 'none'));
-        $struninstall = get_string('uninstallplugin', 'admin');
+        $struninstall = get_string('uninstallplugin', 'core_admin');
 
         $txt->updown = "$txt->up/$txt->down";
 
@@ -5916,11 +5942,9 @@ class admin_setting_manageeditors extends admin_setting {
                 $settings = '';
             }
 
-            if ($editor === 'textarea') {
-                $uninstall = '';
-            } else {
-                $uurl = new moodle_url('/admin/editors.php', array('action'=>'uninstall', 'editor'=>$editor, 'sesskey'=>sesskey()));
-                $uninstall = html_writer::link($uurl, $struninstall);
+            $uninstall = '';
+            if ($uninstallurl = plugin_manager::instance()->get_uninstall_url('editor_'.$editor)) {
+                $uninstall = html_writer::link($uninstallurl, $struninstall);
             }
 
             // add a row to the table
@@ -6107,11 +6131,12 @@ class admin_setting_manageformats extends admin_setting {
         $formats = plugin_manager::instance()->get_plugins_of_type('format');
 
         // display strings
-        $txt = get_strings(array('settings', 'name', 'enable', 'disable', 'up', 'down', 'default', 'delete'));
+        $txt = get_strings(array('settings', 'name', 'enable', 'disable', 'up', 'down', 'default'));
+        $txt->uninstall = get_string('uninstallplugin', 'core_admin');
         $txt->updown = "$txt->up/$txt->down";
 
         $table = new html_table();
-        $table->head  = array($txt->name, $txt->enable, $txt->updown, $txt->delete, $txt->settings);
+        $table->head  = array($txt->name, $txt->enable, $txt->updown, $txt->uninstall, $txt->settings);
         $table->align = array('left', 'center', 'center', 'center', 'center');
         $table->width = '90%';
         $table->attributes['class'] = 'manageformattable generaltable';
@@ -6156,8 +6181,8 @@ class admin_setting_manageformats extends admin_setting {
                 $settings = html_writer::link($format->get_settings_url(), $txt->settings);
             }
             $uninstall = '';
-            if ($defaultformat !== $format->name) {
-                $uninstall = html_writer::link($format->get_uninstall_url(), $txt->delete);
+            if ($uninstallurl = plugin_manager::instance()->get_uninstall_url('format_'.$format->name)) {
+                $uninstall = html_writer::link($uninstallurl, $txt->uninstall);
             }
             $table->data[] =array($strformatname, $hideshow, $updown, $uninstall, $settings);
         }
