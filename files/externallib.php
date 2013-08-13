@@ -80,7 +80,7 @@ class core_files_external extends external_api {
         $browser = get_file_browser();
 
         if (empty($fileinfo['contextid'])) {
-            $context  = get_system_context();
+            $context  = context_system::instance();
         } else {
             $context  = context::instance_by_id($fileinfo['contextid']);
         }
@@ -263,6 +263,7 @@ class core_files_external extends external_api {
         }
 
         file_put_contents($savedfilepath, base64_decode($fileinfo['filecontent']));
+        @chmod($savedfilepath, $CFG->filepermissions);
         unset($fileinfo['filecontent']);
 
         if (!empty($fileinfo['filepath'])) {
