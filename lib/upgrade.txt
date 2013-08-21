@@ -4,15 +4,18 @@ information provided here is intended especially for developers.
 === 2.6 ===
 
 * Use new methods from core_component class instead of get_core_subsystems(), get_plugin_types(),
-  get_plugin_list(), get_plugin_list_with_class(), get_plugin_directory(), normalize_component()
-  and get_component_directory(). The names of the new methods are exactly the same, the only differences
-  are that core_component::get_plugin_types() now always returns full paths and
-  core_component::get_plugin_list() does not accept empty parameter any more.
+  get_plugin_list(), get_plugin_list_with_class(), get_plugin_directory(), normalize_component(),
+  get_component_directory() and get_plugin_list_with_file(). The names of the new methods are
+  exactly the same, the only differences are that core_component::get_plugin_types() now always returns
+  full paths and core_component::get_plugin_list() does not accept empty parameter any more.
 * Use core_text::* instead of textlib:: and also core_collator::* instead of collatorlib::*.
 * Use new function moodleform::mock_submit() to simulate form submission in unit tests (backported).
 * New $CFG->localcachedir setting useful for cluster nodes. Admins have to update X-Sendfile aliases if used.
 * MS SQL Server drivers are now using NVARCHAR(MAX) instead of NTEXT and VARBINARY(MAX) instead of IMAGE,
   this change should be fully transparent and it should help significantly with add-on compatibility.
+* The string manager classes were renamed. Note that they should not be modified or used directly,
+  always use get_string_manager() to get instance of the string manager.
+* The ability to use an 'insecure' rc4encrypt/rc4decrypt key has been removed.
 
 DEPRECATIONS:
 Various previously deprecated functions have now been altered to throw DEBUG_DEVELOPER debugging notices
