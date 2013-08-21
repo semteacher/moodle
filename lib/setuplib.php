@@ -529,8 +529,7 @@ function get_exception_info($ex) {
     // Remove some absolute paths from message and debugging info.
     $searches = array();
     $replaces = array();
-    $cfgnames = array('tempdir', 'cachedir', 'localcachedir', 'themedir',
-        'langmenucachefile', 'langcacheroot', 'dataroot', 'dirroot');
+    $cfgnames = array('tempdir', 'cachedir', 'localcachedir', 'themedir', 'dataroot', 'dirroot');
     foreach ($cfgnames as $cfgname) {
         if (property_exists($CFG, $cfgname)) {
             $searches[] = $CFG->$cfgname;
@@ -1026,7 +1025,14 @@ function raise_memory_limit($newlimit) {
         }
 
     } else if ($newlimit == MEMORY_HUGE) {
+        // MEMORY_HUGE uses 2G or MEMORY_EXTRA, whichever is bigger.
         $newlimit = get_real_size('2G');
+        if (!empty($CFG->extramemorylimit)) {
+            $extra = get_real_size($CFG->extramemorylimit);
+            if ($extra > $newlimit) {
+                $newlimit = $extra;
+            }
+        }
 
     } else {
         $newlimit = get_real_size($newlimit);
@@ -1165,7 +1171,7 @@ function disable_output_buffering() {
  */
 function redirect_if_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2013080700.00;
+    $lastmajordbchanges = 2013081400.00;
     if (empty($CFG->version) or (float)$CFG->version < $lastmajordbchanges or
             during_initial_install() or !empty($CFG->adminsetuppending)) {
         try {
