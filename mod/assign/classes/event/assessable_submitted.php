@@ -81,17 +81,17 @@ class assessable_submitted extends \core\event\assessable_submitted {
      *
      * @return array
      */
-    public function get_legacy_logdata() {
+    protected function get_legacy_logdata() {
         return $this->legacylogdata;
     }
 
     /**
      * Return localised event name.
      *
-     * @return \lang_string
+     * @return string
      */
     public static function get_name() {
-        return new \lang_string('event_assessable_submitted', 'mod_assign');
+        return get_string('event_assessable_submitted', 'mod_assign');
     }
 
     /**
