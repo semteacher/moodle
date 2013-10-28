@@ -25,6 +25,7 @@
  */
 
 require('../config.php');
+require_once('lib.php');
 
 // Try to prevent searching for sites that allow sign-up.
 if (!isset($CFG->additionalhtmlhead)) {
@@ -193,10 +194,7 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
             set_moodle_cookie($USER->username);
         }
 
-    /// Prepare redirection
-        if (user_not_fully_set_up($USER)) {
-            $urltogo = $CFG->wwwroot.'/user/edit.php';
-            // We don't delete $SESSION->wantsurl yet, so we get there later
+        $urltogo = core_login_get_return_url();
 
         } else if (isset($SESSION->wantsurl) and (strpos($SESSION->wantsurl, $CFG->wwwroot) === 0 or strpos($SESSION->wantsurl, str_replace('http://', 'https://', $CFG->wwwroot)) === 0)) {
             $urltogo = $SESSION->wantsurl;    /// Because it's an address in this site
