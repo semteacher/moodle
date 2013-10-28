@@ -493,8 +493,8 @@ class core_badges_renderer extends plugin_renderer_base {
 
         // Local badges.
         $localhtml = html_writer::start_tag('fieldset', array('id' => 'issued-badge-table', 'class' => 'generalbox'));
-        $localhtml .= html_writer::tag('legend',
-                    $this->output->heading_with_help(get_string('localbadges', 'badges', $SITE->fullname), 'localbadgesh', 'badges'));
+        $heading = get_string('localbadges', 'badges', format_string($SITE->fullname, true, array('context' => context_system::instance())));
+        $localhtml .= html_writer::tag('legend', $this->output->heading_with_help($heading, 'localbadgesh', 'badges'));
         if ($badges->badges) {
             $table = new html_table();
             $table->attributes['class'] = 'statustable';
@@ -935,10 +935,11 @@ class issued_badge implements renderable {
                 array('hash' => $hash), IGNORE_MISSING);
         if ($rec) {
             // Get a recipient from database.
-            $user = $DB->get_record_sql('SELECT u.id, u.lastname, u.firstname,
+            $namefields = get_all_user_name_fields(true, 'u');
+            $user = $DB->get_record_sql("SELECT u.id, $namefields,
                                                 u.email AS accountemail, b.email AS backpackemail
                         FROM {user} u LEFT JOIN {badge_backpack} b ON u.id = b.userid
-                        WHERE u.id = :userid', array('userid' => $rec->userid));
+                        WHERE u.id = :userid", array('userid' => $rec->userid));
             $this->recipient = $user;
             $this->visible = $rec->visible;
             $this->badgeid = $rec->badgeid;
