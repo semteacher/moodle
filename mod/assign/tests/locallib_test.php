@@ -250,6 +250,34 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         // Reload the instance data.
         $instance = $DB->get_record('assign', array('id'=>$assign->get_instance()->id));
         $this->assertEquals($now + 24*60*60, $instance->duedate);
+
+        // Test reset using assign_reset_userdata().
+        $assignduedate = $instance->duedate; // Keep old updated value for comparison.
+        $data->timeshift = 2*24*60*60;
+        assign_reset_userdata($data);
+        $instance = $DB->get_record('assign', array('id' => $assign->get_instance()->id));
+        $this->assertEquals($assignduedate + 2*24*60*60, $instance->duedate);
+
+        // Create one more assignment and reset, make sure time shifted for previous assignment is not changed.
+        $assign2 = $this->create_instance(array('assignsubmission_onlinetext_enabled' => 1,
+                                               'duedate' => $now));
+        $assignduedate = $instance->duedate;
+        $data->timeshift = 3*24*60*60;
+        $assign2->reset_userdata($data);
+        $instance = $DB->get_record('assign', array('id' => $assign->get_instance()->id));
+        $this->assertEquals($assignduedate, $instance->duedate);
+        $instance2 = $DB->get_record('assign', array('id' => $assign2->get_instance()->id));
+        $this->assertEquals($now + 3*24*60*60, $instance2->duedate);
+
+        // Reset both assignments using assign_reset_userdata() and make sure both assignments have same date.
+        $assignduedate = $instance->duedate;
+        $assign2duedate = $instance2->duedate;
+        $data->timeshift = 4*24*60*60;
+        assign_reset_userdata($data);
+        $instance = $DB->get_record('assign', array('id' => $assign->get_instance()->id));
+        $this->assertEquals($assignduedate + 4*24*60*60, $instance->duedate);
+        $instance2 = $DB->get_record('assign', array('id' => $assign2->get_instance()->id));
+        $this->assertEquals($assign2duedate + 4*24*60*60, $instance2->duedate);
     }
 
     public function test_plugin_settings() {
@@ -476,16 +504,17 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $data = new stdClass();
         $data->grade = '50.0';
         $assign->testable_apply_grade_to_user($data, $this->students[0]->id, 0);
+        $assign->testable_apply_grade_to_user($data, $this->students[1]->id, 0);
 
         // Now run cron and see that one message was sent.
         $this->preventResetByRollback();
         $sink = $this->redirectMessages();
         cron_setup_user();
-        $this->expectOutputRegex('/Done processing 1 assignment submissions/');
+        $this->expectOutputRegex('/Done processing 2 assignment submissions/');
         assign::cron();
 
         $messages = $sink->get_messages();
-        $this->assertEquals(1, count($messages));
+        $this->assertEquals(2, count($messages));
         $this->assertEquals(1, $messages[0]->notification);
         $this->assertEquals($assign->get_instance()->name, $messages[0]->contexturlname);
     }
@@ -638,6 +667,52 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
                                         $this->extrastudents[0]->id);
 
         $this->assertEquals(null, $gradinginfo->items[0]->grades[$this->extrastudents[0]->id]->datesubmitted);
+    }
+
+    public function test_group_submissions_submit_for_marking() {
+        global $PAGE;
+
+        $this->create_extra_users();
+        // Now verify group assignments.
+        $this->setUser($this->editingteachers[0]);
+        $assign = $this->create_instance(array('teamsubmission'=>1,
+                                               'assignsubmission_onlinetext_enabled'=>1,
+                                               'submissiondrafts'=>1,
+                                               'requireallteammemberssubmit'=>1));
+        $PAGE->set_url(new moodle_url('/mod/assign/view.php', array('id' => $assign->get_course_module()->id)));
+
+        $this->setUser($this->extrastudents[0]);
+        // Add a submission.
+        $data = new stdClass();
+        $data->onlinetext_editor = array('itemid'=>file_get_unused_draft_itemid(),
+                                         'text'=>'Submission text',
+                                         'format'=>FORMAT_MOODLE);
+
+        $notices = array();
+        $assign->save_submission($data, $notices);
+
+        // Check we can see the submit button.
+        $output = $assign->view_student_summary($this->extrastudents[0], true);
+        $this->assertContains(get_string('submitassignment', 'assign'), $output);
+
+        $submission = $assign->get_group_submission($this->extrastudents[0]->id, 0, true);
+        $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $assign->testable_update_submission($submission, $this->extrastudents[0]->id, true, true);
+
+        // Check that the student does not see "Submit" button.
+        $output = $assign->view_student_summary($this->extrastudents[0], true);
+        $this->assertNotContains(get_string('submitassignment', 'assign'), $output);
+
+        // Change to another user in the same group.
+        $this->setUser($this->extrastudents[self::GROUP_COUNT]);
+        $output = $assign->view_student_summary($this->extrastudents[self::GROUP_COUNT], true);
+        $this->assertContains(get_string('submitassignment', 'assign'), $output);
+
+        $submission = $assign->get_group_submission($this->extrastudents[self::GROUP_COUNT]->id, 0, true);
+        $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $assign->testable_update_submission($submission, $this->extrastudents[self::GROUP_COUNT]->id, true, true);
+        $output = $assign->view_student_summary($this->extrastudents[self::GROUP_COUNT], true);
+        $this->assertNotContains(get_string('submitassignment', 'assign'), $output);
     }
 
     public function test_submissions_open() {
