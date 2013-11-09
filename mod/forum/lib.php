@@ -3288,7 +3288,9 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
             return;
         }
         $output .= html_writer::tag('a', '', array('id'=>'p'.$post->id));
-        $output .= html_writer::start_tag('div', array('class'=>'forumpost clearfix'));
+        $output .= html_writer::start_tag('div', array('class'=>'forumpost clearfix',
+                                                       'role' => 'region',
+                                                       'aria-label' => get_string('hiddenforumpost', 'forum')));
         $output .= html_writer::start_tag('div', array('class'=>'row header'));
         $output .= html_writer::tag('div', '', array('class'=>'left picture')); // Picture
         if ($post->parent) {
@@ -3296,8 +3298,10 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
         } else {
             $output .= html_writer::start_tag('div', array('class'=>'topic starter'));
         }
-        $output .= html_writer::tag('div', get_string('forumsubjecthidden','forum'), array('class'=>'subject')); // Subject
-        $output .= html_writer::tag('div', get_string('forumauthorhidden','forum'), array('class'=>'author')); // author
+        $output .= html_writer::tag('div', get_string('forumsubjecthidden','forum'), array('class' => 'subject',
+                                                                                           'role' => 'header')); // Subject.
+        $output .= html_writer::tag('div', get_string('forumauthorhidden', 'forum'), array('class' => 'author',
+                                                                                           'role' => 'header')); // Author.
         $output .= html_writer::end_tag('div');
         $output .= html_writer::end_tag('div'); // row
         $output .= html_writer::start_tag('div', array('class'=>'row'));
@@ -3460,8 +3464,14 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
         $topicclass = ' firstpost starter';
     }
 
+    $postbyuser = new stdClass;
+    $postbyuser->post = $post->subject;
+    $postbyuser->user = $postuser->fullname;
+    $discussionbyuser = get_string('postbyuser', 'forum', $postbyuser);
     $output .= html_writer::tag('a', '', array('id'=>'p'.$post->id));
-    $output .= html_writer::start_tag('div', array('class'=>'forumpost clearfix'.$forumpostclass.$topicclass));
+    $output .= html_writer::start_tag('div', array('class'=>'forumpost clearfix'.$forumpostclass.$topicclass,
+                                                   'role' => 'region',
+                                                   'aria-label' => $discussionbyuser));
     $output .= html_writer::start_tag('div', array('class'=>'row header clearfix'));
     $output .= html_writer::start_tag('div', array('class'=>'left picture'));
     $output .= $OUTPUT->user_picture($postuser, array('courseid'=>$course->id));
@@ -3474,12 +3484,16 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     if (empty($post->subjectnoformat)) {
         $postsubject = format_string($postsubject);
     }
-    $output .= html_writer::tag('div', $postsubject, array('class'=>'subject'));
+    $output .= html_writer::tag('div', $postsubject, array('class'=>'subject',
+                                                           'role' => 'heading',
+                                                           'aria-level' => '2'));
 
     $by = new stdClass();
     $by->name = html_writer::link($postuser->profilelink, $postuser->fullname);
     $by->date = userdate($post->modified);
-    $output .= html_writer::tag('div', get_string('bynameondate', 'forum', $by), array('class'=>'author'));
+    $output .= html_writer::tag('div', get_string('bynameondate', 'forum', $by), array('class'=>'author',
+                                                                                       'role' => 'heading',
+                                                                                       'aria-level' => '2'));
 
     $output .= html_writer::end_tag('div'); //topic
     $output .= html_writer::end_tag('div'); //row
@@ -4579,7 +4593,7 @@ function forum_delete_post($post, $children, $course, $cm, $forum, $skipcompleti
        }
     }
 
-    //delete ratings
+    // Delete ratings.
     require_once($CFG->dirroot.'/rating/lib.php');
     $delopt = new stdClass;
     $delopt->contextid = $context->id;
@@ -4589,10 +4603,16 @@ function forum_delete_post($post, $children, $course, $cm, $forum, $skipcompleti
     $rm = new rating_manager();
     $rm->delete_ratings($delopt);
 
-    //delete attachments
+    // Delete attachments.
     $fs = get_file_storage();
     $fs->delete_area_files($context->id, 'mod_forum', 'attachment', $post->id);
     $fs->delete_area_files($context->id, 'mod_forum', 'post', $post->id);
+
+    // Delete cached RSS feeds.
+    if (!empty($CFG->enablerssfeeds)) {
+        require_once($CFG->dirroot.'/mod/forum/rsslib.php');
+        forum_rss_delete_file($forum);
+    }
 
     if ($DB->delete_records("forum_posts", array("id" => $post->id))) {
 
@@ -8316,8 +8336,14 @@ function forum_get_posts_by_user($user, array $courses, $musthaveaccess = false,
             }
             // Get the forum in question
             $forum = $forums[$forumid];
-            // This is needed for functionality later on in the forum code....
-            $forum->cm = $cm;
+
+            // This is needed for functionality later on in the forum code. It is converted to an object
+            // because the cm_info is readonly from 2.6. This is a dirty hack because some other parts of the
+            // code were expecting an writeable object. See {@link forum_print_post()}.
+            $forum->cm = new stdClass();
+            foreach ($cm as $key => $value) {
+                $forum->cm->$key = $value;
+            }
 
             // Check that either the current user can view the forum, or that the
             // current user has capabilities over the requested user and the requested

@@ -5166,8 +5166,8 @@ class admin_setting_manageenrols extends admin_setting {
 
             $test = '';
             if (!empty($enrols_available[$enrol]) and method_exists($enrols_available[$enrol], 'test_settings')) {
-                $url = new moodle_url('/enrol/test_settings.php', array('enrol'=>$enrol, 'sesskey'=>sesskey()));
-                $test = html_writer::link($url, $strtest);
+                $testsettingsurl = new moodle_url('/enrol/test_settings.php', array('enrol'=>$enrol, 'sesskey'=>sesskey()));
+                $test = html_writer::link($testsettingsurl, $strtest);
             }
 
             // Add a row to the table.
@@ -5720,8 +5720,8 @@ class admin_setting_manageauths extends admin_setting {
 
             $test = '';
             if (!empty($authplugins[$auth]) and method_exists($authplugins[$auth], 'test_settings')) {
-                $url = new moodle_url('/auth/test_settings.php', array('auth'=>$auth, 'sesskey'=>sesskey()));
-                $test = html_writer::link($url, $txt->testsettings);
+                $testurl = new moodle_url('/auth/test_settings.php', array('auth'=>$auth, 'sesskey'=>sesskey()));
+                $test = html_writer::link($testurl, $txt->testsettings);
             }
 
             // Add a row to the table.
@@ -6265,6 +6265,8 @@ function admin_externalpage_setup($section, $extrabutton = '', array $extraurlpa
         print_error('accessdenied', 'admin');
         die;
     }
+
+    navigation_node::require_admin_tree();
 
     // $PAGE->set_extra_button($extrabutton); TODO
 
@@ -8549,5 +8551,70 @@ class admin_setting_configmultiselect_modules extends admin_setting_configmultis
             }
         }
         return true;
+    }
+}
+
+/**
+ * Admin setting to show if a php extension is enabled or not.
+ *
+ * @copyright 2013 Damyon Wiese
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class admin_setting_php_extension_enabled extends admin_setting {
+
+    /** @var string The name of the extension to check for */
+    private $extension;
+
+    /**
+     * Calls parent::__construct with specific arguments
+     */
+    public function __construct($name, $visiblename, $description, $extension) {
+        $this->extension = $extension;
+        $this->nosave = true;
+        parent::__construct($name, $visiblename, $description, '');
+    }
+
+    /**
+     * Always returns true, does nothing
+     *
+     * @return true
+     */
+    public function get_setting() {
+        return true;
+    }
+
+    /**
+     * Always returns true, does nothing
+     *
+     * @return true
+     */
+    public function get_defaultsetting() {
+        return true;
+    }
+
+    /**
+     * Always returns '', does not write anything
+     *
+     * @return string Always returns ''
+     */
+    public function write_setting($data) {
+        // Do not write any setting.
+        return '';
+    }
+
+    /**
+     * Outputs the html for this setting.
+     * @return string Returns an XHTML string
+     */
+    public function output_html($data, $query='') {
+        global $OUTPUT;
+
+        $o = '';
+        if (!extension_loaded($this->extension)) {
+            $warning = $OUTPUT->pix_icon('i/warning', '', '', array('role' => 'presentation')) . ' ' . $this->description;
+
+            $o .= format_admin_setting($this, $this->visiblename, $warning);
+        }
+        return $o;
     }
 }

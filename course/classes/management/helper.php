@@ -41,6 +41,13 @@ defined('MOODLE_INTERNAL') || die;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class helper {
+
+    /**
+     * The expanded category structure if its already being loaded from the cache.
+     * @var null|array
+     */
+    protected static $expandedcategories = null;
+
     /**
      * Returns course details in an array ready to be printed.
      *
@@ -201,6 +208,28 @@ class helper {
             );
         }
 
+        if ($category->can_create_subcategory()) {
+            $actions['createnewsubcategory'] = array(
+                'url' => new \moodle_url('/course/editcategory.php', array('parent' => $category->id)),
+                'icon' => new \pix_icon('i/withsubcat', new \lang_string('createnewsubcategory')),
+                'string' => new \lang_string('createnewsubcategory')
+            );
+        }
+
+        // Resort.
+        if ($category->can_resort_subcategories() && $category->has_children()) {
+            $actions['resortbyname'] = array(
+                'url' => new \moodle_url($baseurl, array('action' => 'resortcategories', 'resort' => 'name')),
+                'icon' => new \pix_icon('t/sort', new \lang_string('sort')),
+                'string' => new \lang_string('resortsubcategoriesbyname', 'moodle')
+            );
+            $actions['resortbyidnumber'] = array(
+                'url' => new \moodle_url($baseurl, array('action' => 'resortcategories', 'resort' => 'idnumber')),
+                'icon' => new \pix_icon('t/sort', new \lang_string('sort')),
+                'string' => new \lang_string('resortsubcategoriesbyidnumber', 'moodle')
+            );
+        }
+
         // Delete.
         if ($category->can_delete_full()) {
             $actions['delete'] = array(
@@ -215,7 +244,7 @@ class helper {
             $actions['assignroles'] = array(
                 'url' => new \moodle_url('/admin/roles/assign.php', array('contextid' => $category->get_context()->id,
                     'return' => 'management')),
-                'icon' => new \pix_icon('i/assignroles', new \lang_string('assignroles', 'role')),
+                'icon' => new \pix_icon('t/assignroles', new \lang_string('assignroles', 'role')),
                 'string' => new \lang_string('assignroles', 'role')
             );
         }
@@ -234,7 +263,7 @@ class helper {
         if ($category->can_review_cohorts()) {
             $actions['cohorts'] = array(
                 'url' => new \moodle_url('/cohort/index.php', array('contextid' => $category->get_context()->id)),
-                'icon' => new \pix_icon('i/cohort', new \lang_string('cohorts', 'cohort')),
+                'icon' => new \pix_icon('t/cohort', new \lang_string('cohorts', 'cohort')),
                 'string' => new \lang_string('cohorts', 'cohort')
             );
         }
@@ -271,6 +300,14 @@ class helper {
                 'url' => new \moodle_url('/course/edit.php', array('id' => $course->id)),
                 'icon' => new \pix_icon('t/edit', \get_string('edit')),
                 'attributes' => array('class' => 'action-edit')
+            );
+        }
+        // Delete.
+        if ($course->can_delete()) {
+            $actions[] = array(
+                'url' => new \moodle_url('/course/delete.php', array('id' => $course->id)),
+                'icon' => new \pix_icon('t/delete', \get_string('delete')),
+                'attributes' => array('class' => 'action-delete')
             );
         }
         // Show/Hide.
@@ -634,14 +671,15 @@ class helper {
      *
      * @param \coursecat $category
      * @param string $sort One of fullname, shortname or idnumber
+     * @param bool $cleanup If true cleanup will be done, if false you will need to do it manually later.
      * @return bool
      * @throws \moodle_exception
      */
-    public static function action_category_resort_courses(\coursecat $category, $sort) {
+    public static function action_category_resort_courses(\coursecat $category, $sort, $cleanup = true) {
         if (!$category->can_resort_courses()) {
             throw new \moodle_exception('permissiondenied', 'error', '', null, 'coursecat::can_resort');
         }
-        return $category->resort_courses($sort);
+        return $category->resort_courses($sort, $cleanup);
     }
 
     /**
@@ -802,5 +840,88 @@ class helper {
                  WHERE ".$select;
         $params = array('path' => $path);
         return $DB->get_records_sql($sql, $params);
+    }
+
+    /**
+     * Records when a category is expanded or collapsed so that when the user
+     *
+     * @param \coursecat $coursecat The category we're working with.
+     * @param bool $expanded True if the category is expanded now.
+     */
+    public static function record_expanded_category(\coursecat $coursecat, $expanded = true) {
+        // If this ever changes we are going to reset it and reload the categories as required.
+        self::$expandedcategories = null;
+        $categoryid = $coursecat->id;
+        $path = $coursecat->get_parents();
+        /* @var \cache_session $cache */
+        $cache = \cache::make('core', 'userselections');
+        $categories = $cache->get('categorymanagementexpanded');
+        if (!is_array($categories)) {
+            if (!$expanded) {
+                // No categories recorded, nothing to remove.
+                return;
+            }
+            $categories = array();
+        }
+        if ($expanded) {
+            $ref =& $categories;
+            foreach ($coursecat->get_parents() as $path) {
+                if (!isset($ref[$path]) || !is_array($ref[$path])) {
+                    $ref[$path] = array();
+                }
+                $ref =& $ref[$path];
+            }
+            if (!isset($ref[$categoryid])) {
+                $ref[$categoryid] = true;
+            }
+        } else {
+            $found = true;
+            $ref =& $categories;
+            foreach ($coursecat->get_parents() as $path) {
+                if (!isset($ref[$path])) {
+                    $found = false;
+                    break;
+                }
+                $ref =& $ref[$path];
+            }
+            if ($found) {
+                $ref[$categoryid] = null;
+                unset($ref[$categoryid]);
+            }
+        }
+        $cache->set('categorymanagementexpanded', $categories);
+    }
+
+    /**
+     * Returns the categories that should be expanded when displaying the interface.
+     *
+     * @param int|null $withpath If specified a path to require as the parent.
+     * @return \coursecat[] An array of Category ID's to expand.
+     */
+    public static function get_expanded_categories($withpath = null) {
+        if (self::$expandedcategories === null) {
+            /* @var \cache_session $cache */
+            $cache = \cache::make('core', 'userselections');
+            self::$expandedcategories = $cache->get('categorymanagementexpanded');
+            if (self::$expandedcategories === false) {
+                self::$expandedcategories = array();
+            }
+        }
+        if (empty($withpath)) {
+            return array_keys(self::$expandedcategories);
+        }
+        $parents = explode('/', trim($withpath, '/'));
+        $ref =& self::$expandedcategories;
+        foreach ($parents as $parent) {
+            if (!isset($ref[$parent])) {
+                return array();
+            }
+            $ref =& $ref[$parent];
+        }
+        if (is_array($ref)) {
+            return array_keys($ref);
+        } else {
+            return array($parent);
+        }
     }
 }

@@ -882,9 +882,11 @@ abstract class restore_dbops {
             $newcontextid = $forcenewcontextid;
         } else {
             // Get new context, must exist or this will fail
-            if (!$newcontextid = self::get_backup_ids_record($restoreid, 'context', $oldcontextid)->newitemid) {
+            $newcontextrecord = self::get_backup_ids_record($restoreid, 'context', $oldcontextid);
+            if (!$newcontextrecord || !$newcontextrecord->newitemid) {
                 throw new restore_dbops_exception('unknown_context_mapping', $oldcontextid);
             }
+            $newcontextid = $newcontextrecord->newitemid;
         }
 
         // Sometimes it's possible to have not the oldcontextids stored into backup_ids_temp->parentitemid
@@ -976,6 +978,15 @@ abstract class restore_dbops {
             );
 
             if (empty($file->repositoryid)) {
+                // If contenthash is empty then gracefully skip adding file.
+                if (empty($file->contenthash)) {
+                    $result = new stdClass();
+                    $result->code = 'file_missing_in_backup';
+                    $result->message = sprintf('missing file (%s) contenthash in backup for component %s', $file->filename, $component);
+                    $result->level = backup::LOG_WARNING;
+                    $results[] = $result;
+                    continue;
+                }
                 // this is a regular file, it must be present in the backup pool
                 $backuppath = $basepath . backup_file_manager::get_backup_content_file_location($file->contenthash);
 
