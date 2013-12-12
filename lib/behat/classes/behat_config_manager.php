@@ -93,6 +93,11 @@ class behat_config_manager {
             }
         }
 
+        // We don't want the deprecated steps definitions here.
+        if (!$testsrunner) {
+            unset($stepsdefinitions['behat_deprecated']);
+        }
+
         // Behat config file specifing the main context class,
         // the required Behat extensions and Moodle test wwwroot.
         $contents = self::get_config_file_contents($features, $stepsdefinitions);
@@ -190,12 +195,15 @@ class behat_config_manager {
                         'selenium2' => null
                     ),
                     'Moodle\BehatExtension\Extension' => array(
+                        'formatters' => array(
+                            'moodle_progress' => 'Moodle\BehatExtension\Formatter\MoodleProgressFormatter'
+                        ),
                         'features' => $features,
                         'steps_definitions' => $stepsdefinitions
                     )
                 ),
                 'formatter' => array(
-                    'name' => 'progress'
+                    'name' => 'moodle_progress'
                 )
             )
         );
