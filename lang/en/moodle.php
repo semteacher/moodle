@@ -717,6 +717,7 @@ $string['eventcoursedeleted'] = 'Course deleted';
 $string['eventcoursemodulecreated'] = 'Course module created';
 $string['eventcoursemoduledeleted'] = 'Course module deleted';
 $string['eventcoursemoduleupdated'] = 'Course module updated';
+$string['eventcoursemoduleviewed'] = 'Course module viewed';
 $string['eventcourseresetended'] = 'Course reset ended';
 $string['eventcourseresetstarted'] = 'Course reset started';
 $string['eventcourserestored'] = 'Course restored';
@@ -785,7 +786,7 @@ $string['forgotteninvalidurl'] = 'Invalid password reset URL';
 $string['format'] = 'Format';
 $string['format_help'] = 'The course format determines the layout of the course page.
 
-* SCORM format - For displaying a SCORM package in the first section of the course page (as an alternative to using the SCORM/AICC module)
+* Single activity format - For displaying a single activity or resource (such as a Quiz or SCORM package) on the course page
 * Social format - A forum is displayed on the course page
 * Topics format - The course page is organised into topic sections
 * Weekly format - The course page is organised into weekly sections, with the first week starting on the course start date';

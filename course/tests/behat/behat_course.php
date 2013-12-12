@@ -85,18 +85,16 @@ class behat_course extends behat_base {
      * @return Given[]
      */
     public function i_go_to_the_courses_management_page() {
-        if ($this->running_javascript()) {
-            $scenario = array(new Given('I expand "' . get_string('administrationsite') . '" node'));
-        } else {
-            $scenario = array(new Given('I follow "' . get_string('administrationsite') . '"'));
-        }
-        $scenario[] = new Given('I expand "' . get_string('courses', 'admin') . '" node');
-        $scenario[] = new Given('I follow "' . get_string('coursemgmt', 'admin') . '"');
-        return $scenario;
+        return array(
+            new Given('I am on homepage'),
+            new Given('I expand "' . get_string('administrationsite') . '" node'),
+            new Given('I expand "' . get_string('courses', 'admin') . '" node'),
+            new Given('I follow "' . get_string('coursemgmt', 'admin') . '"')
+        );
     }
 
     /**
-     * Adds the selected activity/resource filling the form data with the specified field/value pairs.
+     * Adds the selected activity/resource filling the form data with the specified field/value pairs. Sections 0 and 1 are also allowed on frontpage.
      *
      * @When /^I add a "(?P<activity_or_resource_name_string>(?:[^"]|\\")*)" to section "(?P<section_number>\d+)" and I fill the form with:$/
      * @param string $activity The activity name
@@ -114,7 +112,7 @@ class behat_course extends behat_base {
     }
 
     /**
-     * Opens the activity chooser and opens the activity/resource form page.
+     * Opens the activity chooser and opens the activity/resource form page. Sections 0 and 1 are also allowed on frontpage.
      *
      * @Given /^I add a "(?P<activity_or_resource_name_string>(?:[^"]|\\")*)" to section "(?P<section_number>\d+)"$/
      * @throws ElementNotFoundException Thrown by behat_base::find
@@ -123,7 +121,19 @@ class behat_course extends behat_base {
      */
     public function i_add_to_section($activity, $section) {
 
-        $sectionxpath = "//li[@id='section-" . $section . "']";
+        if ($this->getSession()->getPage()->find('css', 'body#page-site-index') && (int)$section <= 1) {
+            // We are on the frontpage.
+            if ($section) {
+                // Section 1 represents the contents on the frontpage.
+                $sectionxpath = "//body[@id='page-site-index']/descendant::div[contains(concat(' ',normalize-space(@class),' '),' sitetopic ')]";
+            } else {
+                // Section 0 represents "Site main menu" block.
+                $sectionxpath = "//div[contains(concat(' ',normalize-space(@class),' '),' block_site_main_menu ')]";
+            }
+        } else {
+            // We are inside the course.
+            $sectionxpath = "//li[@id='section-" . $section . "']";
+        }
 
         $activityliteral = $this->getSession()->getSelectorsHandler()->xpathLiteral(ucfirst($activity));
 
@@ -946,7 +956,7 @@ class behat_course extends behat_base {
     protected function get_management_category_listing_node_by_name($name, $link = false) {
         $selector = "//div[@id='category-listing']//li[contains(concat(' ', normalize-space(@class), ' '), ' listitem-category ')]//a[text()='{$name}']";
         if ($link === false) {
-            $selector .= "/ancestor::li[@data-id]";
+            $selector .= "/ancestor::li[@data-id][1]";
         }
         return $this->find('xpath', $selector);
     }
@@ -1001,39 +1011,70 @@ class behat_course extends behat_base {
     }
 
     /**
-     * Clicks on a category checkbox in the management interface.
+     * Clicks on a category checkbox in the management interface, if not checked.
      *
      * @Given /^I select category "(?P<name>[^"]*)" in the management interface$/
      * @param string $name
      */
     public function i_select_category_in_the_management_interface($name) {
         $node = $this->get_management_category_listing_node_by_name($name);
-        $node->checkField('bcat[]');
+        $node = $node->findField('bcat[]');
+        if (!$node->isChecked()) {
+            $node->click();
+        }
     }
 
     /**
-     * Clicks course checkbox in the management interface.
+     * Clicks on a category checkbox in the management interface, if checked.
+     *
+     * @Given /^I unselect category "(?P<name>[^"]*)" in the management interface$/
+     * @param string $name
+     */
+    public function i_unselect_category_in_the_management_interface($name) {
+        $node = $this->get_management_category_listing_node_by_name($name);
+        $node = $node->findField('bcat[]');
+        if ($node->isChecked()) {
+            $node->click();
+        }
+    }
+
+    /**
+     * Clicks course checkbox in the management interface, if not checked.
      *
      * @Given /^I select course "(?P<name>[^"]*)" in the management interface$/
      * @param string $name
      */
     public function i_select_course_in_the_management_interface($name) {
         $node = $this->get_management_course_listing_node_by_name($name);
-        $node->checkField('bc[]');
+        $node = $node->findField('bc[]');
+        if (!$node->isChecked()) {
+            $node->click();
+        }
+    }
+
+    /**
+     * Clicks course checkbox in the management interface, if checked.
+     *
+     * @Given /^I unselect course "(?P<name>[^"]*)" in the management interface$/
+     * @param string $name
+     */
+    public function i_unselect_course_in_the_management_interface($name) {
+        $node = $this->get_management_course_listing_node_by_name($name);
+        $node = $node->findField('bc[]');
+        if ($node->isChecked()) {
+            $node->click();
+        }
     }
 
     /**
      * Move selected categories to top level in the management interface.
      *
-     * @Given /^I move category "(?P<idnumber>[^"]*)" to top level in the management interface$/
-     * @param string $idnumber
+     * @Given /^I move category "(?P<name>[^"]*)" to top level in the management interface$/
+     * @param string $name
      * @return Given[]
      */
-    public function i_move_category_to_top_level_in_the_management_interface($idnumber) {
-        $id = $this->get_category_id($idnumber);
-        $selector = sprintf('.listitem-category[data-id="%d"] > div', $id);
-        $node = $this->find('css', $selector);
-        $node->checkField('bcat[]');
+    public function i_move_category_to_top_level_in_the_management_interface($name) {
+        $this->i_select_category_in_the_management_interface($name);
         return array(
             new Given('I select "' .  coursecat::get(0)->get_formatted_name() . '" from "menumovecategoriesto"'),
             new Given('I press "bulkmovecategories"'),
