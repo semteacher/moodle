@@ -285,6 +285,10 @@ function core_login_get_return_url() {
             or strpos($SESSION->wantsurl, str_replace('http://', 'https://', $CFG->wwwroot)) === 0)) {
         $urltogo = $SESSION->wantsurl;    // Because it's an address in this site.
         unset($SESSION->wantsurl);
+        //TDMU - redirect admins and managers to the site home instead of my_home
+        if (get_home_page() == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', context_system::instance()))){
+            $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect
+        }
     } else {
         // No wantsurl stored or external - go to homepage.
         $urltogo = $CFG->wwwroot.'/';
@@ -299,6 +303,13 @@ function core_login_get_return_url() {
             if ($urltogo == $CFG->wwwroot or $urltogo == $CFG->wwwroot.'/' or $urltogo == $CFG->wwwroot.'/index.php') {
                 $urltogo = $CFG->wwwroot.'/my/';
             }
+        }
+        //TDMU - redirect admins and managers to the site home instead of my_home        
+        if ($homepage == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', context_system::instance()))){
+            
+            if ($urltogo == $CFG->wwwroot or $urltogo == $CFG->wwwroot.'/' or $urltogo == $CFG->wwwroot.'/my/' or $urltogo == $CFG->wwwroot.'/index.php'){
+                $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect  
+            } 
         }
     }
     return $urltogo;
