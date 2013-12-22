@@ -1042,7 +1042,7 @@ class core_renderer extends renderer_base {
 
 		//TDMU - nursing - begin block
 		$flags = '<div class="tdmu_lang_flags">
-		    <span align="center"><a href="http://www.tdmu.edu.te.ua"><img src="http://intranet.tdmu.edu.ua/images/home.gif" alt="tdmu" border="0" height="22" width="32"></a></span>
+		    <span align="center"><a href="http://www.tdmu.edu.ua"><img src="http://intranet.tdmu.edu.ua/images/home.gif" alt="tdmu" border="0" height="22" width="32"></a></span>
 			
 			<span align="center"><a href="http://dl.tdmu.edu.ua/my/index.php?lang=uk"><img src="http://dl.tdmu.edu.ua/pix/flag_ua.gif" alt="UA" border="0" ></a></span>
 
