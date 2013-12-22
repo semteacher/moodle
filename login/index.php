@@ -196,35 +196,6 @@ if ($frm and isset($frm->username)) {                             // Login WITH 
 
         $urltogo = core_login_get_return_url();
 
-        } else if (isset($SESSION->wantsurl) and (strpos($SESSION->wantsurl, $CFG->wwwroot) === 0 or strpos($SESSION->wantsurl, str_replace('http://', 'https://', $CFG->wwwroot)) === 0)) {
-            $urltogo = $SESSION->wantsurl;    /// Because it's an address in this site
-            unset($SESSION->wantsurl);
-            //TDMU - redirect admins and managers to the site home instead of my_home
-            if (get_home_page() == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', get_context_instance(CONTEXT_SYSTEM)))){
-                $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect
-            }
-
-        } else {
-            // no wantsurl stored or external - go to homepage
-            $urltogo = $CFG->wwwroot.'/';
-            unset($SESSION->wantsurl);
-        }
-
-        // If the url to go to is the same as the site page, check for default homepage.
-        if ($urltogo == ($CFG->wwwroot . '/')) {
-            $home_page = get_home_page();
-            // Go to my-moodle page instead of site homepage if defaulthomepage set to homepage_my
-            if ($home_page == HOMEPAGE_MY && !is_siteadmin() && !isguestuser()) {
-                if ($urltogo == $CFG->wwwroot or $urltogo == $CFG->wwwroot.'/' or $urltogo == $CFG->wwwroot.'/index.php') {
-                    $urltogo = $CFG->wwwroot.'/my/';
-                }
-            } else { //TDMU - redirect admins and managers to the site home instead of my_home
-                if ($home_page == HOMEPAGE_MY && (is_siteadmin() || has_capability('moodle/role:manage', get_context_instance(CONTEXT_SYSTEM)))){
-                    $urltogo = $CFG->wwwroot.'/?redirect=0';//site-home redirect
-                } 
-            }
-        }
-
     /// check if user password has expired
     /// Currently supported only for ldap-authentication module
         $userauth = get_auth_plugin($USER->auth);
