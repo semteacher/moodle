@@ -704,14 +704,8 @@ function ini_get_bool($ini_get_arg) {
 function setup_validate_php_configuration() {
    // this must be very fast - no slow checks here!!!
 
-   if (ini_get_bool('register_globals')) {
-       print_error('globalswarning', 'admin');
-   }
    if (ini_get_bool('session.auto_start')) {
        print_error('sessionautostartwarning', 'admin');
-   }
-   if (ini_get_bool('magic_quotes_runtime')) {
-       print_error('fatalmagicquotesruntime', 'admin');
    }
 }
 
@@ -994,11 +988,6 @@ function workaround_max_input_vars() {
         $values = array();
         parse_str($chunk, $values);
 
-        if (ini_get_bool('magic_quotes_gpc')) {
-            // Use the same logic as lib/setup.php to work around deprecated magic quotes.
-            $values = array_map('stripslashes_deep', $values);
-        }
-
         merge_query_params($_POST, $values);
         merge_query_params($_REQUEST, $values);
     }
@@ -1266,7 +1255,7 @@ function disable_output_buffering() {
  */
 function redirect_if_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2013100400.02;
+    $lastmajordbchanges = 2014012400.00;
     if (empty($CFG->version) or (float)$CFG->version < $lastmajordbchanges or
             during_initial_install() or !empty($CFG->adminsetuppending)) {
         try {

@@ -29,6 +29,15 @@ defined('MOODLE_INTERNAL') || die();
  *
  * Class for event to be triggered when a new blog entry is associated with a context.
  *
+ * @property-read array $other {
+ *      Extra information about event.
+ *
+ *      @type string associatetype type of blog association, course/coursemodule.
+ *      @type int blogid id of blog.
+ *      @type int associateid id of associate.
+ *      @type string subject blog subject.
+ * }
+ *
  * @package    core
  * @copyright  2013 onwards Ankit Agarwal
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -42,7 +51,7 @@ class blog_association_created extends \core\event\base {
         $this->context = \context_system::instance();
         $this->data['objecttable'] = 'blog_association';
         $this->data['crud'] = 'c';
-        $this->data['level'] = self::LEVEL_PARTICIPATING;
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
     }
 
     /**
@@ -60,8 +69,8 @@ class blog_association_created extends \core\event\base {
      * @return string
      */
     public function get_description() {
-        return "Blog association added between entry id $this->other['blogid'] and $this->other['associatetype'] with id
-                $this->other['associateid']";
+        return "Blog association added between entry id {$this->other['blogid']} and {$this->other['associatetype']} with id
+                {$this->other['associateid']}";
     }
 
     /**

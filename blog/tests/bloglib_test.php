@@ -183,6 +183,7 @@ class core_bloglib_testcase extends advanced_testcase {
         $this->assertEventLegacyLogData($arr, $event);
         $this->assertEquals("blog_entry_added", $event->get_legacy_eventname());
         $this->assertEventLegacyData($blog, $event);
+        $this->assertEventContextNotUsed($event);
     }
 
     /**
@@ -215,6 +216,7 @@ class core_bloglib_testcase extends advanced_testcase {
         $this->assertEventLegacyData($blog, $event);
         $arr = array (SITEID, 'blog', 'update', 'index.php?userid=' . $this->userid . '&entryid=' . $blog->id, $blog->subject);
         $this->assertEventLegacyLogData($arr, $event);
+        $this->assertEventContextNotUsed($event);
     }
 
     /**
@@ -249,6 +251,7 @@ class core_bloglib_testcase extends advanced_testcase {
                 $blog->id);
         $this->assertEventLegacyLogData($arr, $event);
         $this->assertEventLegacyData($blog, $event);
+        $this->assertEventContextNotUsed($event);
     }
 
 
@@ -301,6 +304,7 @@ class core_bloglib_testcase extends advanced_testcase {
         $arr = array(SITEID, 'blog', 'add association', 'index.php?userid=' . $this->userid . '&entryid=' . $blog->id,
                      $blog->subject, $this->cmid, $this->userid);
         $this->assertEventLegacyLogData($arr, $event);
+        $this->assertEventContextNotUsed($event);
     }
 
     /**
@@ -362,7 +366,7 @@ class core_bloglib_testcase extends advanced_testcase {
     public function test_blog_entries_viewed_event() {
 
         $this->setAdminUser();
-        $this->resetAfterTest();
+
         $other = array('entryid' => $this->postid, 'tagid' => $this->tagid, 'userid' => $this->userid, 'modid' => $this->cmid,
                        'groupid' => $this->groupid, 'courseid' => $this->courseid, 'search' => 'search', 'fromstart' => 2);
 
@@ -381,6 +385,80 @@ class core_bloglib_testcase extends advanced_testcase {
         $this->assertEquals($url, $event->get_url());
         $arr = array(SITEID, 'blog', 'view', $url2->out(), 'view blog entry');
         $this->assertEventLegacyLogData($arr, $event);
+        $this->assertEventContextNotUsed($event);
+    }
+
+    /**
+     * Test comment_created event.
+     */
+    public function test_blog_comment_created_event() {
+        global $USER, $CFG;
+
+        $this->setAdminUser();
+
+        require_once($CFG->dirroot . '/comment/lib.php');
+        $context = context_user::instance($USER->id);
+
+        $cmt = new stdClass();
+        $cmt->context = $context;
+        $cmt->courseid = $this->courseid;
+        $cmt->area = 'format_blog';
+        $cmt->itemid = $this->postid;
+        $cmt->showcount = 1;
+        $cmt->component = 'blog';
+        $manager = new comment($cmt);
+
+        // Triggering and capturing the event.
+        $sink = $this->redirectEvents();
+        $manager->add("New comment");
+        $events = $sink->get_events();
+        $this->assertCount(1, $events);
+        $event = reset($events);
+
+        // Checking that the event contains the expected values.
+        $this->assertInstanceOf('\core\event\blog_comment_created', $event);
+        $this->assertEquals($context, $event->get_context());
+        $this->assertEquals($this->postid, $event->other['itemid']);
+        $url = new moodle_url('/blog/index.php', array('entryid' => $this->postid));
+        $this->assertEquals($url, $event->get_url());
+        $this->assertEventContextNotUsed($event);
+    }
+
+    /**
+     * Test comment_deleted event.
+     */
+    public function test_blog_comment_deleted_event() {
+        global $USER, $CFG;
+
+        $this->setAdminUser();
+
+        require_once($CFG->dirroot . '/comment/lib.php');
+        $context = context_user::instance($USER->id);
+
+        $cmt = new stdClass();
+        $cmt->context = $context;
+        $cmt->courseid = $this->courseid;
+        $cmt->area = 'format_blog';
+        $cmt->itemid = $this->postid;
+        $cmt->showcount = 1;
+        $cmt->component = 'blog';
+        $manager = new comment($cmt);
+        $newcomment = $manager->add("New comment");
+
+        // Triggering and capturing the event.
+        $sink = $this->redirectEvents();
+        $manager->delete($newcomment->id);
+        $events = $sink->get_events();
+        $this->assertCount(1, $events);
+        $event = reset($events);
+
+        // Checking that the event contains the expected values.
+        $this->assertInstanceOf('\core\event\blog_comment_deleted', $event);
+        $this->assertEquals($context, $event->get_context());
+        $this->assertEquals($this->postid, $event->other['itemid']);
+        $url = new moodle_url('/blog/index.php', array('entryid' => $this->postid));
+        $this->assertEquals($url, $event->get_url());
+        $this->assertEventContextNotUsed($event);
     }
 }
 

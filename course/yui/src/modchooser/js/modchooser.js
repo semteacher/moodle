@@ -5,7 +5,7 @@
  */
 
 var CSS = {
-    PAGECONTENT : 'div#page-content',
+    PAGECONTENT : 'body',
     SECTION : 'li.section',
     SECTIONMODCHOOSER : 'span.section-modchooser-link',
     SITEMENU : 'div.block_site_main_menu',
@@ -28,9 +28,6 @@ var MODCHOOSER = function() {
 Y.extend(MODCHOOSER, M.core.chooserdialogue, {
     // The current section ID
     sectionid : null,
-
-    // The hidden element holding the jump param
-    jumplink : null,
 
     initializer : function() {
         var dialogue = Y.one('.chooserdialoguebody');
@@ -155,8 +152,11 @@ Y.extend(MODCHOOSER, M.core.chooserdialogue, {
         e.preventDefault();
     },
     option_selected : function(thisoption) {
-        // Add the sectionid to the URL
-        this.jumplink.set('value', thisoption.get('value') + '&section=' + this.sectionid);
+        // Add the sectionid to the URL.
+        this.hiddenRadioValue.setAttrs({
+            name: 'jump',
+            value: thisoption.get('value') + '&section=' + this.sectionid
+        });
     }
 },
 {

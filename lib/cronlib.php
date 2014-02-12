@@ -133,14 +133,6 @@ function cron_run() {
         }
 
 
-        // Delete old cached texts
-        if (!empty($CFG->cachetext)) {   // Defined in config.php
-            $cachelifetime = time() - $CFG->cachetext - 60;  // Add an extra minute to allow for really heavy sites
-            $DB->delete_records_select('cache_text', "timemodified < ?", array($cachelifetime));
-            mtrace(" Deleted old cache_text records");
-        }
-
-
         if (!empty($CFG->usetags)) {
             require_once($CFG->dirroot.'/tag/lib.php');
             tag_cron();
@@ -223,8 +215,9 @@ function cron_run() {
     // Generate new password emails for users - ppl expect these generated asap
     if ($DB->count_records('user_preferences', array('name'=>'create_password', 'value'=>'1'))) {
         mtrace('Creating passwords for new users...');
-        $newusers = $DB->get_recordset_sql("SELECT u.id as id, u.email, u.firstname,
-                                                 u.lastname, u.username, u.lang,
+        $usernamefields = get_all_user_name_fields(true, 'u');
+        $newusers = $DB->get_recordset_sql("SELECT u.id as id, u.email,
+                                                 $usernamefields, u.username, u.lang,
                                                  p.id as prefid
                                             FROM {user} u
                                             JOIN {user_preferences} p ON u.id=p.userid

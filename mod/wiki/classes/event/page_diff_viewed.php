@@ -28,6 +28,13 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * mod_wiki diff viewed event class.
  *
+ * @property-read array $other {
+ *      Extra information about event.
+ *
+ *      @type int comparewith version number to compare with.
+ *      @type int compare version number to compare.
+ * }
+ *
  * @package    mod_wiki
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,7 +47,7 @@ class page_diff_viewed extends \core\event\base {
      */
     protected function init() {
         $this->data['crud'] = 'r';
-        $this->data['level'] = self::LEVEL_PARTICIPATING;
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'wiki_pages';
     }
 
@@ -70,7 +77,7 @@ class page_diff_viewed extends \core\event\base {
     protected function get_legacy_logdata() {
         return(array($this->courseid, 'wiki', 'diff', 'diff.php?pageid=' . $this->objectid . '&comparewith=' .
             $this->other['comparewith'] . '&compare=' .  $this->other['compare'], $this->objectid,
-            $this->context->instanceid));
+            $this->contextinstanceid));
     }
 
     /**
