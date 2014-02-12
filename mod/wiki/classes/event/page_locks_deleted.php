@@ -28,6 +28,12 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * mod_wiki page locks deleted (override locks)
  *
+ * @property-read array $other {
+ *      Extra information about event.
+ *
+ *      @type int section section id.
+ * }
+ *
  * @package    mod_wiki
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,7 +46,7 @@ class page_locks_deleted extends \core\event\base {
      */
     protected function init() {
         $this->data['crud'] = 'd';
-        $this->data['level'] = self::LEVEL_OTHER;
+        $this->data['edulevel'] = self::LEVEL_OTHER;
         $this->data['objecttable'] = 'wiki_pages';
     }
 
@@ -69,7 +75,7 @@ class page_locks_deleted extends \core\event\base {
      */
     protected function get_legacy_logdata() {
         return(array($this->courseid, 'wiki', 'overridelocks', 'view.php?pageid=' . $this->objectid, $this->objectid,
-            $this->context->instanceid));
+            $this->contextinstanceid));
     }
 
     /**

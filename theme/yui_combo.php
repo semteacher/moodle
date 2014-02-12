@@ -102,6 +102,11 @@ while (count($parts)) {
                 continue;
             }
 
+            // Allow support for revisions on YUI between official releases.
+            // We can just discard the subrevision since it is only used to invalidate the browser cache.
+            $yuipatchedversion = explode('_', $revision);
+            $yuiversion = $yuipatchedversion[0];
+
             $yuimodules = array(
                 // Include everything from original SimpleYUI,
                 // this list can be built using http://yuilibrary.com/yui/configurator/ by selecting all modules
@@ -193,14 +198,14 @@ while (count($parts)) {
             if ($type === 'js') {
                 $newparts = array();
                 foreach ($yuimodules as $module) {
-                    $newparts[] = $revision . '/' . $module . '/' . $module . $filesuffix;
+                    $newparts[] = $yuiversion . '/' . $module . '/' . $module . $filesuffix;
                 }
                 $newparts[] = 'yuiuseall/yuiuseall';
                 $parts = array_merge($newparts, $parts);
             } else {
                 $newparts = array();
                 foreach ($yuimodules as $module) {
-                    $candidate =  $revision . '/' . $module . '/assets/skins/sam/' . $module . '.css';
+                    $candidate =  $yuiversion . '/' . $module . '/assets/skins/sam/' . $module . '.css';
                     if (!file_exists("$CFG->libdir/yuilib/$candidate")) {
                         continue;
                     }
@@ -288,7 +293,17 @@ while (count($parts)) {
         $contentfile = "$CFG->libdir/yuilib/$part";
 
     } else if ($version == 'gallery') {
-        $contentfile = "$CFG->libdir/yui/$part";
+        if (count($bits) <= 2) {
+            // This is an invalid module load attempt.
+            $content .= "\n// Incorrect moodle module inclusion. Not enough component information in {$part}.\n";
+            continue;
+        }
+        $revision = (int)array_shift($bits);
+        if ($revision === -1) {
+            // Revision -1 says please don't cache the JS
+            $cache = false;
+        }
+        $contentfile = "$CFG->libdir/yuilib/gallery/" . join('/', $bits);
 
     } else if ($version == 'yuiuseall') {
         // Create global Y that is available in global scope,
@@ -296,10 +311,17 @@ while (count($parts)) {
         $filecontent = "var Y = YUI().use('*');";
 
     } else {
-        if ($version != $CFG->yui3version) {
+        // Allow support for revisions on YUI between official releases.
+        // We can just discard the subrevision since it is only used to invalidate the browser cache.
+        $yuipatchedversion = explode('_', $version);
+        $yuiversion = $yuipatchedversion[0];
+        if ($yuiversion != $CFG->yui3version) {
             $content .= "\n// Wrong yui version $part!\n";
             continue;
         }
+        $newpart = explode('/', $part);
+        $newpart[0] = $yuiversion;
+        $part = implode('/', $newpart);
         $contentfile = "$CFG->libdir/yuilib/$part";
     }
     if (!file_exists($contentfile) or !is_file($contentfile)) {
@@ -341,8 +363,12 @@ while (count($parts)) {
             $filecontent = preg_replace('/([a-z0-9_-]+)\.(png|gif)/', $relroot.'/theme/yui_image.php'.$sep.$CFG->yui2version.'/$1.$2', $filecontent);
 
         } else if ($version == 'gallery') {
-            // search for all images in gallery module CSS and serve them through the yui_image.php script
-            $filecontent = preg_replace('/([a-z0-9_-]+)\.(png|gif)/', $relroot.'/theme/yui_image.php'.$sep.$version.'/'.$bits[0].'/'.$bits[1].'/$1.$2', $filecontent);
+            // Replace any references to the CDN with a relative link.
+            $filecontent = preg_replace('#(' . preg_quote('http://yui.yahooapis.com/') . '(gallery-[^/]*/))#', '../../../../', $filecontent);
+
+            // Replace all relative image links with the a link to yui_image.php.
+            $filecontent = preg_replace('#(' . preg_quote('../../../../') . ')(gallery-[^/]*/assets/skins/sam/[a-z0-9_-]+)\.(png|gif)#',
+                    $relroot . '/theme/yui_image.php' . $sep . '/gallery/' . $revision . '/$2.$3', $filecontent);
 
         } else {
             // First we need to remove relative paths to images. These are used by YUI modules to make use of global assets.

@@ -28,6 +28,12 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * mod_wiki page version deleted.
  *
+ * @property-read array $other {
+ *      Extra information about event.
+ *
+ *      @type int pageid id wiki page.
+ * }
+ *
  * @package    mod_wiki
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -40,7 +46,7 @@ class page_version_deleted extends \core\event\base {
      */
     protected function init() {
         $this->data['crud'] = 'd';
-        $this->data['level'] = self::LEVEL_PARTICIPATING;
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'wiki_versions';
     }
 
@@ -70,7 +76,7 @@ class page_version_deleted extends \core\event\base {
      */
     protected function get_legacy_logdata() {
         return(array($this->courseid, 'wiki', 'admin', 'admin.php?pageid=' . $this->other['pageid'], $this->other['pageid'],
-            $this->context->instanceid));
+            $this->contextinstanceid));
     }
 
     /**

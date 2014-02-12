@@ -28,6 +28,13 @@ defined('MOODLE_INTERNAL') || die();
 /**
  * Event for when a feedback activity is viewed.
  *
+ * @property-read array $other {
+ *      Extra information about event.
+ *
+ *      @type int anonymous if feedback is anonymous.
+ *      @type int cmid course module id.
+ * }
+ *
  * @package    mod_feedback
  * @copyright  2013 Ankit Agarwal
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -39,7 +46,7 @@ class course_module_viewed extends \core\event\course_module_viewed {
      */
     protected function init() {
         $this->data['crud'] = 'r';
-        $this->data['level'] = self::LEVEL_PARTICIPATING;
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'feedback';
     }
 

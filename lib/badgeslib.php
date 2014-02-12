@@ -93,6 +93,11 @@ define('BADGE_MESSAGE_DAILY', 2);
 define('BADGE_MESSAGE_WEEKLY', 3);
 define('BADGE_MESSAGE_MONTHLY', 4);
 
+/*
+ * URL of backpack. Currently only the Open Badges backpack is supported.
+ */
+define('BADGE_BACKPACKURL', 'backpack.openbadges.org');
+
 /**
  * Class that represents badge.
  *
@@ -331,10 +336,11 @@ class badge {
      */
     public function has_awards() {
         global $DB;
-        if ($DB->record_exists('badge_issued', array('badgeid' => $this->id))) {
-            return true;
-        }
-        return false;
+        $awarded = $DB->record_exists_sql('SELECT b.uniquehash
+                    FROM {badge_issued} b INNER JOIN {user} u ON b.userid = u.id
+                    WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $this->id));
+
+        return $awarded;
     }
 
     /**
@@ -349,7 +355,7 @@ class badge {
                 'SELECT b.userid, b.dateissued, b.uniquehash, u.firstname, u.lastname
                     FROM {badge_issued} b INNER JOIN {user} u
                         ON b.userid = u.id
-                    WHERE b.badgeid = :badgeid', array('badgeid' => $this->id));
+                    WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $this->id));
 
         return $awards;
     }
@@ -603,13 +609,42 @@ class badge {
     }
 
     /**
-     * Marks the badge as archived.
-     * For reporting and historical purposed we cannot completely delete badges.
-     * We will just change their status to BADGE_STATUS_ARCHIVED.
+     * Fully deletes the badge or marks it as archived.
+     *
+     * @param $archive bool Achive a badge without actual deleting of any data.
      */
-    public function delete() {
-        $this->status = BADGE_STATUS_ARCHIVED;
-        $this->save();
+    public function delete($archive = true) {
+        global $DB;
+
+        if ($archive) {
+            $this->status = BADGE_STATUS_ARCHIVED;
+            $this->save();
+            return;
+        }
+
+        $fs = get_file_storage();
+
+        // Remove all issued badge image files and badge awards.
+        // Cannot bulk remove area files here because they are issued in user context.
+        $awards = $this->get_awards();
+        foreach ($awards as $award) {
+            $usercontext = context_user::instance($award->userid);
+            $fs->delete_area_files($usercontext->id, 'badges', 'userbadge', $this->id);
+        }
+        $DB->delete_records('badge_issued', array('badgeid' => $this->id));
+
+        // Remove all badge criteria.
+        $criteria = $this->get_criteria();
+        foreach ($criteria as $criterion) {
+            $criterion->delete();
+        }
+
+        // Delete badge images.
+        $badgecontext = $this->get_context();
+        $fs->delete_area_files($badgecontext->id, 'badges', 'badgeimage', $this->id);
+
+        // Finally, remove badge itself.
+        $DB->delete_records('badge', array('id' => $this->id));
     }
 }
 
@@ -786,7 +821,9 @@ function badges_get_badges($type, $courseid = 0, $sort = '', $dir = '', $page = 
             $badges[$r->id]->dateissued = $r->dateissued;
             $badges[$r->id]->uniquehash = $r->uniquehash;
         } else {
-            $badges[$r->id]->awards = $DB->count_records('badge_issued', array('badgeid' => $badge->id));
+            $badges[$r->id]->awards = $DB->count_records_sql('SELECT COUNT(b.userid)
+                                        FROM {badge_issued} b INNER JOIN {user} u ON b.userid = u.id
+                                        WHERE b.badgeid = :badgeid AND u.deleted = 0', array('badgeid' => $badge->id));
             $badges[$r->id]->statstring = $badge->get_status_name();
         }
     }
@@ -1145,7 +1182,7 @@ function badges_check_backpack_accessibility() {
     // Using fake assertion url to check whether backpack can access the web site.
     $fakeassertion = new moodle_url('/badges/assertion.php', array('b' => 'abcd1234567890'));
 
-    // Curl request to http://backpack.openbadges.org/baker.
+    // Curl request to backpack baker.
     $curl = new curl();
     $options = array(
         'FRESH_CONNECT' => true,
@@ -1153,7 +1190,7 @@ function badges_check_backpack_accessibility() {
         'HEADER' => 0,
         'CONNECTTIMEOUT' => 2,
     );
-    $location = 'http://backpack.openbadges.org/baker';
+    $location = 'http://' . BADGE_BACKPACKURL . '/baker';
     $out = $curl->get($location, array('assertion' => $fakeassertion->out(false)), $options);
 
     $data = json_decode($out);
@@ -1222,7 +1259,7 @@ function badges_setup_backpack_js() {
     if (!empty($CFG->badges_allowexternalbackpack)) {
         $PAGE->requires->string_for_js('error:backpackproblem', 'badges');
         $protocol = (strpos($CFG->wwwroot, 'https://') === 0) ? 'https://' : 'http://';
-        $PAGE->requires->js(new moodle_url($protocol . 'backpack.openbadges.org/issuer.js'), true);
+        $PAGE->requires->js(new moodle_url($protocol . BADGE_BACKPACKURL . '/issuer.js'), true);
         $PAGE->requires->js('/badges/backpack.js', true);
     }
 }
