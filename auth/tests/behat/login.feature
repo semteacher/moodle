@@ -4,8 +4,14 @@ Feature: Authentication
   As a user
   I need to log into the system
 
-  Scenario: Log in with the predefined admin user
+  Scenario: Log in with the predefined admin user with Javascript disabled
     Given I log in as "admin"
+    Then I should see "You are logged in as Admin User"
+
+  @javascript
+  Scenario: Log in with the predefined admin user with Javascript enabled
+    Given I log in as "admin"
+    Then I should see "You are logged in as Admin User"
 
   Scenario: Log in as an existing admin user filling the form
     Given the following "users" exists:
@@ -13,8 +19,8 @@ Feature: Authentication
       | testuser | testuser | Test | User | moodle@moodlemoodle.com |
     And I am on homepage
     When I follow "Log in"
-    And I fill in "Username" with "testuser"
-    And I fill in "Password" with "testuser"
+    And I set the field "Username" to "testuser"
+    And I set the field "Password" to "testuser"
     And I press "Log in"
     Then I should see "You are logged in as"
 
@@ -24,8 +30,8 @@ Feature: Authentication
       | testuser | testuser | Test | User | moodle@moodlemoodle.com |
     And I am on homepage
     When I follow "Log in"
-    And I fill in "Username" with "testuser"
-    And I fill in "Password" with "unexisting"
+    And I set the field "Username" to "testuser"
+    And I set the field "Password" to "unexisting"
     And I press "Log in"
     Then I should see "Invalid login, please try again"
 

@@ -89,11 +89,11 @@ Feature: Set up contextual data for tests
     And I follow "Course 1"
     And I expand "Users" node
     And I follow "Permissions"
-    And I select "Student (1)" from "Advanced role override"
-    Then the "mod/forum:editanypost" field should match "1" value
+    And I set the field "Advanced role override" to "Student (1)"
+    Then "mod/forum:editanypost" capability has "Allow" permission
     And I press "Cancel"
-    And I select "Teacher (1)" from "Advanced role override"
-    And the "mod/forum:replynews" field should match "-1" value
+    And I set the field "Advanced role override" to "Teacher (1)"
+    And "mod/forum:replynews" capability has "Prevent" permission
     And I press "Cancel"
 
   Scenario: Add course enrolments
@@ -111,22 +111,32 @@ Feature: Set up contextual data for tests
     Then I should see "Topic 1"
 
   Scenario: Add role assigns
-    Given the following "users" exists:
+    Given the following "roles" exists:
+      | name                   | shortname | description      | archetype      |
+      | Custom editing teacher | custom1   | My custom role 1 | editingteacher |
+      | Custom student         | custom2   |                  |                |
+    And the following "users" exists:
       | username | firstname | lastname | email |
       | user1 | User | 1 | user1@moodlemoodle.com |
       | user2 | User | 2 | user2@moodlemoodle.com |
       | user3 | User | 3 | user3@moodlemoodle.com |
+      | user4 | User | 4 | user4@moodlemoodle.com |
+      | user5 | User | 5 | user5@moodlemoodle.com |
     And the following "categories" exists:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
     And the following "courses" exists:
       | fullname | shortname | category |
       | Course 1 | C1 | CAT1 |
+    And the following "course enrolments" exists:
+      | user | course | role |
+      | user4 | C1 | custom1 |
     And the following "role assigns" exists:
       | user  | role           | contextlevel | reference |
       | user1 | manager        | System       |           |
       | user2 | editingteacher | Category     | CAT1      |
       | user3 | editingteacher | Course       | C1        |
+      | user5 | custom2        | System       |           |
     When I log in as "user1"
     Then I should see "Front page settings"
     And I log out
@@ -137,6 +147,16 @@ Feature: Set up contextual data for tests
     And I log in as "user3"
     And I follow "Course 1"
     And I should see "Turn editing on"
+    And I log out
+    And I log in as "user4"
+    And I follow "Course 1"
+    And I should see "Turn editing on"
+    And I log out
+    And I log in as "user5"
+    And I should see "You are logged in as"
+    And I follow "Course 1"
+    And I should see "You can not enrol yourself in this course."
+
 
   Scenario: Add modules
     Given the following "courses" exists:
@@ -229,7 +249,7 @@ Feature: Set up contextual data for tests
     And I follow "Groups"
     Then the "groups" select box should contain "Group 1 (1)"
     And the "groups" select box should contain "Group 2 (1)"
-    And I select "Group 1 (1)" from "groups"
+    And I set the field "groups" to "Group 1 (1)"
     And the "members" select box should contain "Student 1"
-    And I select "Group 2 (1)" from "groups"
+    And I set the field "groups" to "Group 2 (1)"
     And the "members" select box should contain "Student 2"

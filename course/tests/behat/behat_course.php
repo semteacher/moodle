@@ -102,10 +102,10 @@ class behat_course extends behat_base {
             // Adding a forced wait until editors are loaded as otherwise selenium sometimes tries clicks on the
             // format field when the editor is being rendered and the click misses the field coordinates.
             $steps[] = new Given('I expand all fieldsets');
-            $steps[] = new Given('I select "' . $formatvalue . '" from "' . $formatfield . '"');
-            $steps[] = new Given('I fill the moodle form with:', $table);
+            $steps[] = new Given('I set the field "' . $formatfield . '" to "' . $formatvalue . '"');
+            $steps[] = new Given('I set the following fields to these values:', $table);
         } else {
-            $steps[] = new Given('I fill the moodle form with:', $table);
+            $steps[] = new Given('I set the following fields to these values:', $table);
         }
 
         $steps[] = new Given('I press "' . get_string('savechanges') . '"');
@@ -141,7 +141,7 @@ class behat_course extends behat_base {
 
         return array(
             new Given('I add a "' . $this->escape($activity) . '" to section "' . $this->escape($section) . '"'),
-            new Given('I fill the moodle form with:', $data),
+            new Given('I set the following fields to these values:', $data),
             new Given('I press "' . get_string('savechangesandreturntocourse') . '"')
         );
     }
@@ -288,7 +288,7 @@ class behat_course extends behat_base {
 
         return array(
             new Given('I edit the section "' . $sectionnumber . '"'),
-            new Given('I fill the moodle form with:', $data),
+            new Given('I set the following fields to these values:', $data),
             new Given('I press "' . get_string('savechanges') . '"')
         );
     }
@@ -351,6 +351,23 @@ class behat_course extends behat_base {
         // Section should be hidden.
         $exception = new ExpectationException('The section is not hidden', $this->getSession());
         $this->find('xpath', $sectionxpath . "[contains(concat(' ', normalize-space(@class), ' '), ' hidden ')]", $exception);
+    }
+
+    /**
+     * Checks that all actiities in the specified section are hidden. You need to be in the course page. It can be used being logged as a student and as a teacher on editing mode.
+     *
+     * @Then /^all activities in section "(?P<section_number>\d+)" should be hidden$/
+     * @throws ExpectationException
+     * @throws ElementNotFoundException Thrown by behat_base::find
+     * @param int $sectionnumber
+     */
+    public function section_activities_should_be_hidden($sectionnumber) {
+        $sectionxpath = $this->section_exists($sectionnumber);
+
+        // Preventive in case there is any action in progress.
+        // Adding it here because we are interacting (click) with
+        // the elements, not necessary when we just find().
+        $this->i_wait_until_section_is_available($sectionnumber);
 
         // The checking are different depending on user permissions.
         if ($this->is_course_editor()) {
@@ -362,50 +379,19 @@ class behat_course extends behat_base {
             if ($activities = $this->get_section_activities($sectionxpath)) {
 
                 $dimmedexception = new ExpectationException('There are activities that are not dimmed', $this->getSession());
-                $visibilityexception = new ExpectationException('There are activities which visibility icons are clickable', $this->getSession());
                 foreach ($activities as $activity) {
-
                     // Dimmed.
                     $this->find('xpath', "//div[contains(concat(' ', normalize-space(@class), ' '), ' activityinstance ')]" .
                         "/a[contains(concat(' ', normalize-space(@class), ' '), ' dimmed ')]", $dimmedexception, $activity);
-
-                    // Non-JS browsers can not click on img elements.
-                    if ($this->running_javascript()) {
-
-                        // Expanding the actions menu if it is not shown.
-                        $classes = array_flip(explode(' ', $activity->getAttribute('class')));
-                        if (empty($classes['action-menu-shown'])) {
-                            $actionsmenu = $this->find('css', "a[role='menuitem']", false, $activity);
-                            $actionsmenu->click();
-                        }
-
-                        // To check that the visibility is not clickable we check the funcionality rather than the applied style.
-                        $visibilityiconnode = $this->find('css', 'a.editing_show img', false, $activity);
-                        $visibilityiconnode->click();
-                    }
-
-                    // We ensure that we still see the show icon.
-                    $visibilityiconnode = $this->find('css', 'a.editing_show img', $visibilityexception, $activity);
-
-                    // It is there only when running JS scenarios.
-                    if ($this->running_javascript()) {
-
-                        // Collapse the actions menu if it is displayed.
-                        $classes = array_flip(explode(' ', $activity->getAttribute('class')));
-                        if (!empty($classes['action-menu-shown'])) {
-                            $actionsmenu = $this->find('css', "a[role='menuitem']", false, $activity);
-                            $actionsmenu->click();
-                        }
-                    }
                 }
             }
-
         } else {
             // There shouldn't be activities.
             if ($this->get_section_activities($sectionxpath)) {
                 throw new ExpectationException('There are activities in the section and they should be hidden', $this->getSession());
             }
         }
+
     }
 
     /**
@@ -591,7 +577,7 @@ class behat_course extends behat_base {
         $activity = $this->escape($activityname);
         return array(
             new Given('I click on "' . get_string('edittitle') . '" "link" in the "' . $activity .'" activity'),
-            new Given('I fill in "title" with "' . $this->escape($newactivityname) . chr(10) . '"')
+            new Given('I set the field "title" to "' . $this->escape($newactivityname) . chr(10) . '"')
         );
     }
 
@@ -716,26 +702,20 @@ class behat_course extends behat_base {
 
         $deletestring = get_string('delete');
 
+        $steps = array(
+            new Given('I click on "' . $this->escape($deletestring) . '" "link" in the "' . $this->escape($activityname) . '" activity')
+        );
+
         // JS enabled.
         // Not using chain steps here because the exceptions catcher have problems detecting
         // JS modal windows and avoiding interacting them at the same time.
         if ($this->running_javascript()) {
-
-            $element = $this->get_activity_element($deletestring, 'link', $activityname);
-            $element->click();
-
-            $this->getSession()->getDriver()->getWebDriverSession()->accept_alert();
-
+            $steps[] = new Given('I click on "' . get_string('yes') . '" "button" in the "Confirm" "dialogue"');
         } else {
-
-            // With JS disabled.
-            $steps = array(
-                new Given('I click on "' . $this->escape($deletestring) . '" "link" in the "' . $this->escape($activityname) . '" activity'),
-                new Given('I press "' . get_string('yes') . '"')
-            );
-
-            return $steps;
+            $steps[] = new Given('I press "' . get_string('yes') . '"');
         }
+
+        return $steps;
     }
 
     /**
@@ -803,7 +783,7 @@ class behat_course extends behat_base {
             $steps[] = new Given('I press "' . get_string('continue') .'"');
             $steps[] = new Given('I press "' . get_string('duplicatecontedit') . '"');
         }
-        $steps[] = new Given('I fill the moodle form with:', $data);
+        $steps[] = new Given('I set the following fields to these values:', $data);
         $steps[] = new Given('I press "' . get_string('savechangesandreturntocourse') . '"');
         return $steps;
     }
@@ -1205,7 +1185,7 @@ class behat_course extends behat_base {
     public function i_move_category_to_top_level_in_the_management_interface($name) {
         $this->i_select_category_in_the_management_interface($name);
         return array(
-            new Given('I select "' .  coursecat::get(0)->get_formatted_name() . '" from "menumovecategoriesto"'),
+            new Given('I set the field "menumovecategoriesto" to "' .  coursecat::get(0)->get_formatted_name() . '"'),
             new Given('I press "bulkmovecategories"'),
         );
     }

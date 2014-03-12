@@ -57,7 +57,7 @@ class calculated {
 
     /**
      * @var string if this stat has been picked as a min, median or maximum facility value then this string says which stat this
-     *                  is.
+     *                  is. Prepended to question name for display.
      */
     public $minmedianmaxnotice = '';
 
@@ -110,7 +110,6 @@ class calculated {
      * @var null|float The average score that students would have got by guessing randomly. Or null if not calculable.
      */
     public $randomguessscore = null;
-
 
     // End of fields in db.
 
@@ -180,6 +179,40 @@ class calculated {
     public $timemodified;
 
     /**
+     * Set up a calculated instance ready to store a question's (or a variant of a slot's question's)
+     * stats for one slot in the quiz.
+     *
+     * @param null|object     $question
+     * @param null|int     $slot
+     * @param null|int $variant
+     */
+    public function __construct($question = null, $slot = null, $variant = null) {
+        if ($question !== null) {
+            $this->questionid = $question->id;
+            $this->maxmark = $question->maxmark;
+            $this->positions = $question->number;
+            $this->question = $question;
+        }
+        if ($slot !== null) {
+            $this->slot = $slot;
+        }
+        if ($variant !== null) {
+            $this->variant = $variant;
+        }
+    }
+
+    /**
+     * @return null|string a string that represents the pool of questions from this question draws if it random or null if not.
+     */
+    public function random_selector_string() {
+        if ($this->question->qtype == 'random') {
+            return $this->question->category .'/'. $this->question->questiontext;
+        } else {
+            return null;
+        }
+    }
+
+    /**
      * Cache calculated stats stored in this object in 'question_statistics' table.
      *
      * @param \qubaid_condition $qubaids
@@ -211,4 +244,45 @@ class calculated {
         $this->timemodified = $record->timemodified;
     }
 
+    public function sort_variants() {
+        ksort($this->variantstats);
+    }
+
+    /**
+     * @return int[] array of sub-question ids or empty array if there are none.
+     */
+    public function get_sub_question_ids() {
+        if ($this->subquestions !== '') {
+            return explode(',', $this->subquestions);
+        } else {
+            return array();
+        }
+    }
+
+    /**
+     * Array of variants that have appeared in the attempt data for this question.
+     *
+     * @return int[]
+     */
+    public function get_variants() {
+        $variants = array_keys($this->variantstats);
+        if (count($variants) > 1) {
+            return $variants;
+        } else {
+            return array();
+        }
+    }
+
+    public function break_down_by_variant() {
+        $qtype = \question_bank::get_qtype($this->question->qtype);
+        return $qtype->break_down_stats_and_response_analysis_by_variant($this->question);
+    }
+
+
+    /**
+     * Delete the data structure for storing variant stats.
+     */
+    public function clear_variants() {
+        $this->variantstats = array();
+    }
 }
