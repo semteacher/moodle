@@ -50,10 +50,6 @@ use Behat\Behat\Exception\PendingException as PendingException;
  */
 class behat_data_generators extends behat_base {
 
-    const cap_allow = 'Allow';
-    const cap_prevent = 'Prevent';
-    const cap_prohibit = 'Prohibit';
-
     /**
      * @var testing_data_generator
      */
@@ -130,6 +126,10 @@ class behat_data_generators extends behat_base {
         'cohorts' => array(
             'datagenerator' => 'cohort',
             'required' => array('idnumber')
+        ),
+        'roles' => array(
+            'datagenerator' => 'role',
+            'required' => array('shortname')
         )
     );
 
@@ -299,13 +299,13 @@ class behat_data_generators extends behat_base {
         $context = $this->get_context($data['contextlevel'], $data['reference']);
 
         switch ($data['permission']) {
-            case self::cap_allow:
+            case get_string('allow', 'role'):
                 $permission = CAP_ALLOW;
                 break;
-            case self::cap_prevent:
+            case get_string('prevent', 'role'):
                 $permission = CAP_PREVENT;
                 break;
-            case self::cap_prohibit:
+            case get_string('prohibit', 'role'):
                 $permission = CAP_PROHIBIT;
                 break;
             default:
@@ -378,6 +378,22 @@ class behat_data_generators extends behat_base {
     }
 
     /**
+     * Creates a role.
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_role($data) {
+
+        // We require the user to fill the role shortname.
+        if (empty($data['shortname'])) {
+            throw new Exception('\'role\' requires the field \'shortname\' to be specified');
+        }
+
+        $this->datagenerator->create_role($data);
+    }
+
+    /**
      * Gets the user id from it's username.
      * @throws Exception
      * @param string $username
@@ -402,7 +418,7 @@ class behat_data_generators extends behat_base {
         global $DB;
 
         if (!$id = $DB->get_field('role', 'id', array('shortname' => $roleshortname))) {
-            throw new Exception('The specified role with shortname"' . $roleshortname . '" does not exist');
+            throw new Exception('The specified role with shortname "' . $roleshortname . '" does not exist');
         }
 
         return $id;
@@ -439,7 +455,7 @@ class behat_data_generators extends behat_base {
         global $DB;
 
         if (!$id = $DB->get_field('course', 'id', array('shortname' => $shortname))) {
-            throw new Exception('The specified course with shortname"' . $shortname . '" does not exist');
+            throw new Exception('The specified course with shortname "' . $shortname . '" does not exist');
         }
         return $id;
     }

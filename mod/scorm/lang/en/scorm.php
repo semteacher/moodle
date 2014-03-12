@@ -17,7 +17,7 @@
 /**
  * Strings for component 'scorm', language 'en'
  *
- * @package   scorm
+ * @package   mod_scorm
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -246,7 +246,7 @@ There are 3 options:
 
 * No - Navigation buttons are not shown
 * Under content - Navigation buttons are shown below the SCORM package content
-* Floating - Navigation buttons are shown floating, with the postition from the top and from the left determined by the package.';
+* Floating - Navigation buttons are shown floating, with the position from the top and from the left determined by the package.';
 $string['navdesc'] = 'This setting specifies whether to show or hide navigation buttons and their position.';
 $string['navpositionleft'] = 'Position of navigation buttons from left in pixels.';
 $string['navpositiontop'] = 'Position of navigation buttons from top in pixels.';
