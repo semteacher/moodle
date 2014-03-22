@@ -13,7 +13,7 @@ $grid = new jqGridRender($conn);
 $grid->encoding = "utf-8";
 // Write the SQL Query
 $grid->SelectCommand = "
-SELECT mcc.name AS mccname, c.id AS cid, c.fullname AS cfullname, concat('<a target=\"_new\" href=\"http://moodle.tdmu.edu.ua/course/view.php?id=',c.id,' \">Link</a>') AS idlink,  
+SELECT LEFT(strip_tags(mcc.name),(POSITION((CHAR(0x28 USING utf8) COLLATE utf8_unicode_ci) IN strip_tags(mcc.name)))-1) AS mccname, c.id AS cid, c.fullname AS cfullname, concat('<a target=\"_new\" href=\"http://moodle.tdmu.edu.ua/course/view.php?id=',c.id,' \">Link</a>') AS idlink,  
 COUNT(cs.id) AS sections, 
 (SELECT COUNT(*) FROM mdl_course_modules AS cm WHERE cm.course = c.id AND cm.module= 12 AND cm.visible=1) AS quizes, 
 (SELECT COUNT(*) FROM mdl_course_modules AS cm WHERE cm.course = c.id AND cm.module= 13 AND cm.visible=1) AS resources, 
