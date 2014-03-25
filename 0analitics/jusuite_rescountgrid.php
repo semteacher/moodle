@@ -47,7 +47,7 @@ COUNT(cs.id) AS sections,
 FROM mdl_course_sections AS cs  
 JOIN mdl_course as c ON c.id=cs.course 
 LEFT JOIN mdl_course_categories mcc ON c.category=mcc.id
-WHERE cs.visible=1 and length(cs.sequence)>0 and c.category<>0 and c.category<>45
+WHERE cs.visible=1 and length(cs.sequence)>0 and c.category<>0 and c.category<>45 and c.category<>86
 GROUP BY c.id
 ";
 // set the ouput format to json
