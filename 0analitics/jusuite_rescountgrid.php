@@ -62,7 +62,8 @@ $grid->setGridOptions(array(
     "autowidth"=>true, // expand grid to screen width
     "shrinkToFit"=>true,
     "height"=>"100%",
-    "hidegrid"=>"true",
+    "hidegrid"=>false,
+    "hoverrows" => true,
     "viewrecords" => true,
     "rowNum"=>20,
     "sortname"=>"cid",
@@ -88,10 +89,10 @@ $grid->setNavOptions('navigator',array('add'=>false, 'edit'=>false, 'del'=>false
 $grid->toolbarfilter = true;
 $grid->setFilterOptions(array("searchOnEnter"=>false));
 // Change some property of the field(s)
-$grid->setColProperty("mccid", array("label"=>"К_каф.", "resizable"=>false, "fixed"=>true, "search"=>true, "width"=>50, "align"=>"center"));
+$grid->setColProperty("mccid", array("label"=>"К_каф.", "resizable"=>false, "fixed"=>true, "search"=>true, "width"=>40, "align"=>"center"));
 $grid->setColProperty("mccname", array("label"=>"Кафедра", "search"=>true, "resizable"=>true));
 $grid->setColProperty("cfullname", array("label"=>"Назва дисципліни", "resizable"=>true, "search"=>true));
-$grid->setColProperty("cid", array("label"=>"Код", "width"=>50, "align"=>"center", "resizable"=>false, "fixed"=>true, "search"=>true));
+$grid->setColProperty("cid", array("key"=>true, "label"=>"Код", "width"=>50, "align"=>"center", "resizable"=>false, "fixed"=>true, "search"=>true));
 $grid->setColProperty("idlink", array("label"=>"Лінк", "width"=>40, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center"));
 $grid->setColProperty("sections", array("label"=>"Тем (занять)", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
 $grid->setColProperty("quizes", array("label"=>"Тестів", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
