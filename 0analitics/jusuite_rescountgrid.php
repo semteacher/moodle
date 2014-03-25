@@ -12,6 +12,9 @@ $conn->query("SET NAMES utf8");
 $grid = new jqGridRender($conn);
 $grid->encoding = "utf-8";
 // Write the SQL Query
+
+//SELECT mcc.id AS mccid, LEFT(strip_tags(mcc.name),(POSITION((CHAR(0x28 USING utf8) COLLATE utf8_unicode_ci) IN strip_tags(mcc.name)))-1) COLLATE utf8_general_ci AS mccname
+//SELECT mcc.id AS mccid, strip_tags(mcc.name) COLLATE utf8_general_ci AS mccname
 $grid->SelectCommand = "
 SELECT mcc.id AS mccid, LEFT(strip_tags(mcc.name),(POSITION((CHAR(0x28 USING utf8) COLLATE utf8_unicode_ci) IN strip_tags(mcc.name)))-1) COLLATE utf8_general_ci AS mccname, c.id AS cid, c.fullname AS cfullname, concat('<a target=\"_new\" href=\"http://moodle.tdmu.edu.ua/course/view.php?id=',c.id,' \">Link</a>') AS idlink,  
 COUNT(cs.id) AS sections, 
@@ -57,7 +60,7 @@ $grid->setUrl('jusuite_rescountgrid.php');
 $grid->setGridOptions(array(
     "caption"=>"Кількість ресурсів по курсах. Сумарно та по типах - тести, посилання, файли, папки, контрольні списки, розклади",
     "autowidth"=>true, // expand grid to screen width
-//    "shrinkToFit"=>"true",
+    "shrinkToFit"=>true,
     "height"=>"100%",
     "hidegrid"=>"true",
     "viewrecords" => true,
@@ -65,9 +68,7 @@ $grid->setGridOptions(array(
     "sortname"=>"cid",
     "rowList"=>array(20,30,50),
 //    "footerrow"=>true,  
-//    "userDataOnFooter"=>true, //grandtotal   
-    "footerrow"=>true,
-    "userDataOnFooter"=>true,    
+//    "userDataOnFooter"=>true, //grandtotal       
         "grouping"=>true, // Enable grouping
         "groupingView"=>array(   // grouping options
         "groupField" => array('mccname'),   // group by field
@@ -82,26 +83,27 @@ $grid->setGridOptions(array(
 // add navigator with the default properties
 $grid->navigator = true;
 $grid->setNavOptions('navigator',array('add'=>false, 'edit'=>false, 'del'=>false));
+
 // Enable filter toolbar searching
 $grid->toolbarfilter = true;
 $grid->setFilterOptions(array("searchOnEnter"=>false));
 // Change some property of the field(s)
-$grid->setColProperty("mccid", array("label"=>"К_каф.", "search"=>true, "width"=>50, "align"=>"center"));
+$grid->setColProperty("mccid", array("label"=>"К_каф.", "resizable"=>false, "fixed"=>true, "search"=>true, "width"=>50, "align"=>"center"));
 $grid->setColProperty("mccname", array("label"=>"Кафедра", "search"=>true, "resizable"=>true));
 $grid->setColProperty("cfullname", array("label"=>"Назва дисципліни", "resizable"=>true, "search"=>true));
-$grid->setColProperty("cid", array("label"=>"Код", "width"=>50, "align"=>"center"));
-$grid->setColProperty("idlink", array("label"=>"Лінк", "width"=>50, "search"=>false, "align"=>"center"));
-$grid->setColProperty("sections", array("label"=>"Тем(занять)", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("quizes", array("label"=>"Тестів", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("resources", array("label"=>"Файлів", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("resources_pdf", array("label"=>"Файлів PDF", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("folders", array("label"=>"Папок", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("files_in_folders", array("label"=>"Файлів в папках", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("pdf_in_folders", array("label"=>"PDF в папках", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("ppt_in_folders", array("label"=>"PPT в папках", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("urls", array("label"=>"Посилань", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("checklists", array("label"=>"Матрикулів", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
-$grid->setColProperty("schedulers", array("label"=>"Розкладів", "width"=>100, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Всього: {0}</b>'));
+$grid->setColProperty("cid", array("label"=>"Код", "width"=>50, "align"=>"center", "resizable"=>false, "fixed"=>true, "search"=>true));
+$grid->setColProperty("idlink", array("label"=>"Лінк", "width"=>40, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center"));
+$grid->setColProperty("sections", array("label"=>"Тем (занять)", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("quizes", array("label"=>"Тестів", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("resources", array("label"=>"Файлів", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("resources_pdf", array("label"=>"Файлів PDF", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("folders", array("label"=>"Папок", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("files_in_folders", array("label"=>"Файлів в папках", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("pdf_in_folders", array("label"=>"PDF в папках", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("ppt_in_folders", array("label"=>"PPT в папках", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("urls", array("label"=>"Посилань", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("checklists", array("label"=>"Матрикулів", "width"=>50, "resizable"=>false, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
+$grid->setColProperty("schedulers", array("label"=>"Розкладів", "width"=>50, "resizable"=>false, "fixed"=>true, "fixed"=>true, "search"=>false, "align"=>"center", "summaryType"=>"sum", "summaryTpl"=>'<b>Сум.: {0}</b>'));
 //$summaryrows = array("quizes"=>array("quizes"=>"SUM"), "sections"=>array("sections"=>"SUM"));
 // Run the script
 $grid->renderGrid('#grid','#pager',true, null, null, true,true);
