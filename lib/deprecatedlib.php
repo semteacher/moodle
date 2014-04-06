@@ -204,19 +204,6 @@ function session_kill_user($userid) {
 }
 
 /**
- * Session garbage collection
- * - verify timeout for all users
- * - kill sessions of all deleted users
- * - kill sessions of users with disabled plugins or 'nologin' plugin
- *
- * @deprecated since 2.6
- */
-function session_gc() {
-    debugging('session_gc() is deprecated, use \core\session\manager::gc() instead', DEBUG_DEVELOPER);
-    \core\session\manager::gc();
-}
-
-/**
  * Setup $USER object - called during login, loginas, etc.
  *
  * Call sync_user_enrolments() manually after log-in, or log-in-as.
@@ -4346,5 +4333,59 @@ function badges_get_issued_badge_info($hash) {
  */
 function can_use_html_editor() {
     debugging('can_use_html_editor has been deprecated please update your code to assume it returns true.', DEBUG_DEVELOPER);
+    return true;
+}
+
+
+/**
+ * Returns an object with counts of failed login attempts
+ *
+ * Returns information about failed login attempts.  If the current user is
+ * an admin, then two numbers are returned:  the number of attempts and the
+ * number of accounts.  For non-admins, only the attempts on the given user
+ * are shown.
+ *
+ * @deprecate since Moodle 2.7, use {@link user_count_login_failures()} instead.
+ * @global moodle_database $DB
+ * @uses CONTEXT_SYSTEM
+ * @param string $mode Either 'admin' or 'everybody'
+ * @param string $username The username we are searching for
+ * @param string $lastlogin The date from which we are searching
+ * @return int
+ */
+function count_login_failures($mode, $username, $lastlogin) {
+    global $DB;
+
+    debugging('This method has been deprecated. Please use user_count_login_failures() instead.', DEBUG_DEVELOPER);
+
+    $params = array('mode'=>$mode, 'username'=>$username, 'lastlogin'=>$lastlogin);
+    $select = "module='login' AND action='error' AND time > :lastlogin";
+
+    $count = new stdClass();
+
+    if (is_siteadmin()) {
+        if ($count->attempts = $DB->count_records_select('log', $select, $params)) {
+            $count->accounts = $DB->count_records_select('log', $select, $params, 'COUNT(DISTINCT info)');
+            return $count;
+        }
+    } else if ($mode == 'everybody') {
+        if ($count->attempts = $DB->count_records_select('log', "$select AND info = :username", $params)) {
+            return $count;
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Returns whether ajax is enabled/allowed or not.
+ * This function is deprecated and always returns true.
+ *
+ * @param array $unused - not used any more.
+ * @return bool
+ * @deprecated since 2.7 MDL-33099 - please do not use this function any more.
+ * @todo MDL-44088 This will be removed in Moodle 2.9.
+ */
+function ajaxenabled(array $browsers = null) {
+    debugging('ajaxenabled() is deprecated - please update your code to assume it returns true.', DEBUG_DEVELOPER);
     return true;
 }

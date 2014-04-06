@@ -35,12 +35,13 @@ class tool_task_renderer extends plugin_renderer_base {
     /**
      * This function will render one beautiful table with all the scheduled tasks.
      *
-     * @param array(scheduled_task) - list of all scheduled tasks.
+     * @param \core\task\scheduled_task[] $tasks - list of all scheduled tasks.
      * @return string HTML to output.
      */
     public function scheduled_tasks_table($tasks) {
         $table = new html_table();
         $table->head  = array(get_string('name'),
+                              get_string('component', 'tool_task'),
                               get_string('edit'),
                               get_string('lastruntime', 'tool_task'),
                               get_string('nextruntime', 'tool_task'),
@@ -56,18 +57,41 @@ class tool_task_renderer extends plugin_renderer_base {
         $yes = get_string('yes');
         $no = get_string('no');
         $never = get_string('never');
-        $now = get_string('now');
+        $asap = get_string('asap', 'tool_task');
+        $disabled = get_string('disabled', 'tool_task');
         foreach ($tasks as $task) {
             $customised = $task->is_customised() ? $no : $yes;
             $lastrun = $task->get_last_run_time() ? userdate($task->get_last_run_time()) : $never;
-            $nextrun = $task->get_next_run_time() ? userdate($task->get_next_run_time()) : $now;
+            $nextrun = $task->get_next_run_time();
+            if ($task->get_disabled()) {
+                $nextrun = $disabled;
+            } else if ($nextrun > time()) {
+                $nextrun = userdate($nextrun);
+            } else {
+                $nextrun = $asap;
+            }
             $configureurl = new moodle_url('/admin/tool/task/scheduledtasks.php', array('action'=>'edit', 'task' => get_class($task)));
             $editlink = $this->action_icon($configureurl, new pix_icon('t/edit', get_string('edittaskschedule', 'tool_task', $task->get_name())));
 
-            $namecell = new html_table_cell($task->get_name());
+            $namecell = new html_table_cell($task->get_name() . "\n" . html_writer::tag('span', '\\'.get_class($task), array('class' => 'task-class')));
             $namecell->header = true;
 
-            $row = new html_table_row(array( $namecell,
+            $component = $task->get_component();
+            list($type, $plugin) = core_component::normalize_component($component);
+            if ($type === 'core') {
+                $componentcell = new html_table_cell(get_string('corecomponent', 'tool_task'));
+            } else {
+                if ($plugininfo = core_plugin_manager::instance()->get_plugin_info($component)) {
+                    $plugininfo->init_display_name();
+                    $componentcell = new html_table_cell($plugininfo->displayname);
+                } else {
+                    $componentcell = new html_table_cell($component);
+                }
+            }
+
+            $row = new html_table_row(array(
+                        $namecell,
+                        $componentcell,
                         new html_table_cell($editlink),
                         new html_table_cell($lastrun),
                         new html_table_cell($nextrun),
@@ -79,6 +103,9 @@ class tool_task_renderer extends plugin_renderer_base {
                         new html_table_cell($task->get_fail_delay()),
                         new html_table_cell($customised)));
 
+            if ($task->get_disabled()) {
+                $row->attributes['class'] = 'disabled';
+            }
             $data[] = $row;
         }
         $table->data = $data;
