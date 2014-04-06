@@ -12,10 +12,10 @@ Feature: Test category management actions
   Test we can manage filters for a category
 
   Scenario: Test editing a category through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT1 | Course 1 | Course 1 | C1 |
 
@@ -43,13 +43,13 @@ Feature: Test category management actions
     And I should see "Category 1 (edited)" in the "#course-listing h3" "css_element"
 
   Scenario: Test deleting a categories through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
       | Cat 2 | 0 | CAT2 |
       | Cat 3 | 0 | CAT3 |
 
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT3 | Course 1 | Course 1 | C1 |
 
@@ -104,10 +104,10 @@ Feature: Test category management actions
     And I should see "Course 1" in the "#course-listing ul.ml" "css_element"
 
   Scenario: Test I can assign roles for a category through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT1 | Course 1 | Course 1 | C1 |
 
@@ -124,10 +124,10 @@ Feature: Test category management actions
     And I should see "Cat 1" in the "#course-listing h3" "css_element"
 
   Scenario: Test I can set access permissions for a category through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT1 | Course 1 | Course 1 | C1 |
 
@@ -143,10 +143,10 @@ Feature: Test category management actions
     And I should see "Cat 1" in the "#course-listing h3" "css_element"
 
   Scenario: Test clicking to manage cohorts for a category through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT1 | Course 1 | Course 1 | C1 |
 
@@ -158,10 +158,10 @@ Feature: Test category management actions
     And I should see "Category: Cat 1: available cohorts"
 
   Scenario: Test configuring filters for a category
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT1 | Course 1 | Course 1 | C1 |
 
@@ -178,7 +178,7 @@ Feature: Test category management actions
 
   @javascript
   Scenario: Test that I can create a category and view it in the management interface
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
     And I log in as "admin"
@@ -211,7 +211,7 @@ Feature: Test category management actions
 
   @javascript
   Scenario: Test moving a categories through the management interface.
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
       | Cat 2 | 0 | CAT2 |
@@ -238,12 +238,12 @@ Feature: Test category management actions
 
   @javascript
   Scenario: Test bulk action is shown only when some category/course is selected
-    Given the following "categories" exists:
+    Given the following "categories" exist:
       | name | category | idnumber |
       | Cat 1 | 0 | CAT1 |
       | Cat 2 | 0 | CAT2 |
       | Cat 3 | 0 | CAT3 |
-    And the following "courses" exists:
+    And the following "courses" exist:
       | category | fullname | shortname | idnumber |
       | CAT3 | Course 1 | Course 1 | C1 |
       | CAT3 | Course 2 | Course 2 | C2 |
@@ -332,3 +332,17 @@ Feature: Test category management actions
     And the "movecategoriesto" "select" should be disabled
     And the "resortcategoriesby" "select" should be disabled
     And the "resortcoursesby" "select" should be disabled
+
+  Scenario: Test that is not possible to create a course category with a duplicate idnumber
+    Given the following "categories" exist:
+      | name | category | idnumber |
+      | Cat 1 | 0 | CAT1 |
+    And I log in as "admin"
+    And I expand "Site administration" node
+    And I expand "Courses" node
+    And I follow "Add a category"
+    And I set the following fields to these values:
+      | Category name | Test duplicate |
+      | Category ID number | CAT1 |
+    When I press "Create category"
+    Then I should see "ID number is already used for another category"

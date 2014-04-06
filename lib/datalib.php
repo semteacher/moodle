@@ -1293,6 +1293,10 @@ function get_course_mods($courseid) {
 /**
  * Given an id of a course module, finds the coursemodule description
  *
+ * Please note that this function performs 1-2 DB queries. When possible use cached
+ * course modinfo. For example get_fast_modinfo($courseorid)->get_cm($cmid)
+ * See also {@link cm_info::get_course_module_record()}
+ *
  * @global object
  * @param string $modulename name of module type, eg. resource, assignment,... (optional, slower and less safe if not specified)
  * @param int $cmid course module id (id in course_modules table)
@@ -1346,6 +1350,10 @@ function get_coursemodule_from_id($modulename, $cmid, $courseid=0, $sectionnum=f
 
 /**
  * Given an instance number of a module, finds the coursemodule description
+ *
+ * Please note that this function performs DB query. When possible use cached course
+ * modinfo. For example get_fast_modinfo($courseorid)->instances[$modulename][$instance]
+ * See also {@link cm_info::get_course_module_record()}
  *
  * @global object
  * @param string $modulename name of module type, eg. resource, assignment,...
@@ -1832,43 +1840,6 @@ function get_logs_userday($userid, $courseid, $daystart) {
                                GROUP BY FLOOR((time - $daystart)/". HOURSECS .") ", $params);
 }
 
-/**
- * Returns an object with counts of failed login attempts
- *
- * Returns information about failed login attempts.  If the current user is
- * an admin, then two numbers are returned:  the number of attempts and the
- * number of accounts.  For non-admins, only the attempts on the given user
- * are shown.
- *
- * @global moodle_database $DB
- * @uses CONTEXT_SYSTEM
- * @param string $mode Either 'admin' or 'everybody'
- * @param string $username The username we are searching for
- * @param string $lastlogin The date from which we are searching
- * @return int
- */
-function count_login_failures($mode, $username, $lastlogin) {
-    global $DB;
-
-    $params = array('mode'=>$mode, 'username'=>$username, 'lastlogin'=>$lastlogin);
-    $select = "module='login' AND action='error' AND time > :lastlogin";
-
-    $count = new stdClass();
-
-    if (is_siteadmin()) {
-        if ($count->attempts = $DB->count_records_select('log', $select, $params)) {
-            $count->accounts = $DB->count_records_select('log', $select, $params, 'COUNT(DISTINCT info)');
-            return $count;
-        }
-    } else if ($mode == 'everybody') {
-        if ($count->attempts = $DB->count_records_select('log', "$select AND info = :username", $params)) {
-            return $count;
-        }
-    }
-    return NULL;
-}
-
-
 /// GENERAL HELPFUL THINGS  ///////////////////////////////////
 
 /**
@@ -2036,7 +2007,7 @@ function decompose_update_into_safe_changes(array $newvalues, $unusedvalue) {
             $next = $nontrivialmap[$current];
             unset($nontrivialmap[$current]);
             $current = $next;
-        } while ($current !== $cyclestart);
+        } while ($current != $cyclestart);
 
         // Now convert it to a sequence of safe renames by using a temp.
         $safechanges[] = array($cyclestart, $unusedvalue);

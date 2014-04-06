@@ -196,7 +196,7 @@ function uninstall_plugin($type, $name) {
     $DB->delete_records('event', array('modulename' => $pluginname));
 
     // Delete scheduled tasks.
-    $DB->delete_records('scheduled_task', array('component' => $pluginname));
+    $DB->delete_records('task_scheduled', array('component' => $pluginname));
 
     // delete all the logs
     $DB->delete_records('log', array('module' => $pluginname));
@@ -230,6 +230,9 @@ function uninstall_plugin($type, $name) {
     // Delete all remaining files in the filepool owned by the component.
     $fs = get_file_storage();
     $fs->delete_component_files($component);
+
+    // Delete all tag instances for this component.
+    $DB->delete_records('tag_instance', array('component' => $component));
 
     // Finally purge all caches.
     purge_all_caches();
