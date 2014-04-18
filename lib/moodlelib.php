@@ -4138,9 +4138,9 @@ function truncate_userinfo(array $info) {
         'icq'         =>  15,
         'phone1'      =>  20,
         'phone2'      =>  20,
-        'institution' =>  40,
-        'department'  =>  30,
-        'address'     =>  70,
+        'institution' => 255,
+        'department'  => 255,
+        'address'     => 255,
         'city'        => 120,
         'country'     =>   2,
         'url'         => 255,
@@ -5073,12 +5073,6 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     $DB->delete_records_select('course_modules_completion',
            'coursemoduleid IN (SELECT id from {course_modules} WHERE course=?)',
            array($courseid));
-    $DB->delete_records_select('course_modules_availability',
-           'coursemoduleid IN (SELECT id from {course_modules} WHERE course=?)',
-           array($courseid));
-    $DB->delete_records_select('course_modules_avail_fields',
-           'coursemoduleid IN (SELECT id from {course_modules} WHERE course=?)',
-           array($courseid));
 
     // Remove course-module data.
     $cms = $DB->get_records('course_modules', array('course' => $course->id));
@@ -5188,13 +5182,7 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     }
     $DB->update_record('course', $oldcourse);
 
-    // Delete course sections and availability options.
-    $DB->delete_records_select('course_sections_availability',
-           'coursesectionid IN (SELECT id from {course_sections} WHERE course=?)',
-           array($course->id));
-    $DB->delete_records_select('course_sections_avail_fields',
-           'coursesectionid IN (SELECT id from {course_sections} WHERE course=?)',
-           array($course->id));
+    // Delete course sections.
     $DB->delete_records('course_sections', array('course' => $course->id));
 
     // Delete legacy, section and any other course files.
@@ -7700,7 +7688,16 @@ function moodle_setlocale($locale='') {
  */
 function count_words($string) {
     $string = strip_tags($string);
-    return count(preg_split("/\w\b/", $string)) - 1;
+    // Decode HTML entities.
+    $string = html_entity_decode($string);
+    // Replace underscores (which are classed as word characters) with spaces.
+    $string = preg_replace('/_/u', ' ', $string);
+    // Remove any characters that shouldn't be treated as word boundaries.
+    $string = preg_replace('/[\'’-]/u', '', $string);
+    // Remove dots and commas from within numbers only.
+    $string = preg_replace('/([0-9])[.,]([0-9])/u', '$1$2', $string);
+
+    return count(preg_split('/\w\b/u', $string)) - 1;
 }
 
 /**

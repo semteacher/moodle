@@ -908,7 +908,7 @@ class core_plugin_manager {
         $plugins = array(
             'qformat' => array('blackboard'),
             'enrol' => array('authorize'),
-            'tool' => array('bloglevelupgrade'),
+            'tool' => array('bloglevelupgrade', 'qeupgradehelper'),
             'theme' => array('mymobile', 'afterburner', 'anomaly', 'arialist', 'binarius', 'boxxie', 'brick', 'formal_white',
                 'formfactor', 'fusion', 'leatherbound', 'magazine', 'nimble', 'nonzero', 'overlay', 'serenity', 'sky_high',
                 'splash', 'standard', 'standardold'),
@@ -936,7 +936,7 @@ class core_plugin_manager {
                 'equation', 'fontcolor', 'html', 'image', 'indent', 'italic',
                 'link', 'managefiles', 'media', 'noautolink', 'orderedlist',
                 'rtl', 'strike', 'subscript', 'superscript', 'table', 'title',
-                'underline', 'undo', 'unlink', 'unorderedlist'
+                'underline', 'undo', 'unorderedlist'
             ),
 
             'assignment' => array(
@@ -955,6 +955,10 @@ class core_plugin_manager {
                 'cas', 'db', 'email', 'fc', 'imap', 'ldap', 'manual', 'mnet',
                 'nntp', 'nologin', 'none', 'pam', 'pop3', 'radius',
                 'shibboleth', 'webservice'
+            ),
+
+            'availability' => array(
+                'completion', 'date', 'grade', 'group', 'grouping', 'profile'
             ),
 
             'block' => array(
@@ -1012,7 +1016,7 @@ class core_plugin_manager {
 
             'filter' => array(
                 'activitynames', 'algebra', 'censor', 'emailprotect',
-                'emoticon', 'mediaplugin', 'multilang', 'tex', 'tidy',
+                'emoticon', 'mathjaxloader', 'mediaplugin', 'multilang', 'tex', 'tidy',
                 'urltolink', 'data', 'glossary'
             ),
 
@@ -1044,7 +1048,7 @@ class core_plugin_manager {
             ),
 
             'message' => array(
-                'email', 'jabber', 'popup'
+                'airnotifier', 'email', 'jabber', 'popup'
             ),
 
             'mnetservice' => array(
@@ -1126,10 +1130,10 @@ class core_plugin_manager {
             ),
 
             'tool' => array(
-                'assignmentupgrade', 'behat', 'capability', 'customlang',
+                'assignmentupgrade', 'availabilityconditions', 'behat', 'capability', 'customlang',
                 'dbtransfer', 'generator', 'health', 'innodb', 'installaddon',
                 'langimport', 'log', 'multilangupgrade', 'phpunit', 'profiling',
-                'qeupgradehelper', 'replace', 'spamcleaner', 'task', 'timezoneimport',
+                'replace', 'spamcleaner', 'task', 'timezoneimport',
                 'unittest', 'uploadcourse', 'uploaduser', 'unsuproles', 'xmldb'
             ),
 

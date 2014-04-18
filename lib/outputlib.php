@@ -381,6 +381,13 @@ class theme_config {
     public $lessvariablescallback = null;
 
     /**
+     * Sets the render method that should be used for rendering custom block regions by scripts such as my/index.php
+     * Defaults to {@link core_renderer::blocks_for_region()}
+     * @var string
+     */
+    public $blockrendermethod = null;
+
+    /**
      * Load the config.php file for a particular theme, and return an instance
      * of this class. (That is, this is a factory method.)
      *
@@ -448,7 +455,8 @@ class theme_config {
         $configurable = array('parents', 'sheets', 'parents_exclude_sheets', 'plugins_exclude_sheets', 'javascripts', 'javascripts_footer',
                               'parents_exclude_javascripts', 'layouts', 'enable_dock', 'enablecourseajax', 'supportscssoptimisation',
                               'rendererfactory', 'csspostprocess', 'editor_sheets', 'rarrow', 'larrow', 'hidefromselector', 'doctype',
-                              'yuicssmodules', 'blockrtlmanipulations', 'lessfile', 'extralesscallback', 'lessvariablescallback');
+                              'yuicssmodules', 'blockrtlmanipulations', 'lessfile', 'extralesscallback', 'lessvariablescallback',
+                              'blockrendermethod');
 
         foreach ($config as $key=>$value) {
             if (in_array($key, $configurable)) {
@@ -670,10 +678,10 @@ class theme_config {
         $urls = array();
 
         $svg = $this->use_svg_icons();
+        $separate = (core_useragent::is_ie() && !core_useragent::check_ie_version('10'));
 
         if ($rev > -1) {
             $url = new moodle_url("$CFG->httpswwwroot/theme/styles.php");
-            $separate = (core_useragent::is_ie() && !core_useragent::check_ie_version('10'));
             if (!empty($CFG->slasharguments)) {
                 $slashargs = '';
                 if (!$svg) {
@@ -709,6 +717,10 @@ class theme_config {
                 // We do this because all modern browsers support SVG and this param will one day be removed.
                 $baseurl->param('svg', '0');
             }
+            if ($separate) {
+                // We might need to chunk long files.
+                $baseurl->param('chunk', '0');
+            }
             if (core_useragent::is_ie()) {
                 // Lalala, IE does not allow more than 31 linked CSS files from main document.
                 $urls[] = new moodle_url($baseurl, array('theme'=>$this->name, 'type'=>'ie', 'subtype'=>'plugins'));
@@ -718,7 +730,7 @@ class theme_config {
                 }
                 if (!empty($this->lessfile)) {
                     // No need to define the type as IE here.
-                    $urls[] = new moodle_url($baseurl, array('theme' => $this->name, 'type' => 'less', 'chunk' => 0));
+                    $urls[] = new moodle_url($baseurl, array('theme' => $this->name, 'type' => 'less'));
                 }
                 $urls[] = new moodle_url($baseurl, array('theme'=>$this->name, 'type'=>'ie', 'subtype'=>'theme'));
 
@@ -845,6 +857,13 @@ class theme_config {
                 }
             } else if ($subtype === 'theme') {
                 $cssfiles = $css['theme'];
+                foreach ($cssfiles as $key => $value) {
+                    if ($this->lessfile && $key === $this->lessfile) {
+                        // Remove the LESS file from the theme CSS files.
+                        // The LESS files use the type 'less', not 'ie'.
+                        unset($cssfiles[$key]);
+                    }
+                }
             }
 
         } else if ($type === 'plugin') {
@@ -1844,7 +1863,7 @@ class theme_config {
     public function setup_blocks($pagelayout, $blockmanager) {
         $layoutinfo = $this->layout_info_for_page($pagelayout);
         if (!empty($layoutinfo['regions'])) {
-            $blockmanager->add_regions($layoutinfo['regions']);
+            $blockmanager->add_regions($layoutinfo['regions'], false);
             $blockmanager->set_default_region($layoutinfo['defaultregion']);
         }
     }
@@ -1898,6 +1917,32 @@ class theme_config {
      */
     public function get_theme_name() {
         return get_string('pluginname', 'theme_'.$this->name);
+    }
+
+    /**
+     * Returns the block render method.
+     *
+     * It is set by the theme via:
+     *     $THEME->blockrendermethod = '...';
+     *
+     * It can be one of two values, blocks or blocks_for_region.
+     * It should be set to the method being used by the theme layouts.
+     *
+     * @return string
+     */
+    public function get_block_render_method() {
+        if ($this->blockrendermethod) {
+            // Return the specified block render method.
+            return $this->blockrendermethod;
+        }
+        // Its not explicitly set, check the parent theme configs.
+        foreach ($this->parent_configs as $config) {
+            if (isset($config->blockrendermethod)) {
+                return $config->blockrendermethod;
+            }
+        }
+        // Default it to blocks.
+        return 'blocks';
     }
 }
 

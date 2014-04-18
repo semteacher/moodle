@@ -24,6 +24,7 @@
  * }
  *
  * @package    mod_data
+ * @since      Moodle 2.7
  * @copyright  2014 Mark Nelson <markn@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,7 +43,7 @@ class record_deleted extends \core\event\base {
     protected function init() {
         $this->data['objecttable'] = 'data_records';
         $this->data['crud'] = 'd';
-        $this->data['edulevel'] = self::LEVEL_TEACHING;
+        $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
     }
 
     /**
