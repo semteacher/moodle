@@ -28,6 +28,7 @@ defined('MOODLE_INTERNAL') || die();
  * Event for when a quiz attempt is started.
  *
  * @package    mod_quiz
+ * @since      Moodle 2.6
  * @copyright  2013 Adrian Greeve <adrian@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -98,6 +99,18 @@ class attempt_started extends \core\event\base {
         $legacyeventdata->courseid = $this->courseid;
 
         return $legacyeventdata;
+    }
+
+    /**
+     * Return the legacy event log data.
+     *
+     * @return array
+     */
+    protected function get_legacy_logdata() {
+        $attempt = $this->get_record_snapshot('quiz_attempts', $this->objectid);
+
+        return array($this->courseid, 'quiz', 'attempt', 'review.php?attempt=' . $this->objectid,
+            $attempt->quiz, $this->contextinstanceid);
     }
 
     /**
