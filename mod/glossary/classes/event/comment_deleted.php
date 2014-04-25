@@ -29,6 +29,7 @@ defined('MOODLE_INTERNAL') || die();
  * mod_glossary comment deleted event.
  *
  * @package    mod_glossary
+ * @since      Moodle 2.7
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -39,7 +40,7 @@ class comment_deleted extends \core\event\comment_deleted {
      * @return \moodle_url
      */
     public function get_url() {
-        return new \moodle_url('/mod/glossary/view.php', array('id' => $this->other['itemid']));
+        return new \moodle_url('/mod/glossary/view.php', array('id' => $this->contextinstanceid));
     }
 
     /**

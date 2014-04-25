@@ -813,6 +813,17 @@ $capabilities = array(
         )
     ),
 
+    'moodle/course:reviewotherusers' => array(
+
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => array(
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW,
+        ),
+        'clonepermissionsfrom' => 'moodle/role:assign'
+    ),
+
     'moodle/course:bulkmessaging' => array(
 
         'riskbitmask' => RISK_SPAM,
@@ -2012,6 +2023,13 @@ $capabilities = array(
                 'manager'        => CAP_ALLOW,
                 'teacher'        => CAP_ALLOW,
                 'editingteacher' => CAP_ALLOW,
+        )
+    ),
+
+    'moodle/site:forcelanguage' => array(
+        'captype' => 'read',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => array(
         )
     )
 );

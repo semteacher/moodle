@@ -38,6 +38,7 @@ defined('MOODLE_INTERNAL') || die();
  * }
  *
  * @package    core
+ * @since      Moodle 2.6
  * @copyright  2013 Ankit Agarwal
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -75,7 +76,7 @@ class note_created extends \core\event\base {
      * @return \moodle_url
      */
     public function get_url() {
-        $logurl = new \moodle_url('/note/index.php', array('course' => $this->courseid, 'user' => $this->relateduserid));
+        $logurl = new \moodle_url('/notes/index.php', array('course' => $this->courseid, 'user' => $this->relateduserid));
         $logurl->set_anchor('note-' . $this->objectid);
         return $logurl;
     }

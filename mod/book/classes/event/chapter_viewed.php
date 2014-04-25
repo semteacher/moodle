@@ -29,10 +29,32 @@ defined('MOODLE_INTERNAL') || die();
  * mod_book chapter viewed event class.
  *
  * @package    mod_book
+ * @since      Moodle 2.6
  * @copyright  2013 Frédéric Massart
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class chapter_viewed extends \core\event\content_viewed {
+class chapter_viewed extends \core\event\base {
+    /**
+     * Create instance of event.
+     *
+     * @since Moodle 2.7
+     *
+     * @param \stdClass $book
+     * @param \context_module $context
+     * @param \stdClass $chapter
+     * @return chapter_viewed
+     */
+    public static function create_from_chapter(\stdClass $book, \context_module $context, \stdClass $chapter) {
+        $data = array(
+            'context' => $context,
+            'objectid' => $chapter->id,
+        );
+        /** @var chapter_viewed $event */
+        $event = self::create($data);
+        $event->add_record_snapshot('book', $book);
+        $event->add_record_snapshot('book_chapters', $chapter);
+        return $event;
+    }
 
     /**
      * Returns description of what happened.
@@ -81,17 +103,4 @@ class chapter_viewed extends \core\event\content_viewed {
         $this->data['edulevel'] = self::LEVEL_PARTICIPATING;
         $this->data['objecttable'] = 'book_chapters';
     }
-
-    /**
-     * Custom validation.
-     *
-     * @throws \coding_exception
-     * @return void
-     */
-    protected function validate_data() {
-        // Hack to please the parent class. 'view chapter' was the key used in old add_to_log().
-        $this->data['other']['content'] = 'view chapter';
-        parent::validate_data();
-    }
-
 }

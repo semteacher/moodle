@@ -137,6 +137,7 @@ $string['errorprocess'] = 'Error occurred during processing!';
 $string['errorprocessingresponses'] = 'An error occurred while processing your responses ({$a}). Click continue to return to the page you were on and try again.';
 $string['errorsavingcomment'] = 'Error saving the comment for question {$a->name} in the database.';
 $string['errorupdatingattempt'] = 'Error updating attempt {$a->id} in the database.';
+$string['eventquestioncategorycreated'] = 'Question category created';
 $string['exportcategory'] = 'Export category';
 $string['exportcategory_help'] = 'This setting determines the category from which the exported questions will be taken.
 
@@ -270,6 +271,7 @@ $string['questionuse'] = 'Use question in this activity';
 $string['questionvariant'] = 'Question variant';
 $string['reviewresponse'] = 'Review response';
 $string['save'] = 'Save';
+$string['savechangesandcontinueediting'] = 'Save changes and continue editing';
 $string['saveflags'] = 'Save the state of the flags';
 $string['selectacategory'] = 'Select a category:';
 $string['selectaqtypefordescription'] = 'Select a question type to see its description.';

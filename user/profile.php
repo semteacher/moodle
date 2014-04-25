@@ -116,11 +116,11 @@ if (isguestuser()) {     // Guests can never edit their profile.
 if (has_capability('moodle/user:viewhiddendetails', $context)) {
     $hiddenfields = array();
 } else {
-    $hiddenfields = array_flip(explode(', ', $CFG->hiddenuserfields));
+    $hiddenfields = array_flip(explode(',', $CFG->hiddenuserfields));
 }
 
 if (has_capability('moodle/site:viewuseridentity', $context)) {
-    $identityfields = array_flip(explode(', ', $CFG->showuseridentity));
+    $identityfields = array_flip(explode(',', $CFG->showuseridentity));
 } else {
     $identityfields = array();
 }
@@ -437,9 +437,8 @@ if (!empty($CFG->enablebadges)) {
 
 echo html_writer::end_tag('dl');
 echo "</div></div>"; // Closing desriptionbox and userprofilebox.
-echo '<div id="region-content" class="block-region"><div class="region-content">';
-echo $OUTPUT->blocks_for_region('content');
-echo '</div></div>';
+
+echo $OUTPUT->custom_block_region('content');
 
 // Print messaging link if allowed.
 if (isloggedin() && has_capability('moodle/site:sendmessage', $context)
