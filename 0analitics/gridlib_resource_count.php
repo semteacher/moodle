@@ -9,16 +9,24 @@ include("gridlib/inc/jqgrid_dist.php");
 $g = new jqgrid();
 
 $col = array();
+$col["title"] = "К_Каф."; // caption of column
+$col["name"] = "mccid"; 
+$col["width"] = "40";
+# $col["hidden"] = true; // hide column by default
+$cols[] = $col;	
+
+$col = array();
 $col["title"] = "Кафедра"; // caption of column
 $col["name"] = "mccname"; 
-#$col["width"] = "10";
+$col["width"] = "100";
+$col["resizable"] = true;
 # $col["hidden"] = true; // hide column by default
 $cols[] = $col;	
 
 $col = array();
 $col["title"] = "Код"; // caption of column
 $col["name"] = "cid"; 
-$col["width"] = "20";
+$col["width"] = "40";
 # $col["hidden"] = true; // hide column by default
 $cols[] = $col;	
 
@@ -35,6 +43,7 @@ $col["title"] = "Лінк"; // caption of column
 $col["name"] = "idlink"; 
 $col["width"] = "30";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 # $col["hidden"] = true; // hide column by default
 $cols[] = $col;	
@@ -44,6 +53,7 @@ $col["title"] = "Тем(занять)";
 $col["name"] = "sections";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -54,6 +64,7 @@ $col["title"] = "Тестів";
 $col["name"] = "quizes";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -64,6 +75,7 @@ $col["title"] = "Файлів";
 $col["name"] = "resources";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -74,6 +86,7 @@ $col["title"] = "Файлів PDF";
 $col["name"] = "resources_pdf";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -84,6 +97,7 @@ $col["title"] = "Папок";
 $col["name"] = "folders";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -94,6 +108,7 @@ $col["title"] = "Файлів в папках";
 $col["name"] = "files_in_folders";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -104,6 +119,7 @@ $col["title"] = "PDF в папках";
 $col["name"] = "pdf_in_folders";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -113,6 +129,7 @@ $col["title"] = "PPT в папках";
 $col["name"] = "ppt_in_folders";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -123,6 +140,7 @@ $col["title"] = "Посилань";
 $col["name"] = "urls";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -134,6 +152,7 @@ $col["title"] = "Матрикулів";
 $col["name"] = "checklists";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -145,6 +164,7 @@ $col["title"] = "Розкладів";
 $col["name"] = "schedulers";
 $col["width"] = "50";
 $col["search"] = false;
+$col["resizable"] = false;
 $col["align"] = "center";
 $col["summaryType"] = "sum"; // available grouping fx: sum, count, min, max
 $col["summaryTpl"] = '<b>Всього: {0}</b>'; // display html for summary row - work when "groupSummary" is set true. search below
@@ -161,13 +181,17 @@ $grid["resizable"] = false;
 $grid["autowidth"] = true; 
 $grid["height"] = "100%";
 $grid["hidegrid"] = false;
-
+$grid["shrinkToFit"]=true;
+$grid["hoverrows"] = true;
+$grid["sortname"]="mccid";
+$grid["sortorder"] = "asc";
+$grid["toppager"] = true; 
 //Enable or Disable total records text on grid
 $grid["viewrecords"] = true;
 // you can also set 'All' for all records
 //$grid["rowList"] = array();
-$grid["rowList"] = array(20,50,100,'All');
-$grid["rowNum"] = 100;
+$grid["rowList"] = array(20,30,50,"All");
+$grid["rowNum"] = 20;
 //$grid["scroll"] = true; 
 //groupings
 $grid["grouping"] = true;
@@ -203,6 +227,7 @@ $grid["groupingView"]["showSummaryOnHide"] = false;
 // export to excel parameters
 $grid["export"] = array("format"=>"xlsx", "filename"=>"my-file", "sheetname"=>"test");
 $grid["export"] = array("format"=>"pdf", "filename"=>"my-file", "sheetname"=>"test");
+$grid["export"]["range"] = "filtered";
 
 $g->set_options($grid);
 
@@ -218,7 +243,7 @@ $g->set_actions(array(
 				);
 // set database table for CRUD operations
 $g->select_command = 
-"SELECT mcc.name AS mccname, c.id AS cid, c.fullname AS cfullname, concat('<a target=\"_new\" href=\"http://moodle.tdmu.edu.ua/course/view.php?id=',c.id,' \">Link</a>') AS idlink,  
+"SELECT mcc.id AS mccid, mcc.name AS mccname, c.id AS cid, c.fullname AS cfullname, concat('<a target=\"_new\" href=\"http://moodle.tdmu.edu.ua/course/view.php?id=',c.id,' \">Link</a>') AS idlink,  
 COUNT(cs.id) AS sections, 
 (SELECT COUNT(*) FROM mdl_course_modules AS cm WHERE cm.course = c.id AND cm.module= 12 AND cm.visible=1) AS quizes, 
 (SELECT COUNT(*) FROM mdl_course_modules AS cm WHERE cm.course = c.id AND cm.module= 13 AND cm.visible=1) AS resources, 
@@ -249,7 +274,7 @@ COUNT(cs.id) AS sections,
 FROM mdl_course_sections AS cs  
 JOIN mdl_course as c ON c.id=cs.course 
 LEFT JOIN mdl_course_categories mcc ON c.category=mcc.id
-WHERE cs.visible=1 and length(cs.sequence)>0 and c.category<>0 and c.category<>45
+WHERE c.visible=1 and length(cs.sequence)>0 and c.category<>0 and c.category<>45
 GROUP BY c.id";
 
 // pass the cooked columns to grid
