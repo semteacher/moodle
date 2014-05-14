@@ -1051,10 +1051,23 @@ class core_renderer extends renderer_base {
             return '';
         }
 
+		//TDMU - nursing - begin block
+		$flags = '<div class="tdmu_lang_flags">
+		    <span align="center"><a href="http://www.tdmu.edu.ua"><img src="http://intranet.tdmu.edu.ua/images/home.gif" alt="tdmu" border="0" height="22" width="32"></a></span>
+			
+			<span align="center"><a href="http://dl.tdmu.edu.ua/my/index.php?lang=uk"><img src="http://dl.tdmu.edu.ua/pix/flag_ua.gif" alt="UA" border="0" ></a></span>
+
+		    <span align="center" width="35"><a href="http://dl.tdmu.edu.ua/my/index.php?lang=ru"><img src="http://dl.tdmu.edu.ua/pix/flag_ru.gif" alt="RU" border="0" height="22" width="32"></a></span>
+
+		    <span align="center" width="35"><a href="http://dl.tdmu.edu.ua/my/index.php?lang=en"><img src="http://dl.tdmu.edu.ua/pix/flag_en.gif" alt="EN" border="0" height="22" width="32"></a></span>
+
+		</div>';
+		//TDMU - nursing - end block
         $s = new single_select($this->page->url, 'lang', $langs, $currlang, null);
         $s->label = get_accesshide(get_string('language'));
         $s->class = 'langmenu';
-        return $this->render($s);
+		//return $this->render($s);
+        return $flags.$this->render($s);//TDMU - display language flags above lang selector
     }
 
     /**

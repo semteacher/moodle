@@ -244,6 +244,25 @@ ORDER BY
     return $data;
 }
 
+//TDMU Calculate total enrolled student. Based on Oleg Prokopiv code
+function quiz_report_total_enrolled_students($coursid){
+    global $DB;
+	
+    //$new_year = mktime(0, 0, 0, 1, 1, 2011);
+
+    $sql = "SELECT
+        COUNT(*) num
+    FROM
+	    {role_assignments} ra, 
+        {context} c
+    WHERE ra.contextid = c.id AND ra.roleid = 5 AND c.instanceid = '" . $coursid . "'";
+         //AND ra.timemodified > " . $new_year
+
+    $data = $DB->get_record_sql($sql);
+    
+    return $data->num;
+}
+
 function quiz_report_highlighting_grading_method($quiz, $qmsubselect, $qmfilter) {
     if ($quiz->attempts == 1) {
         return '<p>' . get_string('onlyoneattemptallowed', 'quiz_overview') . '</p>';
