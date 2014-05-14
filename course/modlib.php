@@ -526,7 +526,22 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
     $cm->name = $moduleinfo->name;
     \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
 
-    $moduleinfo = edit_module_post_actions($moduleinfo, $course);
+    //TDMU-begin block
+    if ($moduleinfo->modulename == "quiz") {
+        $full_msg = "Start:".date('Y/m/d H:m',$moduleinfo->timeopen)."; End:".date('Y/m/d H:m',$moduleinfo->timeclose)."; Name:".$moduleinfo->name;
+        $short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
+        add_to_log($course->id, $moduleinfo->modulename, "update",
+                "view.php?id=$moduleinfo->coursemodule",
+                $short_msg, $moduleinfo->coursemodule);		
+    } else {//TDMU - else cause contain original code		   
+        add_to_log($course->id, $moduleinfo->modulename, "update",
+                "view.php?id=$moduleinfo->coursemodule",
+                "$moduleinfo->instance", $moduleinfo->coursemodule);
+    }
+    //TDMU-end block			   
+
+
+    $moduleinfo = edit_module_post_actions($moduleinfo, $course, 'mod_updated');
 
     return array($cm, $moduleinfo);
 }

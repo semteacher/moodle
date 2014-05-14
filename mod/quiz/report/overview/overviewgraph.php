@@ -108,6 +108,17 @@ $line->y_format['allusers'] = array(
 );
 $line->y_data['allusers'] = quiz_report_grade_bands($bandwidth, $bands, $quizid, $groupusers);
 
+//TDMU-begin
+$allUser = 0;
+foreach($line->y_data['allusers'] as $numUser){
+	$allUser = $allUser + $numUser;
+}
+
+$allCoursUsers = quiz_report_total_enrolled_students($quiz->course);
+
+$line->parameter['title']   = 'Current attempts: ' . $allUser . ". Total students: " . $allCoursUsers;
+//TDMU-end
+
 $line->y_order = array('allusers');
 
 $ymax = max($line->y_data['allusers']);

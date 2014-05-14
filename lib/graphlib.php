@@ -313,7 +313,7 @@ class graph {
                 $yoffset = 0;                                                               // Moodle
             }                                                                               // Moodle
             //$this->bar($thisX, $thisY, $bar, $barSize, $colour, $offset, $set);           // Moodle
-            $this->bar($thisX, $thisY, $bar, $barSize, $colour, $offset, $set, $yoffset);   // Moodle
+            $this->bar($thisX, $thisY, $bar, $barSize, $colour, $offset, $set, $yoffset, $index);   // Moodle //TDMU - added $index parameter - contain index of the y_array values
         }
 
         if (($area!='none') && (((string)$lastY != 'none') && ((string)$thisY != 'none')))
@@ -1556,7 +1556,8 @@ class graph {
       }
     }
 
-    function bar($x, $y, $type, $size, $colour, $offset, $index, $yoffset) {
+    //TDMU - add an $y_index parameter that contain y_values array index
+	function bar($x, $y, $type, $size, $colour, $offset, $index, $yoffset, $y_index=null) {
       $index_offset = $this->calculated['bar_offset_index'][$index];
       if ( $yoffset ) {
         $bar_offsetx = 0;
@@ -1621,6 +1622,10 @@ class graph {
             break;
           case 'fill':
             ImageFilledRectangle($this->image, round($u_left), $v, round($u_right), $bottom, $this->colour[$colour]);
+            //TDMU - display value label on each bar chat filed rectangle
+            if ($y_index) {
+                ImageString($this->image, 5, round($u_left)+10, $v-15, $this->y_data['allusers'][$y_index], 1);}
+            //TDMU - end;			
             break;
         }
       }
