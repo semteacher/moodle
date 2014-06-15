@@ -524,22 +524,32 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
         $completion->reset_all_state($cm);
     }
     $cm->name = $moduleinfo->name;
-    \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
 
     //TDMU-begin block
     if ($moduleinfo->modulename == "quiz") {
         $full_msg = "Start:".date('Y/m/d H:m',$moduleinfo->timeopen)."; End:".date('Y/m/d H:m',$moduleinfo->timeclose)."; Name:".$moduleinfo->name;
         $short_msg = substr($full_msg, 0, 150); //trim string to 150 characters to decreace log size
-        add_to_log($course->id, $moduleinfo->modulename, "update",
-                "view.php?id=$moduleinfo->coursemodule",
-                $short_msg, $moduleinfo->coursemodule);		
-    } else {//TDMU - else cause contain original code		   
-        add_to_log($course->id, $moduleinfo->modulename, "update",
-                "view.php?id=$moduleinfo->coursemodule",
-                "$moduleinfo->instance", $moduleinfo->coursemodule);
+        //deprecated
+        //add_to_log($course->id, $moduleinfo->modulename, "update",
+        //        "view.php?id=$moduleinfo->coursemodule",
+        //        $short_msg, $moduleinfo->coursemodule);
+        // Trigger a quiz updated event.
+        $event = \core\event\course_module_updated::create(array(
+            'objectid' => $course->id,
+            'context' => $modcontext,
+            'other' => array('message' => $short_msg)
+        ));
+        $event->set_legacy_logdata(array($course->id, $moduleinfo->modulename, 'update', 'view.php?id=' . $moduleinfo->coursemodule, $moduleinfo->coursemodule));
+        $event->trigger();
+        
+    } else {//TDMU - else cause contain original code	
+        //deprecated
+        //add_to_log($course->id, $moduleinfo->modulename, "update",
+        //        "view.php?id=$moduleinfo->coursemodule",
+        //        "$moduleinfo->instance", $moduleinfo->coursemodule);
+        \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
     }
-    //TDMU-end block			   
-
+    //TDMU-end block
 
     $moduleinfo = edit_module_post_actions($moduleinfo, $course, 'mod_updated');
 
