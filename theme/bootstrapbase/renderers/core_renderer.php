@@ -35,7 +35,7 @@ class theme_bootstrapbase_core_renderer extends core_renderer {
         $message = clean_text($message);
         $type = '';
 
-        if ($classes == 'notifyproblem') {
+        if (($classes == 'notifyproblem') || ($classes == 'notifytiny')) {
             $type = 'alert alert-error';
         }
         if ($classes == 'notifysuccess') {
@@ -56,6 +56,9 @@ class theme_bootstrapbase_core_renderer extends core_renderer {
      */
     public function navbar() {
         $items = $this->page->navbar->get_items();
+        if (empty($items)) {
+            return '';
+        }
         $breadcrumbs = array();
         foreach ($items as $item) {
             $item->hideicon = true;
@@ -75,8 +78,8 @@ class theme_bootstrapbase_core_renderer extends core_renderer {
     public function custom_menu($custommenuitems = '') {
         global $CFG;
 
-        if (!empty($CFG->custommenuitems)) {
-            $custommenuitems .= $CFG->custommenuitems;
+        if (empty($custommenuitems) && !empty($CFG->custommenuitems)) {
+            $custommenuitems = $CFG->custommenuitems;
         }
         $custommenu = new custom_menu($custommenuitems, current_language());
         return $this->render_custom_menu($custommenu);

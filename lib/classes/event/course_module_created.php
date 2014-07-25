@@ -31,6 +31,7 @@ defined('MOODLE_INTERNAL') || die();
  * Class for event to be triggered when a new course module is created.
  *
  * @package    core
+ * @since      Moodle 2.6
  * @copyright  2013 Ankit Agarwal
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
@@ -43,6 +44,35 @@ class course_module_created extends base {
         $this->data['objecttable'] = 'course_modules';
         $this->data['crud'] = 'c';
         $this->data['level'] = self::LEVEL_TEACHING;
+    }
+
+    /**
+     * Api to Create new event from course module.
+     *
+     * @since Moodle 2.6.4, 2.7.1
+     * @param \cm_info|\stdClass $cm course module instance, as returned by {@link get_coursemodule_from_id}
+     *                               or {@link get_coursemodule_from_instance}.
+     * @param \context_module $modcontext module context instance
+     *
+     * @return \core\event\base returns instance of new event
+     */
+    public static final function create_from_cm($cm, $modcontext = null) {
+        // If not set, get the module context.
+        if (empty($modcontext)) {
+            $modcontext = \context_module::instance($cm->id);
+        }
+
+        // Create event object for course module update action.
+        $event = static::create(array(
+            'context'  => $modcontext,
+            'objectid' => $cm->id,
+            'other'    => array(
+                'modulename' => $cm->modname,
+                'instanceid' => $cm->instance,
+                'name'       => $cm->name,
+            )
+        ));
+        return $event;
     }
 
     /**

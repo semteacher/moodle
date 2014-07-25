@@ -269,9 +269,6 @@ class assign_grading_table extends table_sql implements renderable {
         if ($assignment->get_instance()->teamsubmission) {
             $columns[] = 'team';
             $headers[] = get_string('submissionteam', 'assign');
-
-            $columns[] = 'teamstatus';
-            $headers[] = get_string('teamsubmissionstatus', 'assign');
         }
         // Allocated marker.
         if ($this->assignment->get_instance()->markingallocation &&
@@ -394,7 +391,6 @@ class assign_grading_table extends table_sql implements renderable {
 
         if ($assignment->get_instance()->teamsubmission) {
             $this->no_sorting('team');
-            $this->no_sorting('teamstatus');
         }
 
         $plugincolumnindex = 0;
@@ -534,7 +530,11 @@ class assign_grading_table extends table_sql implements renderable {
             return '';
         }
         if ($this->is_downloading()) {
-            return $markers[$row->allocatedmarker];
+            if (isset($markers[$row->allocatedmarker])) {
+                return fullname($markers[$row->allocatedmarker]);
+            } else {
+                return '';
+            }
         }
 
         if ($this->quickgrading && has_capability('mod/assign:manageallocations', $this->assignment->get_context()) &&
@@ -650,26 +650,6 @@ class assign_grading_table extends table_sql implements renderable {
         }
     }
 
-
-    /**
-     * Get the team status for this user.
-     *
-     * @param stdClass $row
-     * @return string The team name
-     */
-    public function col_teamstatus(stdClass $row) {
-        $submission = false;
-        $group = false;
-        $this->get_group_and_submission($row->id, $group, $submission, -1);
-
-        $status = '';
-        if ($submission) {
-            $status = $submission->status;
-        }
-        return get_string('submissionstatus_' . $status, 'assign');
-    }
-
-
     /**
      * Format a list of outcomes.
      *
@@ -695,7 +675,11 @@ class assign_grading_table extends table_sql implements renderable {
                 $outcomes .= $this->output->container($outcome->name . ': ' . $select, 'outcome');
             } else {
                 $name = $outcome->name . ': ' . $options[$outcome->grades[$row->userid]->grade];
-                $outcomes .= $this->output->container($name, 'outcome');
+                if ($this->is_downloading()) {
+                    $outcomes .= $name;
+                } else {
+                    $outcomes .= $this->output->container($name, 'outcome');
+                }
             }
         }
 
@@ -748,7 +732,14 @@ class assign_grading_table extends table_sql implements renderable {
      */
     public function col_select(stdClass $row) {
         $selectcol = '<label class="accesshide" for="selectuser_' . $row->userid . '">';
-        $selectcol .= get_string('selectuser', 'assign', fullname($row));
+        $name = '';
+        if ($this->assignment->is_blind_marking()) {
+            $name = get_string('hiddenuser', 'assign') .
+                    $this->assignment->get_uniqueid_for_user($row->userid);
+        } else {
+            $name = fullname($row);
+        }
+        $selectcol .= get_string('selectuser', 'assign', $name);
         $selectcol .= '</label>';
         $selectcol .= '<input type="checkbox"
                               id="selectuser_' . $row->userid . '"
@@ -883,7 +874,12 @@ class assign_grading_table extends table_sql implements renderable {
     public function col_timesubmitted(stdClass $row) {
         $o = '-';
 
-        if ($row->timesubmitted) {
+        $group = false;
+        $submission = false;
+        $this->get_group_and_submission($row->id, $group, $submission, -1);
+        if ($group && $submission && $submission->timemodified) {
+            $o = userdate($submission->timemodified);
+        } else if ($row->timesubmitted) {
             $o = userdate($row->timesubmitted);
         }
 
@@ -901,20 +897,32 @@ class assign_grading_table extends table_sql implements renderable {
 
         $instance = $this->assignment->get_instance();
 
+        $due = $instance->duedate;
+        if ($row->extensionduedate) {
+            $due = $row->extensionduedate;
+        }
+
+        $group = false;
+        $submission = false;
+        $this->get_group_and_submission($row->id, $group, $submission, -1);
+        if ($group && $submission) {
+            $timesubmitted = $submission->timemodified;
+            $status = $submission->status;
+        } else {
+            $timesubmitted = $row->timesubmitted;
+            $status = $row->status;
+        }
+
         if ($this->assignment->is_any_submission_plugin_enabled()) {
 
-            $o .= $this->output->container(get_string('submissionstatus_' . $row->status, 'assign'),
-                                           array('class'=>'submissionstatus' .$row->status));
-            if ($instance->duedate &&
-                    $row->timesubmitted > $instance->duedate) {
-                if (!$row->extensionduedate ||
-                        $row->timesubmitted > $row->extensionduedate) {
-                    $usertime = format_time($row->timesubmitted - $instance->duedate);
-                    $latemessage = get_string('submittedlateshort',
-                                              'assign',
-                                              $usertime);
-                    $o .= $this->output->container($latemessage, 'latesubmission');
-                }
+            $o .= $this->output->container(get_string('submissionstatus_' . $status, 'assign'),
+                                           array('class'=>'submissionstatus' .$status));
+            if ($due && $timesubmitted > $due) {
+                $usertime = format_time($timesubmitted - $due);
+                $latemessage = get_string('submittedlateshort',
+                                          'assign',
+                                          $usertime);
+                $o .= $this->output->container($latemessage, 'latesubmission');
             }
             if ($row->locked) {
                 $lockedstr = get_string('submissionslockedshort', 'assign');
@@ -926,19 +934,14 @@ class assign_grading_table extends table_sql implements renderable {
                 $o .= $this->col_workflowstatus($row);
             } else if ($row->grade !== null && $row->grade >= 0) {
                 $o .= $this->output->container(get_string('graded', 'assign'), 'submissiongraded');
-            }
-
-            if (!$row->timesubmitted) {
+            } else if (!$timesubmitted) {
                 $now = time();
-                $due = $instance->duedate;
-                if ($row->extensionduedate) {
-                    $due = $row->extensionduedate;
-                }
                 if ($due && ($now > $due)) {
                     $overduestr = get_string('overdue', 'assign', format_time($now - $due));
                     $o .= $this->output->container($overduestr, 'overduesubmission');
                 }
             }
+
             if ($row->extensionduedate) {
                 $userdate = userdate($row->extensionduedate);
                 $extensionstr = get_string('userextensiondate', 'assign', $userdate);

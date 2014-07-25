@@ -96,6 +96,10 @@ function lti_add_instance($lti, $mform) {
     $lti->timemodified = $lti->timecreated;
     $lti->servicesalt = uniqid('', true);
 
+    if (empty($lti->typeid) && isset($lti->urlmatchedtypeid)) {
+        $lti->typeid = $lti->urlmatchedtypeid;
+    }
+
     if (!isset($lti->grade)) {
         $lti->grade = 100; // TODO: Why is this harcoded here and default @ DB
     }
@@ -144,6 +148,10 @@ function lti_update_instance($lti, $mform) {
         lti_grade_item_update($lti);
     } else {
         lti_grade_item_delete($lti);
+    }
+
+    if ($lti->typeid == 0 && isset($lti->urlmatchedtypeid)) {
+        $lti->typeid = $lti->urlmatchedtypeid;
     }
 
     return $DB->update_record('lti', $lti);
@@ -200,7 +208,7 @@ function lti_get_types() {
 
     $type           = new stdClass();
     $type->modclass = MOD_CLASS_ACTIVITY;
-    $type->type     = 'lti';
+    $type->type     = '';
     $type->typestr  = get_string('generaltool', 'mod_lti');
     $type->help     = $help;
     $types[]        = $type;
