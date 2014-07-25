@@ -1329,6 +1329,8 @@ function html_is_blank($string) {
  *
  * A NULL value will delete the entry.
  *
+ * NOTE: this function is called from lib/db/upgrade.php
+ *
  * @param string $name the key to set
  * @param string $value the value to set (without magic quotes)
  * @param string $plugin (optional) the plugin scope, default null
@@ -1398,6 +1400,8 @@ function set_config($name, $value, $plugin=null) {
  *
  * If called with 2 parameters it will return a string single
  * value or false if the value is not found.
+ *
+ * NOTE: this function is called from lib/db/upgrade.php
  *
  * @static string|false $siteidentifier The site identifier is not cached. We use this static cache so
  *     that we need only fetch it once per request.
@@ -1484,6 +1488,8 @@ function get_config($plugin, $name = null) {
 
 /**
  * Removes a key from global configuration.
+ *
+ * NOTE: this function is called from lib/db/upgrade.php
  *
  * @param string $name the key to set
  * @param string $plugin (optional) the plugin scope
@@ -3162,10 +3168,11 @@ function require_logout() {
     }
 
     // Execute hooks before action.
+    $authplugins = array();
     $authsequence = get_enabled_auth_plugins();
     foreach ($authsequence as $authname) {
-        $authplugin = get_auth_plugin($authname);
-        $authplugin->prelogout_hook();
+        $authplugins[$authname] = get_auth_plugin($authname);
+        $authplugins[$authname]->prelogout_hook();
     }
 
     // Store info that gets removed during logout.
@@ -3181,11 +3188,19 @@ function require_logout() {
         $event->add_record_snapshot('sessions', $session);
     }
 
+    // Clone of $USER object to be used by auth plugins.
+    $user = fullclone($USER);
+
     // Delete session record and drop $_SESSION content.
     \core\session\manager::terminate_current();
 
     // Trigger event AFTER action.
     $event->trigger();
+
+    // Hook to execute auth plugins redirection after event trigger.
+    foreach ($authplugins as $authplugin) {
+        $authplugin->postlogout_hook($user);
+    }
 }
 
 /**
@@ -4029,7 +4044,7 @@ function create_user_record($username, $password, $auth = 'manual') {
     $newuser->timemodified = $newuser->timecreated;
     $newuser->mnethostid = $CFG->mnet_localhost_id;
 
-    $newuser->id = user_create_user($newuser, false);
+    $newuser->id = user_create_user($newuser, false, false);
 
     // Save user profile data.
     profile_save_data($newuser);
@@ -4040,6 +4055,9 @@ function create_user_record($username, $password, $auth = 'manual') {
     }
     // Set the password.
     update_internal_user_password($user, $password);
+
+    // Trigger event.
+    \core\event\user_created::create_from_userid($newuser->id)->trigger();
 
     return $user;
 }
@@ -4111,10 +4129,13 @@ function update_user_record_by_id($id) {
         if ($newuser) {
             $newuser['id'] = $oldinfo->id;
             $newuser['timemodified'] = time();
-            user_update_user((object) $newuser, false);
+            user_update_user((object) $newuser, false, false);
 
             // Save user profile data.
             profile_save_data((object) $newuser);
+
+            // Trigger event.
+            \core\event\user_updated::create_from_userid($newuser['id'])->trigger();
         }
     }
 
@@ -4273,7 +4294,8 @@ function delete_user(stdClass $user) {
     $updateuser->picture      = 0;
     $updateuser->timemodified = time();
 
-    user_update_user($updateuser, false);
+    // Don't trigger update event, as user is being deleted.
+    user_update_user($updateuser, false, false);
 
     // Now do a final accesslib cleanup - removes all role assignments in user context and context itself.
     context_helper::delete_instance(CONTEXT_USER, $user->id);
@@ -4410,20 +4432,6 @@ function authenticate_user_login($username, $password, $ignorelockout=false, &$f
             return false;
         }
 
-        // Do not try to authenticate non-existent accounts when user creation is disabled.
-        if (!empty($CFG->authpreventaccountcreation)) {
-            $failurereason = AUTH_LOGIN_NOUSER;
-
-            // Trigger login failed event.
-            $event = \core\event\user_login_failed::create(array('other' => array('username' => $username,
-                    'reason' => $failurereason)));
-            $event->trigger();
-
-            error_log('[client '.getremoteaddr()."]  $CFG->wwwroot  Unknown user, can not create new accounts:  $username  ".
-                    $_SERVER['HTTP_USER_AGENT']);
-            return false;
-        }
-
         // User does not exist.
         $auths = $authsenabled;
         $user = new stdClass();
@@ -4476,8 +4484,21 @@ function authenticate_user_login($username, $password, $ignorelockout=false, &$f
                 $user = update_user_record_by_id($user->id);
             }
         } else {
-            // Create account, we verified above that user creation is allowed.
-            $user = create_user_record($username, $password, $auth);
+            // The user is authenticated but user creation may be disabled.
+            if (!empty($CFG->authpreventaccountcreation)) {
+                $failurereason = AUTH_LOGIN_UNAUTHORISED;
+
+                // Trigger login failed event.
+                $event = \core\event\user_login_failed::create(array('other' => array('username' => $username,
+                        'reason' => $failurereason)));
+                $event->trigger();
+
+                error_log('[client '.getremoteaddr()."]  $CFG->wwwroot  Unknown user, can not create new accounts:  $username  ".
+                        $_SERVER['HTTP_USER_AGENT']);
+                return false;
+            } else {
+                $user = create_user_record($username, $password, $auth);
+            }
         }
 
         $authplugin->sync_roles($user);
@@ -4710,9 +4731,13 @@ function hash_internal_user_password($password, $fasthash = false) {
  *
  * @param stdClass $user User object (password property may be updated).
  * @param string $password Plain text password.
+ * @param bool $fasthash If true, use a low cost factor when generating the hash
+ *                       This is much faster to generate but makes the hash
+ *                       less secure. It is used when lots of hashes need to
+ *                       be generated quickly.
  * @return bool Always returns true.
  */
-function update_internal_user_password($user, $password) {
+function update_internal_user_password($user, $password, $fasthash = false) {
     global $CFG, $DB;
     require_once($CFG->libdir.'/password_compat/lib/password.php');
 
@@ -4721,25 +4746,26 @@ function update_internal_user_password($user, $password) {
     if ($authplugin->prevent_local_passwords()) {
         $hashedpassword = AUTH_PASSWORD_NOT_CACHED;
     } else {
-        $hashedpassword = hash_internal_user_password($password);
+        $hashedpassword = hash_internal_user_password($password, $fasthash);
     }
 
     // If verification fails then it means the password has changed.
-    $passwordchanged = !password_verify($password, $user->password);
-    $algorithmchanged = password_needs_rehash($user->password, PASSWORD_DEFAULT);
+    if (isset($user->password)) {
+        // While creating new user, password in unset in $user object, to avoid
+        // saving it with user_create()
+        $passwordchanged = !password_verify($password, $user->password);
+        $algorithmchanged = password_needs_rehash($user->password, PASSWORD_DEFAULT);
+    } else {
+        $passwordchanged = true;
+    }
 
     if ($passwordchanged || $algorithmchanged) {
         $DB->set_field('user', 'password',  $hashedpassword, array('id' => $user->id));
         $user->password = $hashedpassword;
 
         // Trigger event.
-        $event = \core\event\user_updated::create(array(
-            'objectid' => $user->id,
-            'relateduserid' => $user->id,
-            'context' => context_user::instance($user->id)
-        ));
-        $event->add_record_snapshot('user', $user);
-        $event->trigger();
+        $user = $DB->get_record('user', array('id' => $user->id));
+        \core\event\user_password_updated::create_from_user($user)->trigger();
     }
 
     return true;
@@ -5166,7 +5192,6 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     // This array stores the tables that need to be cleared, as
     // table_name => column_name that contains the course id.
     $tablestoclear = array(
-        'log' => 'course',               // Course logs (NOTE: this might be changed in the future).
         'backup_courses' => 'courseid',  // Scheduled backup stuff.
         'user_lastaccess' => 'courseid', // User access info.
     );
@@ -5313,11 +5338,6 @@ function reset_course_userdata($data) {
         $DB->execute($updatesql, array($data->timeshift, $data->courseid));
 
         $status[] = array('component' => $componentstr, 'item' => get_string('datechanged'), 'error' => false);
-    }
-
-    if (!empty($data->reset_logs)) {
-        $DB->delete_records('log', array('course' => $data->courseid));
-        $status[] = array('component' => $componentstr, 'item' => get_string('deletelogs'), 'error' => false);
     }
 
     if (!empty($data->reset_events)) {
@@ -5975,18 +5995,7 @@ function setnew_password_and_mail($user, $fasthash = false) {
 
     $newpassword = generate_password();
 
-    $hashedpassword = hash_internal_user_password($newpassword, $fasthash);
-    $DB->set_field('user', 'password', $hashedpassword, array('id' => $user->id));
-    $user->password = $hashedpassword;
-
-    // Trigger event.
-    $event = \core\event\user_updated::create(array(
-        'objectid' => $user->id,
-        'relateduserid' => $user->id,
-        'context' => context_user::instance($user->id)
-    ));
-    $event->add_record_snapshot('user', $user);
-    $event->trigger();
+    update_internal_user_password($user, $newpassword, $fasthash);
 
     $a = new stdClass();
     $a->firstname   = fullname($user, true);
@@ -8748,17 +8757,19 @@ function message_popup_window() {
 
     // A quick query to check whether the user has new messages.
     $messagecount = $DB->count_records('message', array('useridto' => $USER->id));
-    if ($messagecount<1) {
+    if ($messagecount < 1) {
         return;
     }
 
-    // Got unread messages so now do another query that joins with the user table.
+    // There are unread messages so now do a more complex but slower query.
     $namefields = get_all_user_name_fields(true, 'u');
-    $messagesql = "SELECT m.id, m.smallmessage, m.fullmessageformat, m.notification, $namefields
+    $messagesql = "SELECT m.id, m.smallmessage, m.fullmessageformat, m.notification, m.useridto, m.useridfrom, $namefields, c.blocked
                      FROM {message} m
                      JOIN {message_working} mw ON m.id=mw.unreadmessageid
                      JOIN {message_processors} p ON mw.processorid=p.id
                      JOIN {user} u ON m.useridfrom=u.id
+                     LEFT JOIN {message_contacts} c ON c.contactid = m.useridfrom
+                                                   AND c.userid = m.useridto
                     WHERE m.useridto = :userid
                       AND p.name='popup'";
 
@@ -8771,46 +8782,18 @@ function message_popup_window() {
 
     $messageusers = $DB->get_records_sql($messagesql, array('userid' => $USER->id, 'lastpopuptime' => $USER->message_lastpopup));
 
-    // If we have new messages to notify the user about.
-    if (!empty($messageusers)) {
-
-        $strmessages = '';
-        if (count($messageusers)>1) {
-            $strmessages = get_string('unreadnewmessages', 'message', count($messageusers));
+    $validmessages = 0;
+    foreach($messageusers as $message) {
+        if ($message->blocked) {
+            // Message is from a user who has since been blocked so just mark it read.
+            message_mark_message_read($message, time());
         } else {
-            $messageusers = reset($messageusers);
-
-            // Show who the message is from if its not a notification.
-            if (!$messageusers->notification) {
-                $strmessages = get_string('unreadnewmessage', 'message', fullname($messageusers) );
-            }
-
-            // Try to display the small version of the message.
-            $smallmessage = null;
-            if (!empty($messageusers->smallmessage)) {
-                // Display the first 200 chars of the message in the popup.
-                $smallmessage = null;
-                if (core_text::strlen($messageusers->smallmessage) > 200) {
-                    $smallmessage = core_text::substr($messageusers->smallmessage, 0, 200).'...';
-                } else {
-                    $smallmessage = $messageusers->smallmessage;
-                }
-
-                // Prevent html symbols being displayed.
-                if ($messageusers->fullmessageformat == FORMAT_HTML) {
-                    $smallmessage = html_to_text($smallmessage);
-                } else {
-                    $smallmessage = s($smallmessage);
-                }
-            } else if ($messageusers->notification) {
-                // Its a notification with no smallmessage so just say they have a notification.
-                $smallmessage = get_string('unreadnewnotification', 'message');
-            }
-            if (!empty($smallmessage)) {
-                $strmessages .= '<div id="usermessage">'.s($smallmessage).'</div>';
-            }
+            $validmessages++;
         }
+    }
 
+    if ($validmessages > 0) {
+        $strmessages = get_string('unreadnewmessages', 'message', $validmessages);
         $strgomessage = get_string('gotomessages', 'message');
         $strstaymessage = get_string('ignore', 'admin');
 
