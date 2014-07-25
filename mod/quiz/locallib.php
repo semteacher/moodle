@@ -310,28 +310,10 @@ function quiz_attempt_save_started($quizobj, $quba, $attempt) {
 
     // Trigger the event.
     $event->add_record_snapshot('quiz', $quizobj->get_quiz());
+    $event->add_record_snapshot('quiz_attempts', $attempt);
     $event->trigger();
 
     return $attempt;
-}
-
-/**
- * Fire an event to tell the rest of Moodle a quiz attempt has started.
- *
- * @param object $attempt
- * @param quiz   $quizobj
- */
-function quiz_fire_attempt_started_event($attempt, $quizobj) {
-    // Trigger event.
-    $eventdata = array();
-    $eventdata['context'] = $quizobj->get_context();
-    $eventdata['courseid'] = $quizobj->get_courseid();
-    $eventdata['relateduserid'] = $attempt->userid;
-    $eventdata['objectid'] = $attempt->id;
-    $event = \mod_quiz\event\attempt_started::create($eventdata);
-    $event->add_record_snapshot('quiz', $quizobj->get_quiz());
-    $event->add_record_snapshot('quiz_attempts', $attempt);
-    $event->trigger();
 }
 
 /**
@@ -1672,6 +1654,11 @@ function quiz_attempt_submitted_handler($event) {
         return true;
     }
 
+    // Update completion state.
+    $completion = new completion_info($course);
+    if ($completion->is_enabled($cm) && ($quiz->completionattemptsexhausted || $quiz->completionpass)) {
+        $completion->update_state($cm, COMPLETION_COMPLETE, $event->userid);
+    }
     return quiz_send_notification_messages($course, $quiz, $attempt,
             context_module::instance($cm->id), $cm);
 }
