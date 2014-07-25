@@ -5651,7 +5651,7 @@ abstract class context extends stdClass implements IteratorAggregate {
      * Is this context part of any course? If yes return course context.
      *
      * @param bool $strict true means throw exception if not found, false means return false if not found
-     * @return course_context context of the enclosing course, null if not found or exception
+     * @return context_course context of the enclosing course, null if not found or exception
      */
     public function get_course_context($strict = true) {
         if ($strict) {
@@ -6790,7 +6790,7 @@ class context_course extends context {
      * Is this context part of any course? If yes return course context.
      *
      * @param bool $strict true means throw exception if not found, false means return false if not found
-     * @return course_context context of the enclosing course, null if not found or exception
+     * @return context_course context of the enclosing course, null if not found or exception
      */
     public function get_course_context($strict = true) {
         return $this;
@@ -7256,7 +7256,7 @@ class context_block extends context {
      * Is this context part of any course? If yes return course context.
      *
      * @param bool $strict true means throw exception if not found, false means return false if not found
-     * @return course_context context of the enclosing course, null if not found or exception
+     * @return context_course context of the enclosing course, null if not found or exception
      */
     public function get_course_context($strict = true) {
         $parentcontext = $this->get_parent_context();
@@ -7445,10 +7445,20 @@ function extract_suspended_users($context, &$users, $ignoreusers=array()) {
  * or enrolment has expired or not started.
  *
  * @param context $context context in which user enrolment is checked.
+ * @param bool $usecache Enable or disable (default) the request cache
  * @return array list of suspended user id's.
  */
-function get_suspended_userids($context){
+function get_suspended_userids(context $context, $usecache = false) {
     global $DB;
+
+    // Check the cache first for performance reasons if enabled.
+    if ($usecache) {
+        $cache = cache::make('core', 'suspended_userids');
+        $susers = $cache->get($context->id);
+        if ($susers !== false) {
+            return $susers;
+        }
+    }
 
     // Get all enrolled users.
     list($sql, $params) = get_enrolled_sql($context);
@@ -7466,5 +7476,12 @@ function get_suspended_userids($context){
             }
         }
     }
+
+    // Cache results for the remainder of this request.
+    if ($usecache) {
+        $cache->set($context->id, $susers);
+    }
+
+    // Return.
     return $susers;
 }

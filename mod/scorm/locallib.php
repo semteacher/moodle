@@ -830,7 +830,7 @@ function scorm_view_display ($user, $scorm, $action, $cm) {
     $organization = optional_param('organization', '', PARAM_INT);
 
     if ($scorm->displaycoursestructure == 1) {
-        echo $OUTPUT->box_start('generalbox boxaligncenter toc');
+        echo $OUTPUT->box_start('generalbox boxaligncenter toc', 'toc');
         ?>
         <div class="structurehead"><?php print_string('contents', 'scorm') ?></div>
         <?php
@@ -1381,7 +1381,8 @@ function scorm_format_duration($duration) {
 function scorm_get_toc_object($user, $scorm, $currentorg='', $scoid='', $mode='normal', $attempt='', $play=false, $organizationsco=null) {
     global $CFG, $DB, $PAGE, $OUTPUT;
 
-    $modestr = '';
+    // Always pass the mode even if empty as that is what is done elsewhere and the urls have to match.
+    $modestr = '&mode=';
     if ($mode != 'normal') {
         $modestr = '&mode='.$mode;
     }

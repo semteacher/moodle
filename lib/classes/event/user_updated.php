@@ -29,6 +29,7 @@ defined('MOODLE_INTERNAL') || die();
  * Event when user profile is updated.
  *
  * @package    core
+ * @since      Moodle 2.6
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -95,5 +96,25 @@ class user_updated extends base {
      */
     protected function get_legacy_logdata() {
         return array(SITEID, 'user', 'update', 'view.php?id='.$this->objectid, '');
+    }
+
+   /**
+     * Create instance of event.
+     *
+     * @since Moodle 2.6.4, 2.7.1
+     *
+     * @param int $userid id of user
+     * @return user_updated
+     */
+    public static function create_from_userid($userid) {
+        $data = array(
+            'objectid' => $userid,
+            'relateduserid' => $userid,
+            'context' => \context_user::instance($userid)
+        );
+
+        // Create user_updated event.
+        $event = self::create($data);
+        return $event;
     }
 }

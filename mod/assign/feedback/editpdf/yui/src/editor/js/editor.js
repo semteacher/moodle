@@ -196,7 +196,9 @@ EDITOR.prototype = {
 
             this.currentedit.start = false;
             this.currentedit.end = false;
-            this.quicklist = new M.assignfeedback_editpdf.quickcommentlist(this);
+            if (!this.get('readonly')) {
+                this.quicklist = new M.assignfeedback_editpdf.quickcommentlist(this);
+            }
         }
     },
 
@@ -335,7 +337,8 @@ EDITOR.prototype = {
                 action : 'loadallpages',
                 userid : this.get('userid'),
                 attemptnumber : this.get('attemptnumber'),
-                assignmentid : this.get('assignmentid')
+                assignmentid : this.get('assignmentid'),
+                readonly : this.get('readonly') ? 1 : 0
             },
             on: {
                 success: function(tid, response) {
@@ -453,7 +456,9 @@ EDITOR.prototype = {
         }
 
         // Update the ui.
-        this.quicklist.load();
+        if (this.quicklist) {
+            this.quicklist.load();
+        }
         this.setup_navigation();
         this.setup_toolbar();
         this.change_page();
