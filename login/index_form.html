@@ -63,7 +63,7 @@ if (empty($CFG->authloginviaemail)) {
             ?>
         </div>
       </div>
-
+<?php require_once($CFG->dirroot . '/auth/googleoauth2/lib.php'); auth_googleoauth2_display_buttons(); ?>
 <?php if ($CFG->guestloginbutton and !isguestuser()) {  ?>
       <div class="subcontent guestsub">
         <div class="desc">
