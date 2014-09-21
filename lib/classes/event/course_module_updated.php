@@ -143,9 +143,11 @@ class course_module_updated extends base {
      * @param \cm_info|\stdClass $cm course module instance, as returned by {@link get_coursemodule_from_id}
      *                     or {@link get_coursemodule_from_instance}.
      * @param \context_module $modcontext module context instance
+     * @param \course\modlib $moduleinfo->timeopen time when event started
+     * @param \course\modlib $moduleinfo->timeclose time when event closed
      * @return \core\event\base returns instance of new event
      */
-    public static final function create_from_cm($cm, $modcontext = null) {
+    public static final function create_from_cm($cm, $modcontext = null, $eventstart = null, $eventclose = null) {
         // If not set, get the module context.
         if (empty($modcontext)) {
             $modcontext = \context_module::instance($cm->id);
@@ -159,6 +161,8 @@ class course_module_updated extends base {
                 'modulename' => $cm->modname,
                 'instanceid' => $cm->instance,
                 'name'       => $cm->name,
+                'eventstart' => $eventstart,
+                'eventclose' => $eventclose,                
             )
         ));
         return $event;
