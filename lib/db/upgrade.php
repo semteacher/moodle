@@ -3709,5 +3709,133 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2014070101.00);
     }
 
+    if ($oldversion < 2014072400.01) {
+        $table = new xmldb_table('user_devices');
+        $oldindex = new xmldb_index('pushid-platform', XMLDB_KEY_UNIQUE, array('pushid', 'platform'));
+        if ($dbman->index_exists($table, $oldindex)) {
+            $key = new xmldb_key('pushid-platform', XMLDB_KEY_UNIQUE, array('pushid', 'platform'));
+            $dbman->drop_key($table, $key);
+        }
+        upgrade_main_savepoint(true, 2014072400.01);
+    }
+
+    if ($oldversion < 2014080801.00) {
+
+        // Define index behaviour (not unique) to be added to question_attempts.
+        $table = new xmldb_table('question_attempts');
+        $index = new xmldb_index('behaviour', XMLDB_INDEX_NOTUNIQUE, array('behaviour'));
+
+        // Conditionally launch add index behaviour.
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2014080801.00);
+    }
+
+    if ($oldversion < 2014082900.01) {
+        // Fixing possible wrong MIME type for 7-zip and Rar files.
+        $filetypes = array(
+                '%.7z' => 'application/x-7z-compressed',
+                '%.rar' => 'application/x-rar-compressed');
+        upgrade_mimetypes($filetypes);
+        upgrade_main_savepoint(true, 2014082900.01);
+    }
+
+    if ($oldversion < 2014082900.02) {
+        // Replace groupmembersonly usage with new availability system.
+        $transaction = $DB->start_delegated_transaction();
+        if ($CFG->enablegroupmembersonly) {
+            // If it isn't already enabled, we need to enable availability.
+            if (!$CFG->enableavailability) {
+                set_config('enableavailability', 1);
+            }
+
+            // Count all course-modules with groupmembersonly set (for progress
+            // bar).
+            $total = $DB->count_records('course_modules', array('groupmembersonly' => 1));
+            $pbar = new progress_bar('upgradegroupmembersonly', 500, true);
+
+            // Get all these course-modules, one at a time.
+            $rs = $DB->get_recordset('course_modules', array('groupmembersonly' => 1),
+                    'course, id');
+            $i = 0;
+            foreach ($rs as $cm) {
+                // Calculate and set new availability value.
+                $availability = upgrade_group_members_only($cm->groupingid, $cm->availability);
+                $DB->set_field('course_modules', 'availability', $availability,
+                        array('id' => $cm->id));
+
+                // Update progress.
+                $i++;
+                $pbar->update($i, $total, "Upgrading groupmembersonly settings - $i/$total.");
+            }
+            $rs->close();
+        }
+
+        // Define field groupmembersonly to be dropped from course_modules.
+        $table = new xmldb_table('course_modules');
+        $field = new xmldb_field('groupmembersonly');
+
+        // Conditionally launch drop field groupmembersonly.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Unset old config variable.
+        unset_config('enablegroupmembersonly');
+        $transaction->allow_commit();
+
+        upgrade_main_savepoint(true, 2014082900.02);
+    }
+
+    if ($oldversion < 2014100100.00) {
+
+        // Define table messageinbound_handlers to be created.
+        $table = new xmldb_table('messageinbound_handlers');
+
+        // Adding fields to table messageinbound_handlers.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('component', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('classname', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('defaultexpiration', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '86400');
+        $table->add_field('validateaddress', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        $table->add_field('enabled', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+
+        // Adding keys to table messageinbound_handlers.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('classname', XMLDB_KEY_UNIQUE, array('classname'));
+
+        // Conditionally launch create table for messageinbound_handlers.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define table messageinbound_datakeys to be created.
+        $table = new xmldb_table('messageinbound_datakeys');
+
+        // Adding fields to table messageinbound_datakeys.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('handler', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('datavalue', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('datakey', XMLDB_TYPE_CHAR, '64', null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('expires', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+
+        // Adding keys to table messageinbound_datakeys.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('handler_datavalue', XMLDB_KEY_UNIQUE, array('handler', 'datavalue'));
+        $table->add_key('handler', XMLDB_KEY_FOREIGN, array('handler'), 'messageinbound_handlers', array('id'));
+
+        // Conditionally launch create table for messageinbound_datakeys.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2014100100.00);
+    }
+
     return true;
 }

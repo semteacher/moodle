@@ -375,7 +375,9 @@ function groups_update_group($data, $editform = false, $editoroptions = false) {
     $context = context_course::instance($data->courseid);
 
     $data->timemodified = time();
-    $data->name         = trim($data->name);
+    if (isset($data->name)) {
+        $data->name = trim($data->name);
+    }
     if (isset($data->idnumber)) {
         $data->idnumber = trim($data->idnumber);
         if (($existing = groups_get_group_by_idnumber($data->courseid, $data->idnumber)) && $existing->id != $data->id) {
@@ -420,7 +422,9 @@ function groups_update_group($data, $editform = false, $editoroptions = false) {
 function groups_update_grouping($data, $editoroptions=null) {
     global $DB;
     $data->timemodified = time();
-    $data->name         = trim($data->name);
+    if (isset($data->name)) {
+        $data->name = trim($data->name);
+    }
     if (isset($data->idnumber)) {
         $data->idnumber = trim($data->idnumber);
         if (($existing = groups_get_grouping_by_idnumber($data->courseid, $data->idnumber)) && $existing->id != $data->id) {
@@ -707,12 +711,12 @@ function groups_get_possible_roles($context) {
  *
  * @param int $courseid The id of the course
  * @param int $roleid The role to select users from
- * @param int $cohortid restrict to cohort id
+ * @param mixed $source restrict to cohort, grouping or group id
  * @param string $orderby The column to sort users by
  * @param int $notingroup restrict to users not in existing groups
  * @return array An array of the users
  */
-function groups_get_potential_members($courseid, $roleid = null, $cohortid = null,
+function groups_get_potential_members($courseid, $roleid = null, $source = null,
                                       $orderby = 'lastname ASC, firstname ASC',
                                       $notingroup = null) {
     global $DB;
@@ -749,18 +753,34 @@ function groups_get_potential_members($courseid, $roleid = null, $cohortid = nul
         $where = "";
     }
 
-    if ($cohortid) {
-        $cohortjoin = "JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid)";
-        $params['cohortid'] = $cohortid;
+    $sourcejoin = "";
+    if (is_int($source)) {
+        $sourcejoin .= "JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid) ";
+        $params['cohortid'] = $source;
     } else {
-        $cohortjoin = "";
+        // Auto-create groups from an existing cohort membership.
+        if (isset($source['cohortid'])) {
+            $sourcejoin .= "JOIN {cohort_members} cm ON (cm.userid = u.id AND cm.cohortid = :cohortid) ";
+            $params['cohortid'] = $source['cohortid'];
+        }
+        // Auto-create groups from an existing group membership.
+        if (isset($source['groupid'])) {
+            $sourcejoin .= "JOIN {groups_members} gp ON (gp.userid = u.id AND gp.groupid = :groupid) ";
+            $params['groupid'] = $source['groupid'];
+        }
+        // Auto-create groups from an existing grouping membership.
+        if (isset($source['groupingid'])) {
+            $sourcejoin .= "JOIN {groupings_groups} gg ON gg.groupingid = :groupingid ";
+            $sourcejoin .= "JOIN {groups_members} gm ON (gm.userid = u.id AND gm.groupid = gg.groupid) ";
+            $params['groupingid'] = $source['groupingid'];
+        }
     }
 
     $allusernamefields = get_all_user_name_fields(true, 'u');
-    $sql = "SELECT u.id, u.username, $allusernamefields, u.idnumber
+    $sql = "SELECT DISTINCT u.id, u.username, $allusernamefields, u.idnumber
               FROM {user} u
               JOIN ($esql) e ON e.id = u.id
-       $cohortjoin
+       $sourcejoin
             $where
           ORDER BY $orderby";
 

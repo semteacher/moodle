@@ -305,7 +305,6 @@ function forum_delete_instance($id) {
  *
  * @uses FEATURE_GROUPS
  * @uses FEATURE_GROUPINGS
- * @uses FEATURE_GROUPMEMBERSONLY
  * @uses FEATURE_MOD_INTRO
  * @uses FEATURE_COMPLETION_TRACKS_VIEWS
  * @uses FEATURE_COMPLETION_HAS_RULES
@@ -318,7 +317,6 @@ function forum_supports($feature) {
     switch($feature) {
         case FEATURE_GROUPS:                  return true;
         case FEATURE_GROUPINGS:               return true;
-        case FEATURE_GROUPMEMBERSONLY:        return true;
         case FEATURE_MOD_INTRO:               return true;
         case FEATURE_COMPLETION_TRACKS_VIEWS: return true;
         case FEATURE_COMPLETION_HAS_RULES:    return true;
@@ -434,18 +432,15 @@ function forum_cron_minimise_user_record(stdClass $user) {
 }
 
 /**
- * Function to be run periodically according to the moodle cron
- * Finds all posts that have yet to be mailed out, and mails them
- * out to all subscribers
+ * Function to be run periodically according to the scheduled task.
  *
- * @global object
- * @global object
- * @global object
- * @uses CONTEXT_MODULE
- * @uses CONTEXT_COURSE
- * @uses SITEID
- * @uses FORMAT_PLAIN
- * @return void
+ * Finds all posts that have yet to be mailed out, and mails them
+ * out to all subscribers as well as other maintance tasks.
+ *
+ * NOTE: Since 2.7.2 this function is run by scheduled task rather
+ * than standard cron.
+ *
+ * @todo MDL-44734 The function will be split up into seperate tasks.
  */
 function forum_cron() {
     global $CFG, $USER, $DB;
@@ -620,7 +615,7 @@ function forum_cron() {
                     continue;
                 }
 
-                if (!\mod_forum\subscriptions::is_subscribed($userto->id, $forum, $post->discussion)) {
+                if (!\mod_forum\subscriptions::is_subscribed($userto->id, $forum, $post->discussion, $coursemodules[$forum->id])) {
                     // The user does not subscribe to this forum, or to this specific discussion.
                     continue;
                 }
@@ -2639,6 +2634,95 @@ function forum_get_discussions($cm, $forumsort="d.timemodified DESC", $fullpost=
 }
 
 /**
+ * Gets the neighbours (previous and next) of a discussion.
+ *
+ * The calculation is based on the timemodified of the discussion and does not handle
+ * the neighbours having an identical timemodified. The reason is that we do not have any
+ * other mean to sort the records, e.g. we cannot use IDs as a greater ID can have a lower
+ * timemodified.
+ *
+ * Please note that this does not check whether or not the discussion passed is accessible
+ * by the user, it simply uses it as a reference to find the neighbours. On the other hand,
+ * the returned neighbours are checked and are accessible to the current user.
+ *
+ * @param object $cm The CM record.
+ * @param object $discussion The discussion record.
+ * @return array That always contains the keys 'prev' and 'next'. When there is a result
+ *               they contain the record with minimal information such as 'id' and 'name'.
+ *               When the neighbour is not found the value is false.
+ */
+function forum_get_discussion_neighbours($cm, $discussion) {
+    global $CFG, $DB, $USER;
+
+    if ($cm->instance != $discussion->forum) {
+        throw new coding_exception('Discussion is not part of the same forum.');
+    }
+
+    $neighbours = array('prev' => false, 'next' => false);
+    $now = round(time(), -2);
+    $params = array();
+
+    $modcontext = context_module::instance($cm->id);
+    $groupmode    = groups_get_activity_groupmode($cm);
+    $currentgroup = groups_get_activity_group($cm);
+
+    // Users must fulfill timed posts.
+    $timelimit = '';
+    if (!empty($CFG->forum_enabletimedposts)) {
+        if (!has_capability('mod/forum:viewhiddentimedposts', $modcontext)) {
+            $timelimit = ' AND ((d.timestart <= :tltimestart AND (d.timeend = 0 OR d.timeend > :tltimeend))';
+            $params['tltimestart'] = $now;
+            $params['tltimeend'] = $now;
+            if (isloggedin()) {
+                $timelimit .= ' OR d.userid = :tluserid';
+                $params['tluserid'] = $USER->id;
+            }
+            $timelimit .= ')';
+        }
+    }
+
+    // Limiting to posts accessible according to groups.
+    $groupselect = '';
+    if ($groupmode) {
+        if ($groupmode == VISIBLEGROUPS || has_capability('moodle/site:accessallgroups', $modcontext)) {
+            if ($currentgroup) {
+                $groupselect = 'AND (d.groupid = :groupid OR d.groupid = -1)';
+                $params['groupid'] = $currentgroup;
+            }
+        } else {
+            if ($currentgroup) {
+                $groupselect = 'AND (d.groupid = :groupid OR d.groupid = -1)';
+                $params['groupid'] = $currentgroup;
+            } else {
+                $groupselect = 'AND d.groupid = -1';
+            }
+        }
+    }
+
+    $params['forumid'] = $cm->instance;
+    $params['discid'] = $discussion->id;
+    $params['disctimemodified'] = $discussion->timemodified;
+
+    $sql = "SELECT d.id, d.name, d.timemodified, d.groupid, d.timestart, d.timeend
+              FROM {forum_discussions} d
+             WHERE d.forum = :forumid
+               AND d.id <> :discid
+                   $timelimit
+                   $groupselect";
+
+    $prevsql = $sql . " AND d.timemodified < :disctimemodified
+                   ORDER BY d.timemodified DESC";
+
+    $nextsql = $sql . " AND d.timemodified > :disctimemodified
+                   ORDER BY d.timemodified ASC";
+
+    $neighbours['prev'] = $DB->get_record_sql($prevsql, $params, IGNORE_MULTIPLE);
+    $neighbours['next'] = $DB->get_record_sql($nextsql, $params, IGNORE_MULTIPLE);
+
+    return $neighbours;
+}
+
+/**
  *
  * @global object
  * @global object
@@ -3290,9 +3374,6 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     $output .= html_writer::end_tag('div'); //left side
     $output .= html_writer::start_tag('div', array('class'=>'no-overflow'));
     $output .= html_writer::start_tag('div', array('class'=>'content'));
-    if (!empty($attachments)) {
-        $output .= html_writer::tag('div', $attachments, array('class'=>'attachments'));
-    }
 
     $options = new stdClass;
     $options->para    = false;
@@ -3329,6 +3410,10 @@ function forum_print_post($post, $discussion, $forum, &$cm, $course, $ownpost=fa
     $output .= html_writer::start_tag('div', array('class'=>'row side'));
     $output .= html_writer::tag('div','&nbsp;', array('class'=>'left'));
     $output .= html_writer::start_tag('div', array('class'=>'options clearfix'));
+
+    if (!empty($attachments)) {
+        $output .= html_writer::tag('div', $attachments, array('class' => 'attachments'));
+    }
 
     // Output ratings
     if (!empty($post->rating)) {
@@ -3616,17 +3701,23 @@ function forum_print_discussion_header(&$post, $forum, $group=-1, $datestring=""
 
     echo '<td class="lastpost">';
     $usedate = (empty($post->timemodified)) ? $post->modified : $post->timemodified;  // Just in case
-    $parenturl = (empty($post->lastpostid)) ? '' : '&amp;parent='.$post->lastpostid;
+    $parenturl = '';
     $usermodified = new stdClass();
     $usermodified->id = $post->usermodified;
     $usermodified = username_load_fields_from_object($usermodified, $post, 'um');
-    echo '<a href="'.$CFG->wwwroot.'/user/view.php?id='.$post->usermodified.'&amp;course='.$forum->course.'">'.
-         fullname($usermodified).'</a><br />';
+
+    // Show link to last poster and their post if user can see them.
+    if ($canviewparticipants) {
+        echo '<a href="'.$CFG->wwwroot.'/user/view.php?id='.$post->usermodified.'&amp;course='.$forum->course.'">'.
+             fullname($usermodified).'</a><br />';
+        $parenturl = (empty($post->lastpostid)) ? '' : '&amp;parent='.$post->lastpostid;
+    }
+
     echo '<a href="'.$CFG->wwwroot.'/mod/forum/discuss.php?d='.$post->discussion.$parenturl.'">'.
           userdate($usedate, $datestring).'</a>';
     echo "</td>\n";
 
-    if (has_capability('mod/forum:viewdiscussion', $modcontext)) {
+    if ((!isguestuser() && isloggedin()) && has_capability('mod/forum:viewdiscussion', $modcontext)) {
         // Discussion subscription.
         if (\mod_forum\subscriptions::is_subscribable($forum)) {
             echo '<td class="discussionsubscription">';
@@ -5255,6 +5346,11 @@ function forum_print_latest_discussions($course, $forum, $maxdiscussions = -1, $
     }
 
     foreach ($discussions as $discussion) {
+        if ($forum->type == 'qanda' && !has_capability('mod/forum:viewqandawithoutposting', $context) &&
+            !forum_user_has_posted($forum->id, $discussion->discussion, $USER->id)) {
+            $canviewparticipants = false;
+        }
+
         if (!empty($replies[$discussion->discussion])) {
             $discussion->replies = $replies[$discussion->discussion]->replies;
             $discussion->lastpostid = $replies[$discussion->discussion]->lastpostid;
@@ -5724,7 +5820,13 @@ function forum_print_recent_mod_activity($activity, $courseid, $detail, $modname
     echo $OUTPUT->user_picture($activity->user, array('courseid'=>$courseid));
     echo "</td><td class=\"$class\">";
 
-    echo '<div class="title">';
+    if ($activity->content->parent) {
+        $class = 'title';
+    } else {
+        // Bold the title of new discussions so they stand out.
+        $class = 'title bold';
+    }
+    echo "<div class=\"{$class}\">";
     if ($detail) {
         $aname = s($activity->name);
         echo "<img src=\"" . $OUTPUT->pix_url('icon', $activity->type) . "\" ".

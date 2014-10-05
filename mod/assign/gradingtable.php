@@ -129,8 +129,6 @@ class assign_grading_table extends table_sql implements renderable {
         $params['assignmentid1'] = (int)$this->assignment->get_instance()->id;
         $params['assignmentid2'] = (int)$this->assignment->get_instance()->id;
         $params['assignmentid3'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid4'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid5'] = (int)$this->assignment->get_instance()->id;
 
         $extrauserfields = get_extra_user_fields($this->assignment->get_context());
 
@@ -151,23 +149,15 @@ class assign_grading_table extends table_sql implements renderable {
         $fields .= 'uf.workflowstate as workflowstate, ';
         $fields .= 'uf.allocatedmarker as allocatedmarker ';
 
-        $submissionmaxattempt = 'SELECT mxs.userid, MAX(mxs.attemptnumber) AS maxattempt
-                                 FROM {assign_submission} mxs
-                                 WHERE mxs.assignment = :assignmentid4 GROUP BY mxs.userid';
-        $grademaxattempt = 'SELECT mxg.userid, MAX(mxg.attemptnumber) AS maxattempt
-                            FROM {assign_grades} mxg
-                            WHERE mxg.assignment = :assignmentid5 GROUP BY mxg.userid';
         $from = '{user} u
-                         LEFT JOIN ( ' . $submissionmaxattempt . ' ) smx ON u.id = smx.userid
-                         LEFT JOIN ( ' . $grademaxattempt . ' ) gmx ON u.id = gmx.userid
                          LEFT JOIN {assign_submission} s ON
                             u.id = s.userid AND
                             s.assignment = :assignmentid1 AND
-                            s.attemptnumber = smx.maxattempt
+                            s.latest = 1
                          LEFT JOIN {assign_grades} g ON
                             u.id = g.userid AND
                             g.assignment = :assignmentid2 AND
-                            g.attemptnumber = gmx.maxattempt
+                            g.attemptnumber = s.attemptnumber
                          LEFT JOIN {assign_user_flags} uf ON u.id = uf.userid AND uf.assignment = :assignmentid3';
 
         $userparams = array();
@@ -202,7 +192,8 @@ class assign_grading_table extends table_sql implements renderable {
             }
         }
 
-        if ($this->assignment->get_instance()->markingallocation) {
+        if ($this->assignment->get_instance()->markingworkflow &&
+            $this->assignment->get_instance()->markingallocation) {
             if (has_capability('mod/assign:manageallocations', $this->assignment->get_context())) {
                 // Check to see if marker filter is set.
                 $markerfilter = (int)get_user_preferences('assign_markerfilter', '');
@@ -296,7 +287,8 @@ class assign_grading_table extends table_sql implements renderable {
             $headers[] = get_string('submissionteam', 'assign');
         }
         // Allocated marker.
-        if ($this->assignment->get_instance()->markingallocation &&
+        if ($this->assignment->get_instance()->markingworkflow &&
+            $this->assignment->get_instance()->markingallocation &&
             has_capability('mod/assign:manageallocations', $this->assignment->get_context())) {
             // Add a column for the allocated marker.
             $columns[] = 'allocatedmarker';
@@ -504,7 +496,8 @@ class assign_grading_table extends table_sql implements renderable {
             $name = 'quickgrade_' . $row->id . '_workflowstate';
             $o .= html_writer::select($workflowstates, $name, $workflowstate, array('' => $notmarked));
             // Check if this user is a marker that can't manage allocations and doesn't have the marker column added.
-            if ($this->assignment->get_instance()->markingallocation &&
+            if ($this->assignment->get_instance()->markingworkflow &&
+                $this->assignment->get_instance()->markingallocation &&
                 !has_capability('mod/assign:manageallocations', $this->assignment->get_context())) {
 
                 $name = 'quickgrade_' . $row->id . '_allocatedmarker';
