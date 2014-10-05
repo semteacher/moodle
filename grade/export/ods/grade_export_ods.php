@@ -22,6 +22,19 @@ class grade_export_ods extends grade_export {
     public $plugin = 'ods';
 
     /**
+     * Constructor should set up all the private variables ready to be pulled
+     * @param object $course
+     * @param int $groupid id of selected group, 0 means all
+     * @param stdClass $formdata The validated data from the grade export form.
+     */
+    public function __construct($course, $groupid, $formdata) {
+        parent::__construct($course, $groupid, $formdata);
+
+        // Overrides.
+        $this->usercustomfields = true;
+    }
+
+    /**
      * To be implemented by child classes
      */
     function print_grades() {
@@ -54,7 +67,9 @@ class grade_export_ods extends grade_export {
             $myxls->write_string(0, $pos++, get_string("suspended"));
         }
         foreach ($this->columns as $grade_item) {
-            $myxls->write_string(0, $pos++, $this->format_column_name($grade_item));
+            foreach ($this->displaytype as $gradedisplayname => $gradedisplayconst) {
+                $myxls->write_string(0, $pos++, $this->format_column_name($grade_item, false, $gradedisplayname));
+            }
 
             // Add a column_feedback column.
             if ($this->export_feedback) {
@@ -88,12 +103,13 @@ class grade_export_ods extends grade_export {
                     $status = $geub->track($grade);
                 }
 
-                $gradestr = $this->format_grade($grade);
-                if (is_numeric($gradestr)) {
-                    $myxls->write_number($i,$j++,$gradestr);
-                }
-                else {
-                    $myxls->write_string($i,$j++,$gradestr);
+                foreach ($this->displaytype as $gradedisplayconst) {
+                    $gradestr = $this->format_grade($grade, $gradedisplayconst);
+                    if (is_numeric($gradestr)) {
+                        $myxls->write_number($i, $j++, $gradestr);
+                    } else {
+                        $myxls->write_string($i, $j++, $gradestr);
+                    }
                 }
 
                 // writing feedback if requested

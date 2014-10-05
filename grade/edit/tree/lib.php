@@ -49,11 +49,21 @@ class grade_edit_tree {
     public $table;
 
     public $categories = array();
+
+    /**
+     * Show calculator icons next to manual grade items
+     * @var bool $show_calculations
+     */
+    private $show_calculations;
+
     /**
      * Constructor
      */
     public function __construct($gtree, $moving=false, $gpr) {
         global $USER, $OUTPUT, $COURSE;
+
+        $systemdefault = get_config('moodle', 'grade_report_showcalculations');
+        $this->show_calculations = get_user_preferences('grade_report_showcalculations', $systemdefault);
 
         $this->gtree = $gtree;
         $this->moving = $moving;
@@ -138,7 +148,9 @@ class grade_edit_tree {
             $actions .= $this->gtree->get_edit_icon($element, $this->gpr);
         }
 
-        $actions .= $this->gtree->get_calculation_icon($element, $this->gpr);
+        if ($this->show_calculations) {
+            $actions .= $this->gtree->get_calculation_icon($element, $this->gpr);
+        }
 
         if ($element['type'] == 'item' or ($element['type'] == 'category' and $element['depth'] > 1)) {
             if ($this->element_deletable($element)) {
@@ -671,6 +683,7 @@ class grade_edit_tree_column_aggregation extends grade_edit_tree_column_category
         } else {
             $attributes = array();
             $attributes['id'] = 'aggregation_'.$category->id;
+            $attributes['class'] = 'ignoredirty';
             $aggregation = html_writer::label(get_string('aggregation', 'grades'), 'aggregation_'.$category->id, false, array('class' => 'accesshide'));
             $aggregation .= html_writer::select($options, 'aggregation_'.$category->id, $category->aggregation, null, $attributes);
             $action = new component_action('change', 'update_category_aggregation', array('courseid' => $params['id'], 'category' => $category->id, 'sesskey' => sesskey()));
@@ -1198,7 +1211,7 @@ class grade_edit_tree_column_select extends grade_edit_tree_column {
         if ($params['itemtype'] != 'course' && $params['itemtype'] != 'category') {
             $itemselect = '<label class="accesshide" for="select_'.$params['eid'].'">'.
                 get_string('select', 'grades', $item->itemname).'</label>
-                <input class="itemselect" type="checkbox" name="select_'.$params['eid'].'" id="select_'.$params['eid'].
+                <input class="itemselect ignoredirty" type="checkbox" name="select_'.$params['eid'].'" id="select_'.$params['eid'].
                 '" onchange="toggleCategorySelector();"/>'; // TODO: convert to YUI handler
         }
         //html_writer::table() will wrap the item cell contents in a <TD> so don't do it here

@@ -827,6 +827,13 @@ class core_renderer extends renderer_base {
             $this->page->add_body_class('userloggedinas');
         }
 
+        // If the user is logged in, and we're not in initial install,
+        // check to see if the user is role-switched and add the appropriate
+        // CSS class to the body element.
+        if (!during_initial_install() && isloggedin() && is_role_switched($this->page->course->id)) {
+            $this->page->add_body_class('userswitchedrole');
+        }
+
         // Give themes a chance to init/alter the page object.
         $this->page->theme->init_page($this->page);
 
@@ -1965,7 +1972,7 @@ class core_renderer extends renderer_base {
     public function doc_link($path, $text = '', $forcepopup = false) {
         global $CFG;
 
-        $icon = $this->pix_icon('docs', $text, 'moodle', array('class'=>'iconhelp icon-pre'));
+        $icon = $this->pix_icon('docs', '', 'moodle', array('class'=>'iconhelp icon-pre', 'role'=>'presentation'));
 
         $url = new moodle_url(get_docs_url($path));
 

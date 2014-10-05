@@ -114,7 +114,7 @@
         $subscriptionchanges = array();
         foreach ($potentialsubscribers as $subuser) {
             $userid = $subuser->id;
-            $targetsubscription = \mod_forum\subscriptions::is_subscribed($userid, $forumto);
+            $targetsubscription = \mod_forum\subscriptions::is_subscribed($userid, $forumto, null, $cmto);
             if (\mod_forum\subscriptions::is_subscribed($userid, $forum, $discussion->id)) {
                 if (!$targetsubscription) {
                     $subscriptionchanges[$userid] = \mod_forum\subscriptions::FORUM_DISCUSSION_SUBSCRIBED;
@@ -225,10 +225,12 @@
     $PAGE->set_title("$course->shortname: ".format_string($discussion->name));
     $PAGE->set_heading($course->fullname);
     $PAGE->set_button($searchform);
+    $renderer = $PAGE->get_renderer('mod_forum');
+
     echo $OUTPUT->header();
 
     $headingvalue = format_string($forum->name);
-    if (has_capability('mod/forum:viewdiscussion', $modcontext)) {
+    if ((!isguestuser() && isloggedin()) && has_capability('mod/forum:viewdiscussion', $modcontext)) {
         // Discussion subscription.
         if (\mod_forum\subscriptions::is_subscribable($forum)) {
             $headingvalue .= '&nbsp;';
@@ -255,6 +257,10 @@
             $canreply = enrol_selfenrol_available($course->id);
         }
     }
+
+    // Output the links to neighbour discussions.
+    $neighbours = forum_get_discussion_neighbours($cm, $discussion);
+    echo $renderer->neighbouring_discussion_navigation($neighbours['prev'], $neighbours['next']);
 
 /// Print the controls across the top
     echo '<div class="discussioncontrols clearfix">';

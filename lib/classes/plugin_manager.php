@@ -654,6 +654,10 @@ class core_plugin_manager {
             return 'git';
         }
 
+        if (is_file($pluginroot.'/.git')) {
+            return 'git-submodule';
+        }
+
         if (is_dir($pluginroot.'/CVS')) {
             return 'cvs';
         }
@@ -1034,7 +1038,7 @@ class core_plugin_manager {
             ),
 
             'gradereport' => array(
-                'grader', 'outcomes', 'overview', 'user'
+                'grader', 'history', 'outcomes', 'overview', 'user'
             ),
 
             'gradingform' => array(
