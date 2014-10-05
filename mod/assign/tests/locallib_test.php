@@ -143,11 +143,12 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $this->assertContains(get_string('overdue', 'assign', format_time(4*24*60*60)), $output);
 
         // Grant an extension.
-        $assign->testable_save_user_extension($this->students[0]->id, time() + 2 * 24 * 60 * 60);
+        $extendedtime = time() + 2 * 24 * 60 * 60;
+        $assign->testable_save_user_extension($this->students[0]->id, $extendedtime);
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
         $this->assertContains(get_string('submissionstatus_', 'assign'), $output);
-        $this->assertContains(get_string('userextensiondate', 'assign', userdate(time() + 2*24*60*60)), $output);
+        $this->assertContains(get_string('userextensiondate', 'assign', userdate($extendedtime)), $output);
 
         // Simulate a submission.
         $this->setUser($this->students[0]);
@@ -166,7 +167,7 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
         $this->assertContains(get_string('submissionstatus_submitted', 'assign'), $output);
-        $this->assertContains(get_string('userextensiondate', 'assign', userdate(time() + 2*24*60*60)), $output);
+        $this->assertContains(get_string('userextensiondate', 'assign', userdate($extendedtime)), $output);
     }
 
     /**
@@ -604,6 +605,38 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $assign = $this->create_instance(array('teamsubmission'=>1));
 
         $this->assertEquals(self::GROUP_COUNT + 1, $assign->count_teams());
+    }
+
+    public function test_submit_to_default_group() {
+        global $DB;
+
+        $this->preventResetByRollback();
+        $sink = $this->redirectMessages();
+
+        $this->setUser($this->editingteachers[0]);
+        $params = array('teamsubmission' => 1,
+                        'assignsubmission_onlinetext_enabled' => 1,
+                        'submissiondrafts'=>0);
+        $assign = $this->create_instance($params);
+
+        $newstudent = $this->getDataGenerator()->create_user();
+        $studentrole = $DB->get_record('role', array('shortname'=>'student'));
+        $this->getDataGenerator()->enrol_user($newstudent->id,
+                                              $this->course->id,
+                                              $studentrole->id);
+        $this->setUser($newstudent);
+        $data = new stdClass();
+        $data->onlinetext_editor = array('itemid'=>file_get_unused_draft_itemid(),
+                                         'text'=>'Submission text',
+                                         'format'=>FORMAT_MOODLE);
+        $notices = array();
+
+        $group = $assign->get_submission_group($newstudent->id);
+        $this->assertFalse($group, 'New student is in default group');
+        $assign->save_submission($data, $notices);
+        $this->assertEmpty($notices, 'No errors on save submission');
+
+        $sink->close();
     }
 
     public function test_count_submissions() {

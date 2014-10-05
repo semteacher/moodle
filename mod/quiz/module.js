@@ -219,8 +219,8 @@ M.mod_quiz.secure_window = {
             window.location = 'about:blank';
         }
         Y.delegate('contextmenu', M.mod_quiz.secure_window.prevent, document, '*');
-        Y.delegate('mousedown',   M.mod_quiz.secure_window.prevent_mouse, document, '*');
-        Y.delegate('mouseup',     M.mod_quiz.secure_window.prevent_mouse, document, '*');
+        Y.delegate('mousedown',   M.mod_quiz.secure_window.prevent_mouse, 'body', '*');
+        Y.delegate('mouseup',     M.mod_quiz.secure_window.prevent_mouse, 'body', '*');
         Y.delegate('dragstart',   M.mod_quiz.secure_window.prevent, document, '*');
         Y.delegate('selectstart', M.mod_quiz.secure_window.prevent, document, '*');
         Y.delegate('cut',         M.mod_quiz.secure_window.prevent, document, '*');
@@ -254,6 +254,10 @@ M.mod_quiz.secure_window = {
     prevent_mouse: function(e) {
         if (e.button == 1 && /^(INPUT|TEXTAREA|BUTTON|SELECT|LABEL|A)$/i.test(e.target.get('tagName'))) {
             // Left click on a button or similar. No worries.
+            return;
+        }
+        if (e.button == 1 && e.target.test('[contenteditable=true]')) {
+            // Left click in Atto or similar.
             return;
         }
         e.halt();

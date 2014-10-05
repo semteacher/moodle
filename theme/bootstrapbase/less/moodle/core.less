@@ -500,14 +500,6 @@ a.skip:active {
     float: left;
     text-align: right;
     width: 49%;
-    direction: rtl;
-    white-space: nowrap;
-}
-.dir-rtl .loginbox .loginform .form-label {
-    float: left;
-    text-align: right;
-    width: 49%;
-    direction: ltr;
     white-space: nowrap;
 }
 .loginbox .loginform .form-input {
@@ -2209,4 +2201,12 @@ body.lockscroll {
         margin-left: 0;
         margin-right: 25px;
     }
+}
+dd:before,
+dd:after {
+  display: block;
+  content: " ";
+}
+dd:after {
+  clear: both;
 }
