@@ -2092,7 +2092,7 @@ class global_navigation extends navigation_node {
         $featuresfunc = $cm->modname.'_supports';
         if (function_exists($featuresfunc) && $featuresfunc(FEATURE_ADVANCED_GRADING)) {
             require_once($CFG->dirroot.'/grade/grading/lib.php');
-            $gradingman = get_grading_manager($cm->context, $cm->modname);
+            $gradingman = get_grading_manager($cm->context,  'mod_'.$cm->modname);
             $gradingman->extend_navigation($this, $activity);
         }
 
@@ -2282,7 +2282,14 @@ class global_navigation extends navigation_node {
             $userscourses = enrol_get_users_courses($user->id);
             $userscoursesnode = $usernode->add(get_string('courses'));
 
+            $count = 0;
             foreach ($userscourses as $usercourse) {
+                if ($count === (int)$CFG->navcourselimit) {
+                    $url = new moodle_url('/user/profile.php', array('id' => $user->id, 'showallcourses' => 1));
+                    $userscoursesnode->add(get_string('showallcourses'), $url);
+                    break;
+                }
+                $count++;
                 $usercoursecontext = context_course::instance($usercourse->id);
                 $usercourseshortname = format_string($usercourse->shortname, true, array('context' => $usercoursecontext));
                 $usercoursenode = $userscoursesnode->add($usercourseshortname, new moodle_url('/user/view.php', array('id'=>$user->id, 'course'=>$usercourse->id)), self::TYPE_CONTAINER);
@@ -2879,10 +2886,11 @@ class global_navigation_for_ajax extends global_navigation {
                 require_course_login($course, true, $cm, false, true);
                 $this->page->set_context(context_module::instance($cm->id));
                 $coursenode = $this->load_course($course);
-                if ($course->id != $SITE->id) {
-                    $this->load_course_sections($course, $coursenode, null, $cm);
+                $this->load_course_sections($course, $coursenode, null, $cm);
+                $activitynode = $coursenode->find($cm->id, self::TYPE_ACTIVITY);
+                if ($activitynode) {
+                    $modulenode = $this->load_activity($cm, $course, $activitynode);
                 }
-                $modulenode = $this->load_activity($cm, $course, $coursenode->find($cm->id, self::TYPE_ACTIVITY));
                 break;
             default:
                 throw new Exception('Unknown type');
@@ -3753,7 +3761,7 @@ class settings_navigation extends navigation_node {
 
         // View course reports.
         if (has_capability('moodle/site:viewreports', $coursecontext)) { // Basic capability for listing of reports.
-            $reportnav = $coursenode->add(get_string('reports'), null, self::TYPE_CONTAINER, null, null,
+            $reportnav = $coursenode->add(get_string('reports'), null, self::TYPE_CONTAINER, null, 'coursereports',
                     new pix_icon('i/stats', ''));
             $coursereports = core_component::get_plugin_list('coursereport');
             foreach ($coursereports as $report => $dir) {
@@ -3891,6 +3899,13 @@ class settings_navigation extends navigation_node {
                 $switchroles->add($name, $url, self::TYPE_SETTING, null, $key, new pix_icon('i/switchrole', ''));
             }
         }
+
+        // Let admin tools hook into course navigation.
+        $tools = get_plugin_list_with_function('tool', 'extend_navigation_course', 'lib.php');
+        foreach ($tools as $toolfunction) {
+            $toolfunction($coursenode, $course, $coursecontext);
+        }
+
         // Return we are done
         return $coursenode;
     }
@@ -3970,7 +3985,7 @@ class settings_navigation extends navigation_node {
         $featuresfunc = $this->page->activityname.'_supports';
         if (function_exists($featuresfunc) && $featuresfunc(FEATURE_ADVANCED_GRADING) && has_capability('moodle/grade:managegradingforms', $this->page->cm->context)) {
             require_once($CFG->dirroot.'/grade/grading/lib.php');
-            $gradingman = get_grading_manager($this->page->cm->context, $this->page->activityname);
+            $gradingman = get_grading_manager($this->page->cm->context, 'mod_'.$this->page->activityname);
             $gradingman->extend_settings_navigation($this, $modulenode);
         }
 
@@ -4205,7 +4220,7 @@ class settings_navigation extends navigation_node {
             if (empty($passwordchangeurl)) {
                 $passwordchangeurl = new moodle_url('/login/change_password.php', array('id'=>$course->id));
             }
-            $usersetting->add(get_string("changepassword"), $passwordchangeurl, self::TYPE_SETTING);
+            $usersetting->add(get_string("changepassword"), $passwordchangeurl, self::TYPE_SETTING, null, 'changepassword');
         }
 
         // View the roles settings
@@ -4321,6 +4336,12 @@ class settings_navigation extends navigation_node {
         if (!$user->deleted and !$currentuser && !\core\session\manager::is_loggedinas() && has_capability('moodle/user:loginas', $coursecontext) && !is_siteadmin($user->id)) {
             $url = new moodle_url('/course/loginas.php', array('id'=>$course->id, 'user'=>$user->id, 'sesskey'=>sesskey()));
             $usersetting->add(get_string('loginas'), $url, self::TYPE_SETTING);
+        }
+
+        // Let admin tools hook into user settings navigation.
+        $tools = get_plugin_list_with_function('tool', 'extend_navigation_user_settings', 'lib.php');
+        foreach ($tools as $toolfunction) {
+            $toolfunction($usersetting, $user, $usercontext, $course, $coursecontext);
         }
 
         return $usersetting;
@@ -4491,7 +4512,7 @@ class settings_navigation extends navigation_node {
 
         // View course reports.
         if (has_capability('moodle/site:viewreports', $coursecontext)) { // Basic capability for listing of reports.
-            $frontpagenav = $frontpage->add(get_string('reports'), null, self::TYPE_CONTAINER, null, null,
+            $frontpagenav = $frontpage->add(get_string('reports'), null, self::TYPE_CONTAINER, null, 'frontpagereports',
                     new pix_icon('i/stats', ''));
             $coursereports = core_component::get_plugin_list('coursereport');
             foreach ($coursereports as $report=>$dir) {
@@ -4533,6 +4554,13 @@ class settings_navigation extends navigation_node {
             $url = new moodle_url('/files/index.php', array('contextid'=>$coursecontext->id));
             $frontpage->add(get_string('sitelegacyfiles'), $url, self::TYPE_SETTING, null, null, new pix_icon('i/folder', ''));
         }
+
+        // Let admin tools hook into frontpage navigation.
+        $tools = get_plugin_list_with_function('tool', 'extend_navigation_frontpage', 'lib.php');
+        foreach ($tools as $toolfunction) {
+            $toolfunction($frontpage, $course, $coursecontext);
+        }
+
         return $frontpage;
     }
 

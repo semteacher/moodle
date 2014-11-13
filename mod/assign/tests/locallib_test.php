@@ -179,9 +179,10 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         // Setup the assignment.
         $this->create_extra_users();
         $this->setUser($this->editingteachers[0]);
+        $time = time();
         $assign = $this->create_instance(array(
             'assignsubmission_onlinetext_enabled'=>1,
-            'duedate' => time() - 4 * 24 * 60 * 60,
+            'duedate' => $time - 4 * 24 * 60 * 60,
          ));
         $PAGE->set_url(new moodle_url('/mod/assign/view.php', array(
             'id' => $assign->get_course_module()->id,
@@ -192,15 +193,17 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
         $this->assertContains(get_string('submissionstatus_', 'assign'), $output);
-        $this->assertContains(get_string('overdue', 'assign', format_time(4*24*60*60)), $output);
+        $difftime = time() - $time;
+        $this->assertContains(get_string('overdue', 'assign', format_time(4*24*60*60 + $difftime)), $output);
 
         // Grant an extension that is in the past.
-        $assign->testable_save_user_extension($this->students[0]->id, time() - 2 * 24 * 60 * 60);
+        $assign->testable_save_user_extension($this->students[0]->id, $time - 2 * 24 * 60 * 60);
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
         $this->assertContains(get_string('submissionstatus_', 'assign'), $output);
-        $this->assertContains(get_string('userextensiondate', 'assign', userdate(time() - 2*24*60*60)), $output);
-        $this->assertContains(get_string('overdue', 'assign', format_time(2*24*60*60)), $output);
+        $this->assertContains(get_string('userextensiondate', 'assign', userdate($time - 2*24*60*60)), $output);
+        $difftime = time() - $time;
+        $this->assertContains(get_string('overdue', 'assign', format_time(2*24*60*60 + $difftime)), $output);
 
         // Simulate a submission.
         $this->setUser($this->students[0]);
@@ -213,14 +216,17 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
                                          'format'=>FORMAT_MOODLE);
         $plugin = $assign->get_submission_plugin_by_type('onlinetext');
         $plugin->save($submission, $data);
+        $submittedtime = time();
 
         // Verify output.
         $this->setUser($this->editingteachers[0]);
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
         $this->assertContains(get_string('submissionstatus_submitted', 'assign'), $output);
-        $this->assertContains(get_string('userextensiondate', 'assign', userdate(time() - 2*24*60*60)), $output);
-        $this->assertContains(get_string('submittedlateshort', 'assign', format_time(2*24*60*60)), $output);
+        $this->assertContains(get_string('userextensiondate', 'assign', userdate($time - 2*24*60*60)), $output);
+
+        $difftime = $submittedtime - $time;
+        $this->assertContains(get_string('submittedlateshort', 'assign', format_time(2*24*60*60 + $difftime)), $output);
     }
 
     /**
@@ -507,7 +513,7 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         // Create an assignment with a description that should be hidden.
         $assign = $this->create_instance(array('duedate'=>$now + 160,
                                                'alwaysshowdescription'=>false,
-                                               'allowsubmissionsfromdate'=>$now+3,
+                                               'allowsubmissionsfromdate'=>$now + 60,
                                                'intro'=>'Some text'));
 
         // Get the event from the calendar.
@@ -515,7 +521,11 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $event = $DB->get_record('event', $params);
 
         $this->assertEmpty($event->description);
-        sleep(6);
+
+        // Change the allowsubmissionfromdate to the past - do this directly in the DB
+        // because if we call the assignment update method - it will update the calendar
+        // and we want to test that this works from cron.
+        $DB->set_field('assign', 'allowsubmissionsfromdate', $now - 60, array('id'=>$assign->get_instance()->id));
         // Run cron to update the event in the calendar.
         assign::cron();
         $event = $DB->get_record('event', $params);
@@ -1021,11 +1031,12 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $this->create_extra_users();
         // Now verify group assignments.
         $this->setUser($this->editingteachers[0]);
+        $time = time();
         $assign = $this->create_instance(array('teamsubmission'=>1,
                                                'assignsubmission_onlinetext_enabled'=>1,
                                                'submissiondrafts'=>1,
                                                'requireallteammemberssubmit'=>0,
-                                               'duedate' => time() - 2*24*60*60));
+                                               'duedate' => $time - 2*24*60*60));
         $PAGE->set_url(new moodle_url('/mod/assign/view.php', array('id' => $assign->get_course_module()->id)));
 
         $this->setUser($this->extrastudents[0]);
@@ -1042,7 +1053,8 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
         $output = $assign->view_student_summary($this->extrastudents[0], true);
         $this->assertContains(get_string('submitassignment', 'assign'), $output);
         $this->assertContains(get_string('timeremaining', 'assign'), $output);
-        $this->assertContains(get_string('overdue', 'assign', format_time(2*24*60*60)), $output);
+        $difftime = time() - $time;
+        $this->assertContains(get_string('overdue', 'assign', format_time(2*24*60*60 + $difftime)), $output);
 
         $submission = $assign->get_group_submission($this->extrastudents[0]->id, 0, true);
         $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
@@ -1059,7 +1071,8 @@ class mod_assign_locallib_testcase extends mod_assign_base_testcase {
 
         // Check that time remaining is not overdue.
         $this->assertContains(get_string('timeremaining', 'assign'), $output);
-        $this->assertContains(get_string('submittedlate', 'assign', format_time(2*24*60*60)), $output);
+        $difftime = time() - $time;
+        $this->assertContains(get_string('submittedlate', 'assign', format_time(2*24*60*60 + $difftime)), $output);
 
         $submission = $assign->get_group_submission($this->extrastudents[self::GROUP_COUNT]->id, 0, true);
         $submission->status = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
@@ -1865,7 +1878,7 @@ Anchor link 2:<a title=\"bananas\" href=\"../logo-240x60.gif\">Link text</a>
         $this->setUser($manager);
         $gradingtable = new assign_grading_table($assign, 1, '', 0, true);
         $output = $assign->get_renderer()->render($gradingtable);
-        $this->assertEquals(true, strpos($output, get_string('hiddenuser', 'assign')));
+        $this->assertEquals(false, strpos($output, get_string('hiddenuser', 'assign')));
         $this->assertEquals(true, strpos($output, fullname($student)));    //students full name doesn't appear.
     }
 }
