@@ -1297,17 +1297,8 @@ class global_navigation extends navigation_node {
         }
 
         // Give the local plugins a chance to include some navigation if they want.
-        foreach (core_component::get_plugin_list_with_file('local', 'lib.php', true) as $plugin => $file) {
-            $function = "local_{$plugin}_extends_navigation";
-            $oldfunction = "{$plugin}_extends_navigation";
-            if (function_exists($function)) {
-                // This is the preferred function name as there is less chance of conflicts
-                $function($this);
-            } else if (function_exists($oldfunction)) {
-                // We continue to support the old function name to ensure backwards compatibility
-                debugging("Deprecated local plugin navigation callback: Please rename '{$oldfunction}' to '{$function}'. Support for the old callback will be dropped after the release of 2.4", DEBUG_DEVELOPER);
-                $oldfunction($this);
-            }
+        foreach (get_plugin_list_with_function('local', 'extends_navigation') as $function) {
+            $function($this);
         }
 
         // Remove any empty root nodes
@@ -1639,13 +1630,17 @@ class global_navigation extends navigation_node {
         } else if (array_key_exists($categoryid, $this->addedcategories)) {
             // The category itself has been loaded already so we just need to ensure its subcategories
             // have been loaded
-            list($sql, $params) = $DB->get_in_or_equal(array_keys($this->addedcategories), SQL_PARAMS_NAMED, 'parent', false);
-            if ($showbasecategories) {
-                // We need to include categories with parent = 0 as well
-                $sqlwhere .= " AND (cc.parent = :categoryid OR cc.parent = 0) AND cc.parent {$sql}";
-            } else {
-                // All we need is categories that match the parent
-                $sqlwhere .= " AND cc.parent = :categoryid AND cc.parent {$sql}";
+            $addedcategories = $this->addedcategories;
+            unset($addedcategories[$categoryid]);
+            if (count($addedcategories) > 0) {
+                list($sql, $params) = $DB->get_in_or_equal(array_keys($addedcategories), SQL_PARAMS_NAMED, 'parent', false);
+                if ($showbasecategories) {
+                    // We need to include categories with parent = 0 as well
+                    $sqlwhere .= " AND (cc.parent = :categoryid OR cc.parent = 0) AND cc.parent {$sql}";
+                } else {
+                    // All we need is categories that match the parent
+                    $sqlwhere .= " AND cc.parent = :categoryid AND cc.parent {$sql}";
+                }
             }
             $params['categoryid'] = $categoryid;
         } else {
@@ -2226,6 +2221,8 @@ class global_navigation extends navigation_node {
             }
         }
 
+        // Add the messages link.
+        // It is context based so can appear in "My profile" and in course participants information.
         if (!empty($CFG->messaging)) {
             $messageargs = array('user1' => $USER->id);
             if ($USER->id != $user->id) {
@@ -2238,13 +2235,15 @@ class global_navigation extends navigation_node {
             $usernode->add(get_string('messages', 'message'), $url, self::TYPE_SETTING, null, 'messages');
         }
 
-        if ($iscurrentuser && has_capability('moodle/user:manageownfiles', context_user::instance($USER->id))) {
+        // Add the "My private files" link.
+        // This link doesn't have a unique display for course context so only display it under "My profile".
+        if ($issitecourse && $iscurrentuser && has_capability('moodle/user:manageownfiles', $usercontext)) {
             $url = new moodle_url('/user/files.php');
             $usernode->add(get_string('myfiles'), $url, self::TYPE_SETTING);
         }
 
         if (!empty($CFG->enablebadges) && $iscurrentuser &&
-                has_capability('moodle/badges:manageownbadges', context_user::instance($USER->id))) {
+                has_capability('moodle/badges:manageownbadges', $usercontext)) {
             $url = new moodle_url('/badges/mybadges.php');
             $usernode->add(get_string('mybadges', 'badges'), $url, self::TYPE_SETTING);
         }
@@ -3088,12 +3087,14 @@ class navbar extends navigation_node {
         } else if ($this->hasitems !== false) {
             return true;
         }
-        $this->page->navigation->initialise($this->page);
-
-        $activenodefound = ($this->page->navigation->contains_active_node() ||
-                            $this->page->settingsnav->contains_active_node());
-
-        $outcome = (count($this->children) > 0 || count($this->prependchildren) || (!$this->ignoreactive && $activenodefound));
+        if (count($this->children) > 0 || count($this->prependchildren) > 0) {
+            // There have been manually added items - there are definitely items.
+            $outcome = true;
+        } else if (!$this->ignoreactive) {
+            // We will need to initialise the navigation structure to check if there are active items.
+            $this->page->navigation->initialise($this->page);
+            $outcome = ($this->page->navigation->contains_active_node() || $this->page->settingsnav->contains_active_node());
+        }
         $this->hasitems = $outcome;
         return $outcome;
     }
@@ -3148,11 +3149,13 @@ class navbar extends navigation_node {
             $items = array_reverse($this->children);
         }
 
-        $navigationactivenode = $this->page->navigation->find_active_node();
-        $settingsactivenode = $this->page->settingsnav->find_active_node();
-
         // Check if navigation contains the active node
         if (!$this->ignoreactive) {
+            // We will need to ensure the navigation has been initialised.
+            $this->page->navigation->initialise($this->page);
+            // Now find the active nodes on both the navigation and settings.
+            $navigationactivenode = $this->page->navigation->find_active_node();
+            $settingsactivenode = $this->page->settingsnav->find_active_node();
 
             if ($navigationactivenode && $settingsactivenode) {
                 // Parse a combined navigation tree
@@ -4146,8 +4149,8 @@ class settings_navigation extends navigation_node {
                     return false;
                 }
                 $canaccessallgroups = has_capability('moodle/site:accessallgroups', $coursecontext);
-                if (!$canaccessallgroups && groups_get_course_groupmode($course) == SEPARATEGROUPS) {
-                    // If groups are in use, make sure we can see that group (MDL-45874).
+                if (!$canaccessallgroups && groups_get_course_groupmode($course) == SEPARATEGROUPS && !$canviewuser) {
+                    // If groups are in use, make sure we can see that group (MDL-45874). That does not apply to parents.
                     if ($courseid == $this->page->course->id) {
                         $mygroups = get_fast_modinfo($this->page->course)->groups;
                     } else {
@@ -4384,54 +4387,70 @@ class settings_navigation extends navigation_node {
     protected function load_category_settings() {
         global $CFG;
 
-        $categorynode = $this->add($this->context->get_context_name(), null, null, null, 'categorysettings');
+        // We can land here while being in the context of a block, in which case we
+        // should get the parent context which should be the category one. See self::initialise().
+        if ($this->context->contextlevel == CONTEXT_BLOCK) {
+            $catcontext = $this->context->get_parent_context();
+        } else {
+            $catcontext = $this->context;
+        }
+
+        // Let's make sure that we always have the right context when getting here.
+        if ($catcontext->contextlevel != CONTEXT_COURSECAT) {
+            throw new coding_exception('Unexpected context while loading category settings.');
+        }
+
+        $categorynode = $this->add($catcontext->get_context_name(), null, null, null, 'categorysettings');
         $categorynode->force_open();
 
-        if (can_edit_in_category($this->context->instanceid)) {
-            $url = new moodle_url('/course/management.php', array('categoryid' => $this->context->instanceid));
+        if (can_edit_in_category($catcontext->instanceid)) {
+            $url = new moodle_url('/course/management.php', array('categoryid' => $catcontext->instanceid));
             $editstring = get_string('managecategorythis');
             $categorynode->add($editstring, $url, self::TYPE_SETTING, null, null, new pix_icon('i/edit', ''));
         }
 
-        if (has_capability('moodle/category:manage', $this->context)) {
-            $editurl = new moodle_url('/course/editcategory.php', array('id' => $this->context->instanceid));
+        if (has_capability('moodle/category:manage', $catcontext)) {
+            $editurl = new moodle_url('/course/editcategory.php', array('id' => $catcontext->instanceid));
             $categorynode->add(get_string('editcategorythis'), $editurl, self::TYPE_SETTING, null, 'edit', new pix_icon('i/edit', ''));
 
-            $addsubcaturl = new moodle_url('/course/editcategory.php', array('parent' => $this->context->instanceid));
+            $addsubcaturl = new moodle_url('/course/editcategory.php', array('parent' => $catcontext->instanceid));
             $categorynode->add(get_string('addsubcategory'), $addsubcaturl, self::TYPE_SETTING, null, 'addsubcat', new pix_icon('i/withsubcat', ''));
         }
 
         // Assign local roles
-        if (has_capability('moodle/role:assign', $this->context)) {
-            $assignurl = new moodle_url('/'.$CFG->admin.'/roles/assign.php', array('contextid'=>$this->context->id));
+        $assignableroles = get_assignable_roles($catcontext);
+        if (!empty($assignableroles)) {
+            $assignurl = new moodle_url('/'.$CFG->admin.'/roles/assign.php', array('contextid' => $catcontext->id));
             $categorynode->add(get_string('assignroles', 'role'), $assignurl, self::TYPE_SETTING, null, 'roles', new pix_icon('i/assignroles', ''));
         }
 
         // Override roles
-        if (has_capability('moodle/role:review', $this->context) or count(get_overridable_roles($this->context))>0) {
-            $url = new moodle_url('/'.$CFG->admin.'/roles/permissions.php', array('contextid'=>$this->context->id));
+        if (has_capability('moodle/role:review', $catcontext) or count(get_overridable_roles($catcontext)) > 0) {
+            $url = new moodle_url('/'.$CFG->admin.'/roles/permissions.php', array('contextid' => $catcontext->id));
             $categorynode->add(get_string('permissions', 'role'), $url, self::TYPE_SETTING, null, 'permissions', new pix_icon('i/permissions', ''));
         }
         // Check role permissions
-        if (has_any_capability(array('moodle/role:assign', 'moodle/role:safeoverride','moodle/role:override', 'moodle/role:assign'), $this->context)) {
-            $url = new moodle_url('/'.$CFG->admin.'/roles/check.php', array('contextid'=>$this->context->id));
+        if (has_any_capability(array('moodle/role:assign', 'moodle/role:safeoverride',
+                'moodle/role:override', 'moodle/role:assign'), $catcontext)) {
+            $url = new moodle_url('/'.$CFG->admin.'/roles/check.php', array('contextid' => $catcontext->id));
             $categorynode->add(get_string('checkpermissions', 'role'), $url, self::TYPE_SETTING, null, 'checkpermissions', new pix_icon('i/checkpermissions', ''));
         }
 
         // Cohorts
-        if (has_any_capability(array('moodle/cohort:view', 'moodle/cohort:manage'), $this->context)) {
-            $categorynode->add(get_string('cohorts', 'cohort'), new moodle_url('/cohort/index.php', array('contextid' => $this->context->id)), self::TYPE_SETTING, null, 'cohort', new pix_icon('i/cohort', ''));
+        if (has_any_capability(array('moodle/cohort:view', 'moodle/cohort:manage'), $catcontext)) {
+            $categorynode->add(get_string('cohorts', 'cohort'), new moodle_url('/cohort/index.php',
+                array('contextid' => $catcontext->id)), self::TYPE_SETTING, null, 'cohort', new pix_icon('i/cohort', ''));
         }
 
         // Manage filters
-        if (has_capability('moodle/filter:manage', $this->context) && count(filter_get_available_in_context($this->context))>0) {
-            $url = new moodle_url('/filter/manage.php', array('contextid'=>$this->context->id));
+        if (has_capability('moodle/filter:manage', $catcontext) && count(filter_get_available_in_context($catcontext)) > 0) {
+            $url = new moodle_url('/filter/manage.php', array('contextid' => $catcontext->id));
             $categorynode->add(get_string('filters', 'admin'), $url, self::TYPE_SETTING, null, 'filters', new pix_icon('i/filter', ''));
         }
 
         // Restore.
-        if (has_capability('moodle/course:create', $this->context)) {
-            $url = new moodle_url('/backup/restorefile.php', array('contextid' => $this->context->id));
+        if (has_capability('moodle/course:create', $catcontext)) {
+            $url = new moodle_url('/backup/restorefile.php', array('contextid' => $catcontext->id));
             $categorynode->add(get_string('restorecourse', 'admin'), $url, self::TYPE_SETTING, null, 'restorecourse', new pix_icon('i/restore', ''));
         }
 

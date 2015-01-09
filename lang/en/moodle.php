@@ -1,5 +1,4 @@
 <?php
-
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -18,7 +17,7 @@
 /**
  * Strings for component 'moodle', language 'en', branch 'MOODLE_20_STABLE'
  *
- * @package   moodle
+ * @package   core
  * @copyright 1999 onwards Martin Dougiamas  {@link http://moodle.com}
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -262,8 +261,9 @@ $string['collapseall'] = 'Collapse all';
 $string['collapsecategory'] = 'Collapse {$a}';
 $string['commentincontext'] = 'Find this comment in context';
 $string['comments'] = 'Comments';
+$string['commentscount'] = 'Comments ({$a})';
 $string['commentsnotenabled'] = 'Comments feature is not enabled';
-$string['commentsrequirelogin'] = 'You need to login to view the comments';
+$string['commentsrequirelogin'] = 'You need to log in to view the comments.';
 $string['comparelanguage'] = 'Compare and edit current language';
 $string['complete'] = 'Complete';
 $string['completereport'] = 'Complete report';
@@ -373,6 +373,7 @@ $string['courserequestintro'] = 'Use this form to request a course to be created
 $string['courserequestreason'] = 'Reasons for wanting this course';
 $string['courserequestsuccess'] = 'Your course request has been saved successfully. You will be sent an email to inform you whether your request was approved.';
 $string['courserequestsupport'] = 'Supporting information to help the administrator evaluate this request';
+$string['courserequestwarning'] = 'The user requesting this course will be automatically enrolled using the "{$a}" role';
 $string['courserestore'] = 'Course restore';
 $string['courses'] = 'Courses';
 $string['coursesectionsummaries'] = 'Course section summaries';
@@ -1566,6 +1567,7 @@ $string['saveandnext'] = 'Save and show next';
 $string['savedat'] = 'Saved at:';
 $string['savechanges'] = 'Save changes';
 $string['savechangesanddisplay'] = 'Save and display';
+$string['savechangesandreturn'] = 'Save and return';
 $string['savechangesandreturntocourse'] = 'Save and return to course';
 $string['savecomment'] = 'Save comment';
 $string['savepreferences'] = 'Save preferences';

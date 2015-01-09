@@ -51,15 +51,13 @@ function lesson_add_instance($data, $mform) {
     $lessonid = $DB->insert_record("lesson", $data);
     $data->id = $lessonid;
 
-    $lesson = $DB->get_record('lesson', array('id'=>$lessonid), '*', MUST_EXIST);
-
     lesson_update_media_file($lessonid, $context, $draftitemid);
 
     lesson_process_post_save($data);
 
     lesson_grade_item_update($data);
 
-    return $lesson->id;
+    return $lessonid;
 }
 
 /**
@@ -430,11 +428,11 @@ function lesson_grade_item_update($lesson, $grades=null) {
         $params = array('itemname'=>$lesson->name);
     }
 
-    if ($lesson->grade > 0) {
+    if (!$lesson->practice and $lesson->grade > 0) {
         $params['gradetype']  = GRADE_TYPE_VALUE;
         $params['grademax']   = $lesson->grade;
         $params['grademin']   = 0;
-    } else if ($lesson->grade < 0) {
+    } else if (!$lesson->practice and $lesson->grade < 0) {
         $params['gradetype']  = GRADE_TYPE_SCALE;
         $params['scaleid']   = -$lesson->grade;
 
@@ -750,6 +748,8 @@ function lesson_supports($feature) {
             return true;
         case FEATURE_GRADE_HAS_GRADE:
             return true;
+        case FEATURE_COMPLETION_HAS_RULES:
+            return true;
         case FEATURE_GRADE_OUTCOMES:
             return true;
         case FEATURE_BACKUP_MOODLE2:
@@ -761,6 +761,32 @@ function lesson_supports($feature) {
     }
 }
 
+/**
+ * Obtains the automatic completion state for this lesson based on any conditions
+ * in lesson settings.
+ *
+ * @param object $course Course
+ * @param object $cm course-module
+ * @param int $userid User ID
+ * @param bool $type Type of comparison (or/and; can be used as return value if no conditions)
+ * @return bool True if completed, false if not, $type if conditions not set.
+ */
+function lesson_get_completion_state($course, $cm, $userid, $type) {
+    global $CFG, $DB;
+
+    // Get lesson details.
+    $lesson = $DB->get_record('lesson', array('id' => $cm->instance), '*',
+            MUST_EXIST);
+
+    // If completion option is enabled, evaluate it and return true/false.
+    if ($lesson->completionendreached) {
+        return $DB->record_exists('lesson_timer', array(
+                'lessonid' => $lesson->id, 'userid' => $userid, 'completed' => 1));
+    } else {
+        // Completion option is not enabled so just return $type.
+        return $type;
+    }
+}
 /**
  * This function extends the settings navigation block for the site.
  *
