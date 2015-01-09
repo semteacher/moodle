@@ -4283,6 +4283,9 @@ function delete_user(stdClass $user) {
     // Purge user extra profile info.
     $DB->delete_records('user_info_data', array('userid' => $user->id));
 
+    // Purge log of previous password hashes.
+    $DB->delete_records('user_password_history', array('userid' => $user->id));
+
     // Last course access not necessary either.
     $DB->delete_records('user_lastaccess', array('userid' => $user->id));
     // Remove all user tokens.
@@ -5797,21 +5800,20 @@ function email_to_user($user, $from, $subject, $messagetext, $messagehtml = '', 
 
     if (!validate_email($user->email)) {
         // We can not send emails to invalid addresses - it might create security issue or confuse the mailer.
-        $invalidemail = "User $user->id (".fullname($user).") email ($user->email) is invalid! Not sending.";
-        error_log($invalidemail);
-        if (CLI_SCRIPT) {
-            mtrace('Error: lib/moodlelib.php email_to_user(): '.$invalidemail);
-        }
+        debugging("email_to_user: User $user->id (".fullname($user).") email ($user->email) is invalid! Not sending.");
         return false;
     }
 
     if (over_bounce_threshold($user)) {
-        $bouncemsg = "User $user->id (".fullname($user).") is over bounce threshold! Not sending.";
-        error_log($bouncemsg);
-        if (CLI_SCRIPT) {
-            mtrace('Error: lib/moodlelib.php email_to_user(): '.$bouncemsg);
-        }
+        debugging("email_to_user: User $user->id (".fullname($user).") is over bounce threshold! Not sending.");
         return false;
+    }
+
+    // TLD .invalid  is specifically reserved for invalid domain names.
+    // For More information, see {@link http://tools.ietf.org/html/rfc2606#section-2}.
+    if (substr($user->email, -8) == '.invalid') {
+        debugging("email_to_user: User $user->id (".fullname($user).") email domain ($user->email) is invalid! Not sending.");
+        return true; // This is not an error.
     }
 
     // If the user is a remote mnet user, parse the email text for URL to the
@@ -8650,8 +8652,23 @@ function getremoteaddr($default='0.0.0.0') {
     }
     if (!($variablestoskip & GETREMOTEADDR_SKIP_HTTP_X_FORWARDED_FOR)) {
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $hdr = explode(",", $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $address = cleanremoteaddr($hdr[0]);
+            $forwardedaddresses = explode(",", $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $address = $forwardedaddresses[0];
+
+            if (substr_count($address, ":") > 1) {
+                // Remove port and brackets from IPv6.
+                if (preg_match("/\[(.*)\]:/", $address, $matches)) {
+                    $address = $matches[1];
+                }
+            } else {
+                // Remove port from IPv4.
+                if (substr_count($address, ":") == 1) {
+                    $parts = explode(":", $address);
+                    $address = $parts[0];
+                }
+            }
+
+            $address = cleanremoteaddr($address);
             return $address ? $address : $default;
         }
     }

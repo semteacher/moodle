@@ -4,7 +4,6 @@
 
     require_once('../config.php');
     require_once('lib.php');
-    require_once($CFG->libdir.'/conditionlib.php');
     require_once($CFG->libdir.'/completionlib.php');
 
     $id          = optional_param('id', 0, PARAM_INT);
@@ -288,7 +287,7 @@
     // anything after that point.
     $eventdata = array('context' => context_course::instance($course->id));
     if (!empty($section) && (int)$section == $section) {
-        $eventdata['other'] = array('coursesectionid' => $section);
+        $eventdata['other'] = array('coursesectionnumber' => $section);
     }
     $event = \core\event\course_viewed::create($eventdata);
     $event->trigger();

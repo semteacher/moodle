@@ -60,7 +60,7 @@ class manager {
     const MESSAGE_DELETED = '\deleted';
 
     /**
-     * @var Horde_Imap_Client_Socket A reference to the IMAP client.
+     * @var \Horde_Imap_Client_Socket A reference to the IMAP client.
      */
     protected $client = null;
 
@@ -70,7 +70,7 @@ class manager {
     protected $addressmanager = null;
 
     /**
-     * @var stdClass The data for the current message being processed.
+     * @var \stdClass The data for the current message being processed.
      */
     protected $currentmessagedata = null;
 
@@ -126,6 +126,7 @@ class manager {
      * Get the current mailbox information.
      *
      * @return \Horde_Imap_Client_Mailbox
+     * @throws \core\message\inbound\processing_failed_exception if the mailbox could not be opened.
      */
     protected function get_mailbox() {
         // Get the current mailbox.
@@ -140,6 +141,8 @@ class manager {
 
     /**
      * Execute the main Inbound Message pickup task.
+     *
+     * @return bool
      */
     public function pickup_messages() {
         if (!$this->get_imap_client()) {
@@ -176,8 +179,9 @@ class manager {
     /**
      * Process a message received and validated by the Inbound Message processor.
      *
-     * @param stdClass $maildata The data retrieved from the database for the current record.
+     * @param \stdClass $maildata The data retrieved from the database for the current record.
      * @return bool Whether the message was successfully processed.
+     * @throws \core\message\inbound\processing_failed_exception if the message cannot be found.
      */
     public function process_existing_message(\stdClass $maildata) {
         // Grab the new IMAP client.
@@ -273,9 +277,9 @@ class manager {
     /**
      * Process a message and pass it through the Inbound Message handling systems.
      *
-     * @param Horde_Imap_Client_Data_Fetch $message The message to process
+     * @param \Horde_Imap_Client_Data_Fetch $message The message to process
      * @param bool $viewreadmessages Whether to also look at messages which have been marked as read
-     * @param bool $skipsenderverification Whether to skip the sender verificiation stage
+     * @param bool $skipsenderverification Whether to skip the sender verification stage
      */
     public function process_message(
             \Horde_Imap_Client_Data_Fetch $message,
@@ -290,6 +294,11 @@ class manager {
 
         // First flag this message to prevent another running hitting this message while we look at the headers.
         $this->add_flag_to_message($messageid, self::MESSAGE_FLAGGED);
+
+        if ($this->is_bulk_message($message, $messageid)) {
+            mtrace("- The message has a bulk header set. This is likely an auto-generated reply - discarding.");
+            return;
+        }
 
         // Record the user that this script is currently being run as.  This is important when re-processing existing
         // messages, as cron_setup_user is called multiple times.
@@ -363,7 +372,10 @@ class manager {
 
             // Process and retrieve the message data for this message.
             // This includes fetching the full content, as well as all headers, and attachments.
-            $this->process_message_data($envelope, $messagedata, $messageid);
+            if (!$this->process_message_data($envelope, $messagedata, $messageid)) {
+                mtrace("--- Message could not be found on the server. Is another process removing messages?");
+                return;
+            }
 
             // When processing validation replies, we need to skip the sender verification phase as this has been
             // manually completed.
@@ -403,7 +415,7 @@ class manager {
                 mtrace("-- Returning to the original user.");
                 cron_setup_user($originaluser);
                 return;
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 // An unknown error occurred. The user is not informed, but the administrator is.
                 mtrace("-- Message processing failed. An unexpected exception was thrown. Details follow.");
                 mtrace($e->getMessage());
@@ -437,9 +449,9 @@ class manager {
     /**
      * Process a message to retrieve it's header data without body and attachemnts.
      *
-     * @param Horde_Imap_Client_Data_Envelope $envelope The Envelope of the message
-     * @param Horde_Imap_Client_Data_Fetch $messagedata The structure and part of the message body
-     * @param string|Horde_Imap_Client_Ids $messageid The Hore message Uid
+     * @param \Horde_Imap_Client_Data_Envelope $envelope The Envelope of the message
+     * @param \Horde_Imap_Client_Data_Fetch $basemessagedata The structure and part of the message body
+     * @param string|\Horde_Imap_Client_Ids $messageid The Hore message Uid
      * @return \stdClass The current value of the messagedata
      */
     private function process_message_data(
@@ -457,36 +469,25 @@ class manager {
         $query = new \Horde_Imap_Client_Fetch_Query();
         $query->imapDate();
 
-        // Fetch all of the message parts too.
-        $typemap = $structure->contentTypeMap();
-        foreach ($typemap as $part => $type) {
-            // The header.
-            $query->headerText(array(
-                'id' => $part,
-            ));
-        }
+        // Fetch the message header.
+        $query->headerText();
 
+        // Retrieve the message with the above components.
         $messagedata = $this->client->fetch($mailbox, $query, array('ids' => $messageid))->first();
 
-        // Store the data for this message.
-        $headers = '';
-
-        foreach ($typemap as $part => $type) {
-            // Grab all of the header data into a string.
-            $headers .= $messagedata->getHeaderText($part);
-
-            // We don't handle any of the other MIME content at this stage.
+        if (!$messagedata) {
+            // Message was not found! Somehow it has been removed or is no longer returned.
+            return null;
         }
 
-        $data = new \stdClass();
-
         // The message ID should always be in the first part.
+        $data = new \stdClass();
         $data->messageid = $messagedata->getHeaderText(0, \Horde_Imap_Client_Data_Fetch::HEADER_PARSE)->getValue('Message-ID');
         $data->subject = $envelope->subject;
         $data->timestamp = $messagedata->getImapDate()->__toString();
         $data->envelope = $envelope;
         $data->data = $this->addressmanager->get_data();
-        $data->headers = $headers;
+        $data->headers = $messagedata->getHeaderText();
 
         $this->currentmessagedata = $data;
 
@@ -496,9 +497,8 @@ class manager {
     /**
      * Process a message again to add body and attachment data.
      *
-     * @param Horde_Imap_Client_Data_Envelope $envelope The Envelope of the message
-     * @param Horde_Imap_Client_Data_Fetch $basemessagedata The structure and part of the message body
-     * @param string|Horde_Imap_Client_Ids $messageid The Hore message Uid
+     * @param \Horde_Imap_Client_Data_Fetch $basemessagedata The structure and part of the message body
+     * @param string|\Horde_Imap_Client_Ids $messageid The Hore message Uid
      * @return \stdClass The current value of the messagedata
      */
     private function process_message_data_body(
@@ -578,9 +578,9 @@ class manager {
     /**
      * Process the messagedata and part data to extract the content of this part.
      *
-     * @param $messagedata The structure and part of the message body
-     * @param $partdata The part data
-     * @param $part The part ID
+     * @param \Horde_Imap_Client_Data_Fetch $messagedata The structure and part of the message body
+     * @param \Horde_Mime_Part $partdata The part data
+     * @param string $part The part ID
      * @return string
      */
     private function process_message_part_body($messagedata, $partdata, $part) {
@@ -608,13 +608,18 @@ class manager {
     /**
      * Process a message again to add body and attachment data.
      *
-     * @param $messagedata The structure and part of the message body
-     * @param $partdata The part data
-     * @param $filename The filename of the attachment
+     * @param \Horde_Imap_Client_Data_Fetch $messagedata The structure and part of the message body
+     * @param \Horde_Mime_Part $partdata The part data
+     * @param string $part The part ID.
+     * @param string $filename The filename of the attachment
      * @return \stdClass
+     * @throws \core\message\inbound\processing_failed_exception If the attachment can't be saved to disk.
      */
     private function process_message_part_attachment($messagedata, $partdata, $part, $filename) {
         global $CFG;
+
+        // For Antivirus, the repository/lib.php must be included as it is not autoloaded.
+        require_once($CFG->dirroot . '/repository/lib.php');
 
         // If a filename is present, assume that this part is an attachment.
         $attachment = new \stdClass();
@@ -647,7 +652,7 @@ class manager {
             // Perform a virus scan now.
             try {
                 \repository::antivir_scan_file($filepath, $attachment->filename, true);
-            } catch (moodle_exception $e) {
+            } catch (\moodle_exception $e) {
                 mtrace("--> A virus was found in the attachment '{$attachment->filename}'.");
                 $this->inform_attachment_virus();
                 return;
@@ -660,8 +665,8 @@ class manager {
     /**
      * Check whether the key provided is valid.
      *
-     * @param $status The Message to process
-     * @param $messageid The Hore message Uid
+     * @param bool $status
+     * @param mixed $messageid The Hore message Uid
      * @return bool
      */
     private function passes_key_validation($status, $messageid) {
@@ -682,7 +687,7 @@ class manager {
     /**
      * Add the specified flag to the message.
      *
-     * @param $messageid
+     * @param mixed $messageid
      * @param string $flag The flag to add
      */
     private function add_flag_to_message($messageid, $flag) {
@@ -699,7 +704,7 @@ class manager {
     /**
      * Remove the specified flag from the message.
      *
-     * @param $messageid
+     * @param mixed $messageid
      * @param string $flag The flag to remove
      */
     private function remove_flag_from_message($messageid, $flag) {
@@ -716,7 +721,7 @@ class manager {
     /**
      * Check whether the message has the specified flag
      *
-     * @param $messageid
+     * @param mixed $messageid
      * @param string $flag The flag to check
      * @return bool
      */
@@ -737,8 +742,47 @@ class manager {
     }
 
     /**
+     * Attempt to determine whether this message is a bulk message (e.g. automated reply).
+     *
+     * @param \Horde_Imap_Client_Data_Fetch $message The message to process
+     * @param string|\Horde_Imap_Client_Ids $messageid The Hore message Uid
+     * @return boolean
+     */
+    private function is_bulk_message(
+            \Horde_Imap_Client_Data_Fetch $message,
+            $messageid) {
+        $query = new \Horde_Imap_Client_Fetch_Query();
+        $query->headerText(array('peek' => true));
+
+        $messagedata = $this->client->fetch($this->get_mailbox(), $query, array('ids' => $messageid))->first();
+
+        // Assume that this message is not bulk to begin with.
+        $isbulk = false;
+
+        // An auto-reply may itself include the Bulk Precedence.
+        $precedence = $messagedata->getHeaderText(0, \Horde_Imap_Client_Data_Fetch::HEADER_PARSE)->getValue('Precedence');
+        $isbulk = $isbulk || strtolower($precedence) == 'bulk';
+
+        // If the X-Autoreply header is set, and not 'no', then this is an automatic reply.
+        $autoreply = $messagedata->getHeaderText(0, \Horde_Imap_Client_Data_Fetch::HEADER_PARSE)->getValue('X-Autoreply');
+        $isbulk = $isbulk || ($autoreply && $autoreply != 'no');
+
+        // If the X-Autorespond header is set, and not 'no', then this is an automatic response.
+        $autorespond = $messagedata->getHeaderText(0, \Horde_Imap_Client_Data_Fetch::HEADER_PARSE)->getValue('X-Autorespond');
+        $isbulk = $isbulk || ($autorespond && $autorespond != 'no');
+
+        // If the Auto-Submitted header is set, and not 'no', then this is a non-human response.
+        $autosubmitted = $messagedata->getHeaderText(0, \Horde_Imap_Client_Data_Fetch::HEADER_PARSE)->getValue('Auto-Submitted');
+        $isbulk = $isbulk || ($autosubmitted && $autosubmitted != 'no');
+
+        return $isbulk;
+    }
+
+    /**
      * Send the message to the appropriate handler.
      *
+     * @return bool
+     * @throws \core\message\inbound\processing_failed_exception if anything goes wrong.
      */
     private function send_to_handler() {
         try {
@@ -758,7 +802,7 @@ class manager {
             $error->message     = $e->getMessage();
             throw new \core\message\inbound\processing_failed_exception('messageprocessingfailed', 'tool_messageinbound', $error);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             mtrace("-> The Inbound Message handler threw an exception. Unable to process this message. User informed.");
             mtrace("--> " . $e->getMessage());
             // An unknown error occurred. Still inform the user but, this time do not include the specific
@@ -785,7 +829,9 @@ class manager {
      * stored. The message includes a verification link and reply-to address which is handled by the
      * invalid_recipient_handler.
      *
-     * @param $recipient The message recipient
+     * @param \Horde_Imap_Client_Ids $messageids
+     * @param string $recipient The message recipient
+     * @return bool
      */
     private function handle_verification_failure(
             \Horde_Imap_Client_Ids $messageids,
@@ -889,8 +935,9 @@ class manager {
     /**
      * Inform the identified sender that message processing was successful.
      *
-     * @param stdClass $messagedata The data for the current message being processed.
+     * @param \stdClass $messagedata The data for the current message being processed.
      * @param mixed $handlerresult The result returned by the handler.
+     * @return bool
      */
     private function inform_user_of_success(\stdClass $messagedata, $handlerresult) {
         global $USER;
@@ -948,7 +995,7 @@ class manager {
     /**
      * Return a formatted subject line for replies.
      *
-     * @param $subject string The subject string
+     * @param string $subject The subject string
      * @return string The formatted reply subject
      */
     private function get_reply_subject($subject) {
