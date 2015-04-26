@@ -2442,7 +2442,7 @@ class assign {
         $params = array('overflowdiv' => true, 'context' => $this->get_context());
         $result .= format_text($finaltext, $format, $params);
 
-        if ($CFG->enableportfolios) {
+        if ($CFG->enableportfolios && has_capability('mod/assign:exportownsubmission', $this->context)) {
             require_once($CFG->libdir . '/portfoliolib.php');
 
             $button = new portfolio_add_button();
@@ -3243,7 +3243,8 @@ class assign {
         // Get markers to use in drop lists.
         $markingallocationoptions = array();
         if ($markingallocation) {
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade');
+            list($sort, $params) = users_order_by_sql();
+            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
             $markingallocationoptions[''] = get_string('filternone', 'assign');
             $markingallocationoptions[ASSIGN_MARKER_FILTER_NO_MARKER] = get_string('markerfilternomarker', 'assign');
             foreach ($markers as $marker) {
@@ -3781,7 +3782,8 @@ class assign {
             'usershtml' => $usershtml,
         );
 
-        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade');
+        list($sort, $params) = users_order_by_sql();
+        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade', '', $sort);
         $markerlist = array();
         foreach ($markers as $marker) {
             $markerlist[$marker->id] = fullname($marker);
@@ -4328,6 +4330,7 @@ class assign {
                 $this->get_grading_status($grade->userid) != ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
             // Remove the grade (if it exists) from the gradebook as it is not 'final'.
             $grade->grade = -1;
+            $grade->feedbacktext = '';
         }
 
         if ($submission != null) {
@@ -5396,7 +5399,10 @@ class assign {
                 $flags->allocatedmarker = $modified->allocatedmarker;
             }
             if ($workflowstatemodified || $allocatedmarkermodified) {
-                $this->update_user_flags($flags);
+                if ($this->update_user_flags($flags) && $workflowstatemodified) {
+                    $user = $DB->get_record('user', array('id' => $userid), '*', MUST_EXIST);
+                    \mod_assign\event\workflow_state_updated::create_from_user($this, $user, $flags->workflowstate)->trigger();
+                }
             }
             $this->update_grade($grade);
 
@@ -5528,7 +5534,8 @@ class assign {
         if ($markingallocation) {
             $markingallocationoptions[''] = get_string('filternone', 'assign');
             $markingallocationoptions[ASSIGN_MARKER_FILTER_NO_MARKER] = get_string('markerfilternomarker', 'assign');
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade');
+            list($sort, $params) = users_order_by_sql();
+            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
             foreach ($markers as $marker) {
                 $markingallocationoptions[$marker->id] = fullname($marker);
             }
@@ -6105,7 +6112,8 @@ class assign {
             $this->get_instance()->markingallocation &&
             has_capability('mod/assign:manageallocations', $this->context)) {
 
-            $markers = get_users_by_capability($this->context, 'mod/assign:grade');
+            list($sort, $params) = users_order_by_sql();
+            $markers = get_users_by_capability($this->context, 'mod/assign:grade', '', $sort);
             $markerlist = array('' =>  get_string('choosemarker', 'assign'));
             foreach ($markers as $marker) {
                 $markerlist[$marker->id] = fullname($marker);
@@ -6509,7 +6517,8 @@ class assign {
             'usershtml' => ''   // initialise these parameters with real information.
         );
 
-        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade');
+        list($sort, $params) = users_order_by_sql();
+        $markers = get_users_by_capability($this->get_context(), 'mod/assign:grade', '', $sort);
         $markerlist = array();
         foreach ($markers as $marker) {
             $markerlist[$marker->id] = fullname($marker);
@@ -6641,9 +6650,15 @@ class assign {
             }
             if (isset($formdata->workflowstate) || isset($formdata->allocatedmarker)) {
                 $flags = $this->get_user_flags($userid, true);
+                $oldworkflowstate = $flags->workflowstate;
                 $flags->workflowstate = isset($formdata->workflowstate) ? $formdata->workflowstate : $flags->workflowstate;
                 $flags->allocatedmarker = isset($formdata->allocatedmarker) ? $formdata->allocatedmarker : $flags->allocatedmarker;
-                $this->update_user_flags($flags);
+                if ($this->update_user_flags($flags) &&
+                        isset($formdata->workflowstate) &&
+                        $formdata->workflowstate !== $oldworkflowstate) {
+                    $user = $DB->get_record('user', array('id' => $userid), '*', MUST_EXIST);
+                    \mod_assign\event\workflow_state_updated::create_from_user($this, $user, $formdata->workflowstate)->trigger();
+                }
             }
         }
         $grade->grader= $USER->id;
@@ -7085,16 +7100,19 @@ class assign {
                                                 $where, $params);
 
         foreach ($graderesults as $result) {
-            $gradebookgrade = clone $result;
-            // Now get the feedback.
-            if ($gradebookplugin) {
-                $grade = $this->get_user_grade($result->userid, false);
-                if ($grade) {
-                    $gradebookgrade->feedbacktext = $gradebookplugin->text_for_gradebook($grade);
-                    $gradebookgrade->feedbackformat = $gradebookplugin->format_for_gradebook($grade);
+            $gradingstatus = $this->get_grading_status($result->userid);
+            if (!$this->get_instance()->markingworkflow || $gradingstatus == ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
+                $gradebookgrade = clone $result;
+                // Now get the feedback.
+                if ($gradebookplugin) {
+                    $grade = $this->get_user_grade($result->userid, false);
+                    if ($grade) {
+                        $gradebookgrade->feedback = $gradebookplugin->text_for_gradebook($grade);
+                        $gradebookgrade->feedbackformat = $gradebookplugin->format_for_gradebook($grade);
+                    }
                 }
+                $grades[$gradebookgrade->userid] = $gradebookgrade;
             }
-            $grades[$gradebookgrade->userid] = $gradebookgrade;
         }
 
         $graderesults->close();
