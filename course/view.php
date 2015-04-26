@@ -19,6 +19,7 @@
     $switchrole  = optional_param('switchrole',-1, PARAM_INT); // Deprecated, use course/switchrole.php instead.
     $modchooser  = optional_param('modchooser', -1, PARAM_BOOL);
     $return      = optional_param('return', 0, PARAM_LOCALURL);
+    $returnurl   = optional_param('returnurl', 0, PARAM_LOCALURL);
 
     $params = array();
     if (!empty($name)) {
@@ -41,6 +42,9 @@
     }
     if ($section) {
         $urlparams['section'] = $section;
+    }
+    if ($returnurl) {
+        $urlparams['returnurl'] = $returnurl;
     }
 
     $PAGE->set_url('/course/view.php', $urlparams); // Defined here to avoid notices on errors etc
@@ -285,12 +289,7 @@
     // Trigger course viewed event.
     // We don't trust $context here. Course format inclusion above executes in the global space. We can't assume
     // anything after that point.
-    $eventdata = array('context' => context_course::instance($course->id));
-    if (!empty($section) && (int)$section == $section) {
-        $eventdata['other'] = array('coursesectionnumber' => $section);
-    }
-    $event = \core\event\course_viewed::create($eventdata);
-    $event->trigger();
+    course_view(context_course::instance($course->id), $section);
 
     // Include course AJAX
     include_course_ajax($course, $modnamesused);

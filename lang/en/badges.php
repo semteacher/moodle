@@ -94,6 +94,7 @@ $string['backpackimport'] = 'Badge import settings';
 $string['backpackimport_help'] = 'After backpack connection is successfully established, badges from your backpack can be displayed on your "My Badges" page and your profile page.
 
 In this area, you can select collections of badges from your backpack that you would like to display in your profile.';
+$string['badges'] = 'Badges';
 $string['badgedetails'] = 'Badge details';
 $string['badgeimage'] = 'Image';
 $string['badgeimage_help'] = 'This is an image that will be used when this badge is issued.
@@ -218,6 +219,7 @@ $string['error:backpackproblem'] = 'There was a problem connecting to your backp
 $string['error:badjson'] = 'The connection attempt returned invalid data.';
 $string['error:cannotact'] = 'Cannot activate the badge. ';
 $string['error:cannotawardbadge'] = 'Cannot award badge to a user.';
+$string['error:cannotdeletecriterion'] = 'This criterion cannot be deleted. ';
 $string['error:connectionunknownreason'] = 'The connection was unsuccessful but no reason was given.';
 $string['error:clone'] = 'Cannot clone the badge.';
 $string['error:duplicatename'] = 'Badge with such name already exists in the system.';
@@ -246,6 +248,7 @@ $string['error:requesttimeout'] = 'The connection request timed out before it co
 $string['error:requesterror'] = 'The connection request failed (error code {$a}).';
 $string['error:save'] = 'Cannot save the badge.';
 $string['error:userdeleted'] = '{$a->user} (This user no longer exists in {$a->site})';
+$string['eventbadgeawarded'] = 'Badge awarded';
 $string['evidence'] = 'Evidence';
 $string['existingrecipients'] = 'Existing badge recipients';
 $string['expired'] = 'Expired';
@@ -328,6 +331,7 @@ $string['numawards'] = 'This badge has been issued to <a href="{$a->link}">{$a->
 $string['numawardstat'] = 'This badge has been issued {$a} user(s).';
 $string['overallcrit'] = 'of the selected criteria are complete.';
 $string['potentialrecipients'] = 'Potential badge recipients';
+$string['preferences'] = 'Badge preferences';
 $string['recipients'] = 'Badge recipients';
 $string['recipientdetails'] = 'Recipient details';
 $string['recipientidentificationproblem'] = 'Cannot find a recipient of this badge among the existing users.';
