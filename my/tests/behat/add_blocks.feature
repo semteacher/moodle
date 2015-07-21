@@ -7,8 +7,8 @@ Feature: Add blocks to dashboard page
   Background:
     Given the following "users" exist:
       | username | firstname | lastname | email |
-      | student1 | Student | 1 | student1@asd.com |
-      | student2 | Student | 2 | student2@asd.com |
+      | student1 | Student | 1 | student1@example.com |
+      | student2 | Student | 2 | student2@example.com |
     And the following "courses" exist:
       | fullname | shortname | format |
       | Course 1 | C1 | topics |
@@ -23,6 +23,6 @@ Feature: Add blocks to dashboard page
     When I press "Customise this page"
     And I add the "Latest news" block
     Then I should see "Latest news" in the "Latest news" "block"
-    And I should see "My latest badges" in the "My latest badges" "block"
+    And I should see "Latest badges" in the "Latest badges" "block"
     And I should see "Calendar" in the "Calendar" "block"
     And I should see "Upcoming events" in the "Upcoming events" "block"

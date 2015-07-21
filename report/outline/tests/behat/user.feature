@@ -10,8 +10,8 @@ Feature: View the user page for the outline report
       | Course 1 | C1 | topics | 1 |
     And the following "users" exist:
       | username | firstname | lastname | email |
-      | teacher1 | Teacher | 1 | teacher1@asd.com
-      | student1 | Student | 1 | student1@asd.com |
+      | teacher1 | Teacher | 1 | teacher1@example.com
+      | student1 | Student | 1 | student1@example.com |
     And the following "course enrolments" exist:
       | user | course | role |
       | teacher1 | C1 | editingteacher |
@@ -49,13 +49,13 @@ Feature: View the user page for the outline report
     And I follow "URL name"
     And I follow "URL name"
     And I click on "Student 1" "link"
-    And I follow "My profile" in the open menu
+    And I follow "Profile" in the open menu
     And I follow "Course 1"
     When I follow "Outline report"
     Then I should see "4 views" in the "Folder name" "table_row"
     And I should see "3 views" in the "URL name" "table_row"
     And I click on "Student 1" "link"
-    And I follow "My profile" in the open menu
+    And I follow "Profile" in the open menu
     And I follow "Course 1"
     When I follow "Complete report"
     And I should see "4 views"
@@ -79,12 +79,12 @@ Feature: View the user page for the outline report
     And I follow "URL name"
     And I follow "URL name"
     And I follow "URL name"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     When I follow "Outline report"
     Then I should see "4 views" in the "Folder name" "table_row"
     And I should see "3 views" in the "URL name" "table_row"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     When I follow "Complete report"
     And I should see "4 views"
@@ -110,12 +110,12 @@ Feature: View the user page for the outline report
     And I follow "URL name"
     And I follow "URL name"
     And I follow "URL name"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     When I follow "Outline report"
     Then I should see "4 views" in the "Folder name" "table_row"
     And I should see "3 views" in the "URL name" "table_row"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     When I follow "Complete report"
     And I should see "4 views"

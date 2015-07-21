@@ -7,8 +7,8 @@ Feature: Practice mode in a lesson activity
     Background:
         Given the following "users" exist:
             | username | firstname | lastname | email |
-            | teacher1 | Teacher | 1 | teacher1@asd.com |
-            | student1 | Student | 1 | student1@asd.com |
+            | teacher1 | Teacher | 1 | teacher1@example.com |
+            | student1 | Student | 1 | student1@example.com |
         And the following "courses" exist:
             | fullname | shortname | category |
             | Course 1 | C1 | 0 |
@@ -51,7 +51,7 @@ Feature: Practice mode in a lesson activity
             | True | 1 |
         And I press "Submit"
         Then I should see "View grades"
-        And I follow "My grades" in the user menu
+        And I follow "Grades" in the user menu
         And I follow "Course 1"
         And I should see "Non-practice lesson"
 
@@ -72,7 +72,7 @@ Feature: Practice mode in a lesson activity
             | True | 1 |
         And I press "Submit"
         Then I should not see "View grades"
-        And I follow "My grades" in the user menu
+        And I follow "Grades" in the user menu
         And I follow "Course 1"
         And I should not see "Practice lesson"
 
@@ -94,6 +94,6 @@ Feature: Practice mode in a lesson activity
             | True | 1 |
         And I press "Submit"
         Then I should not see "View grades"
-        And I follow "My grades" in the user menu
+        And I follow "Grades" in the user menu
         And I follow "Course 1"
         And I should not see "Practice lesson with scale"

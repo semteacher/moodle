@@ -7,8 +7,8 @@ Feature: Browse course list and return back from enrolment page
   Background:
     Given the following "users" exist:
       | username | firstname | lastname | email |
-      | user1 | User | 1 | user1@asd.com |
-      | user2 | User | 2 | user2@asd.com |
+      | user1 | User | 1 | user1@example.com |
+      | user2 | User | 2 | user2@example.com |
     And the following "categories" exist:
       | name | category | idnumber |
       | Sample category | 0 | CAT1 |
@@ -34,7 +34,7 @@ Feature: Browse course list and return back from enrolment page
   @javascript
   Scenario: A user can return to the previous page from enrolment page by clicking navigation links
     When I log in as "user2"
-    And I follow "My preferences" in the user menu
+    And I follow "Preferences" in the user menu
     And I follow "Edit profile"
     And I expand "Courses" node
     And I expand "Sample category" node

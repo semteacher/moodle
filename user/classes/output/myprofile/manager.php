@@ -48,14 +48,9 @@ class manager {
         $tree = new tree();
 
         // Add core nodes.
-        $file = $CFG->libdir . "/myprofilelib.php";
-        if (is_readable($file)) {
-            require_once($file);
-            $function = "core_myprofile_navigation";
-            if (function_exists($function)) {
-                $function($tree, $user, $iscurrentuser, $course);
-            }
-        }
+
+        require_once($CFG->libdir . "/myprofilelib.php");
+        core_myprofile_navigation($tree, $user, $iscurrentuser, $course);
 
         // Core components.
         $components = \core_component::get_core_subsystems();

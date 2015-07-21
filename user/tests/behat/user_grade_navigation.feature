@@ -1,5 +1,5 @@
 @core @core_user
-Feature: The student can navigate to the My grades page and user grade report.
+Feature: The student can navigate to their grades page and user grade report.
   In order to view my grades and the user grade report
   As a user
   I need to log in and browse to my grades.
@@ -7,10 +7,10 @@ Feature: The student can navigate to the My grades page and user grade report.
   Background:
     Given the following "users" exist:
       | username | firstname | lastname | email |
-      | student1 | Student | 1 | student1@asd.com |
-      | student2 | Student | 2 | student2@asd.com |
-      | teacher1 | Teacher | 1 | teacher1@asd.com |
-      | parent1 | Parent | 1 | parent1@asd.com |
+      | student1 | Student | 1 | student1@example.com |
+      | student2 | Student | 2 | student2@example.com |
+      | teacher1 | Teacher | 1 | teacher1@example.com |
+      | parent1 | Parent | 1 | parent1@example.com |
     And the following "courses" exist:
       | fullname | shortname | format |
       | Course 1 | C1 | topics |
@@ -29,16 +29,16 @@ Feature: The student can navigate to the My grades page and user grade report.
       | assign | C2 | a4 | Test assignment four | Submit something! | 150 |
     And I log in as "teacher1"
     And I follow "Course 1"
-    And I follow "Grades"
+    And I navigate to "Grades" node in "Course administration"
     And I turn editing mode on
     And I give the grade "150.00" to the user "Student 1" for the grade item "Test assignment one"
     And I give the grade "67.00" to the user "Student 1" for the grade item "Test assignment two"
     And I press "Save changes"
     And I log out
 
-  Scenario: Navigation to My grades and the user grade report.
+  Scenario: Navigation to Grades and the user grade report.
     When I log in as "student1"
-    And I follow "My grades"
+    And I follow "Grades"
     Then the following should exist in the "overview-grade" table:
     | Course name | Grade |
     | Course 2 | - |
@@ -50,7 +50,7 @@ Feature: The student can navigate to the My grades page and user grade report.
     | Test assignment two | 25.00 % | 67.00  | 0–100 | 67.00 % | 16.75 % |
     | Test assignment three | 0.00 %( Empty ) | - | 0–150 | - | 0.00 % |
 
-  Scenario: Change My grades settings to go to a custom url.
+  Scenario: Change Grades settings to go to a custom url.
     When I log in as "admin"
     And I set the following administration settings values:
     | grade_mygrades_report | External URL |
@@ -58,7 +58,7 @@ Feature: The student can navigate to the My grades page and user grade report.
     And I log out
     And I log in as "student1"
     And I follow "Student 1"
-    And I follow "My grades"
+    And I follow "Grades"
     Then I should see "My badges from Acceptance test site web site"
 
   @javascript
@@ -81,16 +81,16 @@ Feature: The student can navigate to the My grades page and user grade report.
     And I click on "Create this role" "button"
     And I navigate to "Browse list of users" node in "Site administration > Users > Accounts"
     And I follow "Student 1"
-    And I follow "Student 1's preferences"
+    And I click on "Preferences" "link" in the ".profile_tree" "css_element"
     And I follow "Assign roles relative to this user"
     And I follow "Parent"
-    And I click on "//select[@id='addselect']/descendant::option[contains(., 'Parent 1 (parent1@asd.com)')]" "xpath_element"
+    And I click on "//select[@id='addselect']/descendant::option[contains(., 'Parent 1 (parent1@example.com)')]" "xpath_element"
     And I click on "Add" "button"
     And I log out
     And I log in as "parent1"
     And I am on site homepage
     And I follow "Student 1"
-    And I follow "Grades"
+    And I navigate to "Grades" node in "Users > Student 1"
     Then the following should exist in the "overview-grade" table:
     | Course name | Grade |
     | Course 2 | - |

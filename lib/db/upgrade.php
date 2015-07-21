@@ -4058,6 +4058,15 @@ function xmldb_main_upgrade($oldversion) {
     // Moodle v2.8.0 release upgrade line.
     // Put any upgrade step following this.
 
+    if ($oldversion < 2014111000.00) {
+        // Coming from 2.7 or older, we need to flag the step minmaxgrade to be ignored.
+        set_config('upgrade_minmaxgradestepignored', 1);
+        // Coming from 2.7 or older, we need to flag the step for changing calculated grades to be regraded.
+        set_config('upgrade_calculatedgradeitemsonlyregrade', 1);
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2014111000.00);
+    }
 
     if ($oldversion < 2014120100.00) {
 
@@ -4308,7 +4317,7 @@ function xmldb_main_upgrade($oldversion) {
         // Add "My grades" to the user menu.
         $oldconfig = get_config('core', 'customusermenuitems');
         if (strpos("mygrades,grades|/grade/report/mygrades.php|grades", $oldconfig) === false) {
-            $newconfig = "mygrades,grades|/grade/report/mygrades.php|grades\n" . $CFG->customusermenuitems;
+            $newconfig = "mygrades,grades|/grade/report/mygrades.php|grades\n" . $oldconfig;
             set_config('customusermenuitems', $newconfig);
         }
 
@@ -4337,14 +4346,98 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2015040900.02);
     }
 
-    if ($oldversion < 2015040900.03) {
-        // Change the setting to the new default.
-        $oldconfig = get_config('core', 'defaulthomepage');
-        if ($oldconfig == HOMEPAGE_SITE) {
-            set_config('defaulthomepage', HOMEPAGE_MY);
+    if ($oldversion < 2015050400.00) {
+        $config = get_config('core', 'customusermenuitems');
+
+        // Change "My preferences" in the user menu to "Preferences".
+        $config = str_replace("mypreferences,moodle|/user/preferences.php|preferences",
+            "preferences,moodle|/user/preferences.php|preferences", $config);
+
+        // Change "My grades" in the user menu to "Grades".
+        $config = str_replace("mygrades,grades|/grade/report/mygrades.php|grades",
+            "grades,grades|/grade/report/mygrades.php|grades", $config);
+
+        set_config('customusermenuitems', $config);
+
+        upgrade_main_savepoint(true, 2015050400.00);
+    }
+
+    if ($oldversion < 2015050401.00) {
+        // Make sure we have messages in the user menu because it's no longer in the nav tree.
+        $oldconfig = get_config('core', 'customusermenuitems');
+        $messagesconfig = "messages,message|/message/index.php|message";
+        $preferencesconfig = "preferences,moodle|/user/preferences.php|preferences";
+
+        // See if it exists.
+        if (strpos($oldconfig, $messagesconfig) === false) {
+            // See if preferences exists.
+            if (strpos($oldconfig, "preferences,moodle|/user/preferences.php|preferences") !== false) {
+                // Insert it before preferences.
+                $newconfig = str_replace($preferencesconfig, $messagesconfig . "\n" . $preferencesconfig, $oldconfig);
+            } else {
+                // Custom config - we can only insert it at the end.
+                $newconfig = $oldconfig . "\n" . $messagesconfig;
+            }
+            set_config('customusermenuitems', $newconfig);
         }
 
-        upgrade_main_savepoint(true, 2015040900.03);
+        upgrade_main_savepoint(true, 2015050401.00);
+    }
+
+    // Moodle v2.9.0 release upgrade line.
+    // Put any upgrade step following this.
+
+    if ($oldversion < 2015051100.05) {
+
+        // Sites that were upgrading from 2.7 and older will ignore this step.
+        if (empty($CFG->upgrade_minmaxgradestepignored)) {
+            upgrade_minmaxgrade();
+
+            // Flags this upgrade step as already run to prevent it from running multiple times.
+            set_config('upgrade_minmaxgradestepignored', 1);
+        }
+
+        upgrade_main_savepoint(true, 2015051100.05);
+    }
+
+    if ($oldversion < 2015051100.08) {
+        // MDL-49257. Changed the algorithm of calculating automatic weights of extra credit items.
+
+        // Before the change, in case when grade category (in "Natural" agg. method) had items with
+        // overridden weights, the automatic weight of extra credit items was illogical.
+        // In order to prevent grades changes after the upgrade we need to freeze gradebook calculation
+        // for the affected courses.
+
+        // This script in included in each major version upgrade process so make sure we don't run it twice.
+        if (empty($CFG->upgrade_extracreditweightsstepignored)) {
+            upgrade_extra_credit_weightoverride();
+
+            // To skip running the same script on the upgrade to the next major release.
+            set_config('upgrade_extracreditweightsstepignored', 1);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2015051100.08);
+    }
+
+    if ($oldversion < 2015051100.10) {
+        // MDL-48239. Changed calculated grade items so that the maximum and minimum grade can be set.
+
+        // If the changes are accepted and a regrade is done on the gradebook then some grades may change significantly.
+        // This is here to freeze the gradebook in affected courses.
+
+        // This script is included in each major version upgrade process so make sure we don't run it twice.
+        if (empty($CFG->upgrade_calculatedgradeitemsignored)) {
+            upgrade_calculated_grade_items();
+
+            // To skip running the same script on the upgrade to the next major release.
+            set_config('upgrade_calculatedgradeitemsignored', 1);
+            // This config value is never used again.
+            unset_config('upgrade_calculatedgradeitemsonlyregrade');
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2015051100.10);
     }
 
     return true;
