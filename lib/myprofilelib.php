@@ -43,7 +43,8 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
     $courseid = !empty($course) ? $course->id : SITEID;
 
     $contactcategory = new core_user\output\myprofile\category('contact', get_string('userdetails'));
-    $coursedetailscategory = new core_user\output\myprofile\category('coursedetails', get_string('coursedetails'), 'contact');
+    // No after property specified intentionally. It is a hack to make administration block appear towards the end. Refer MDL-49928.
+    $coursedetailscategory = new core_user\output\myprofile\category('coursedetails', get_string('coursedetails'));
     $miscategory = new core_user\output\myprofile\category('miscellaneous', get_string('miscellaneous'), 'coursedetails');
     $reportcategory = new core_user\output\myprofile\category('reports', get_string('reports'), 'miscellaneous');
     $admincategory = new core_user\output\myprofile\category('administration', get_string('administration'), 'reports');
@@ -73,7 +74,8 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
     if (isloggedin() && !isguestuser($user) && !is_mnet_remote_user($user)) {
         if (($iscurrentuser || is_siteadmin($USER) || !is_siteadmin($user)) && has_capability('moodle/user:update',
                     $systemcontext)) {
-            $url = new moodle_url('/user/editadvanced.php', array('id' => $user->id, 'course' => $courseid));
+            $url = new moodle_url('/user/editadvanced.php', array('id' => $user->id, 'course' => $courseid,
+                'returnto' => 'profile'));
             $node = new core_user\output\myprofile\node('contact', 'editprofile', get_string('editmyprofile'), null, $url);
             $tree->add_node($node);
         } else if ((has_capability('moodle/user:editprofile', $usercontext) && !is_siteadmin($user))
@@ -86,9 +88,10 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
                 $url = $userauthplugin->edit_profile_url();
                 if (empty($url)) {
                     if (empty($course)) {
-                        $url = new moodle_url('/user/edit.php', array('userid' => $user->id));
+                        $url = new moodle_url('/user/edit.php', array('userid' => $user->id, 'returnto' => 'profile'));
                     } else {
-                        $url = new moodle_url('/user/edit.php', array('userid' => $user->id, 'course' => $course->id));
+                        $url = new moodle_url('/user/edit.php', array('userid' => $user->id, 'course' => $course->id,
+                            'returnto' => 'profile'));
                     }
                 }
                 $node = new core_user\output\myprofile\node('contact', 'editprofile',
@@ -99,9 +102,9 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
     }
 
     // Preference page. Only visible by administrators.
-    if (is_siteadmin()) {
+    if (!$iscurrentuser && is_siteadmin()) {
         $url = new moodle_url('/user/preferences.php', array('userid' => $user->id));
-        $title = $iscurrentuser ? get_string('mypreferences') : get_string('userspreferences', 'moodle', fullname($user));
+        $title = get_string('preferences', 'moodle');
         $node = new core_user\output\myprofile\node('administration', 'preferences', $title, null, $url);
         $tree->add_node($node);
     }
@@ -313,8 +316,6 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
                 $tree->add_node($node);
             }
         }
-
-        echo html_writer::end_tag('dl');
     }
 
     if ($user->icq && !isset($hiddenfields['icqnumber'])) {

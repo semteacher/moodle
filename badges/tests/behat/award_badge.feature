@@ -31,12 +31,12 @@ Feature: Award badges
     And I press "Enable access"
     And I press "Continue"
     And I click on "Admin User" "link"
-    And I follow "My profile" in the open menu
+    And I follow "Profile" in the open menu
     And I follow "Edit profile"
     And I expand all fieldsets
     And I set the field "Phone" to "123456789"
     And I press "Update profile"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     Then I should see "Profile Badge"
     And I should not see "There are no badges available."
 
@@ -69,7 +69,7 @@ Feature: Award badges
     Then I should see "Recipients (2)"
     And I log out
     And I log in as "student"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     Then I should see "Site Badge"
 
   @javascript
@@ -112,7 +112,7 @@ Feature: Award badges
     Then I should see "Recipients (2)"
     And I log out
     And I log in as "student1"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     And I should see "Course Badge"
 
@@ -157,13 +157,13 @@ Feature: Award badges
     When I press "Continue"
     And I log out
     And I log in as "student1"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     Then I should not see "badges"
     And I am on homepage
     And I follow "Course 1"
     And I press "Mark as complete: Test assignment name"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     Then I should see "Course Badge"
 
@@ -196,7 +196,7 @@ Feature: Award badges
     And I follow "Course completion"
     And I set the field "id_overall_aggregation" to "2"
     And I click on "Condition: Activity completion" "link"
-    And I set the field "Assign - Test assignment name" to "1"
+    And I set the field "Assignment - Test assignment name" to "1"
     And I press "Save changes"
     And I follow "Course 1"
     And I navigate to "Add a new badge" node in "Course administration > Badges"
@@ -214,7 +214,7 @@ Feature: Award badges
     When I press "Continue"
     And I log out
     And I log in as "student1"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     And I follow "Course 1"
     Then I should not see "badges"
     And I am on homepage
@@ -232,5 +232,5 @@ Feature: Award badges
     And I am on site homepage
     And I log out
     And I log in as "student1"
-    And I follow "My profile" in the user menu
+    And I follow "Profile" in the user menu
     Then I should see "Course Badge"

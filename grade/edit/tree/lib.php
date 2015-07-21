@@ -136,8 +136,11 @@ class grade_edit_tree {
         if (!$is_category_item && ($icon = $this->gtree->get_edit_icon($element, $this->gpr, true))) {
             $actionsmenu->add($icon);
         }
-
-        if ($this->show_calculations && ($icon = $this->gtree->get_calculation_icon($element, $this->gpr, true))) {
+        // MDL-49281 if grade_item already has calculation, it should be editable even if global setting is off.
+        $type = $element['type'];
+        $iscalculated = ($type == 'item' or $type == 'courseitem' or $type == 'categoryitem') && $object->is_calculated();
+        $icon = $this->gtree->get_calculation_icon($element, $this->gpr, true);
+        if ($iscalculated || ($this->show_calculations && $icon)) {
             $actionsmenu->add($icon);
         }
 
@@ -858,7 +861,7 @@ class grade_edit_tree_column_select extends grade_edit_tree_column {
 
     public function get_item_cell($item, $params) {
         if (empty($params['itemtype']) || empty($params['eid'])) {
-            error('Array key (itemtype or eid) missing from 2nd param of grade_edit_tree_column_select::get_item_cell($item, $params)');
+            print_error('missingitemtypeoreid', 'core_grades');
         }
         $itemcell = parent::get_item_cell($item, $params);
 

@@ -2684,6 +2684,7 @@ class curl {
 
     /** @var array cURL options */
     private $options;
+
     /** @var string Proxy host */
     private $proxy_host = '';
     /** @var string Proxy auth */
@@ -3004,15 +3005,36 @@ class curl {
         }
 
         $this->setopt($options);
-        // reset before set options
+
+        // Reset before set options.
         curl_setopt($curl, CURLOPT_HEADERFUNCTION, array(&$this,'formatHeader'));
-        // set headers
+
+        // Setting the User-Agent based on options provided.
+        $useragent = '';
+
+        if (!empty($options['CURLOPT_USERAGENT'])) {
+            $useragent = $options['CURLOPT_USERAGENT'];
+        } else if (!empty($this->options['CURLOPT_USERAGENT'])) {
+            $useragent = $this->options['CURLOPT_USERAGENT'];
+        } else {
+            $useragent = 'MoodleBot/1.0';
+        }
+
+        // Set headers.
         if (empty($this->header)) {
             $this->setHeader(array(
-                'User-Agent: MoodleBot/1.0',
+                'User-Agent: ' . $useragent,
                 'Accept-Charset: ISO-8859-1,utf-8;q=0.7,*;q=0.7',
                 'Connection: keep-alive'
                 ));
+        } else if (!in_array('User-Agent: ' . $useragent, $this->header)) {
+            // Remove old User-Agent if one existed.
+            // We have to partial search since we don't know what the original User-Agent is.
+            if ($match = preg_grep('/User-Agent.*/', $this->header)) {
+                $key = array_keys($match)[0];
+                unset($this->header[$key]);
+            }
+            $this->setHeader(array('User-Agent: ' . $useragent));
         }
         curl_setopt($curl, CURLOPT_HTTPHEADER, $this->header);
 
@@ -4198,6 +4220,35 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null) {
         } else {
             send_file_not_found();
         }
+
+    } else if ($component === 'cohort') {
+
+        $cohortid = (int)array_shift($args);
+        $cohort = $DB->get_record('cohort', array('id' => $cohortid), '*', MUST_EXIST);
+        $cohortcontext = context::instance_by_id($cohort->contextid);
+
+        // The context in the file URL must be either cohort context or context of the course underneath the cohort's context.
+        if ($context->id != $cohort->contextid &&
+            ($context->contextlevel != CONTEXT_COURSE || !in_array($cohort->contextid, $context->get_parent_context_ids()))) {
+            send_file_not_found();
+        }
+
+        // User is able to access cohort if they have view cap on cohort level or
+        // the cohort is visible and they have view cap on course level.
+        $canview = has_capability('moodle/cohort:view', $cohortcontext) ||
+                ($cohort->visible && has_capability('moodle/cohort:view', $context));
+
+        if ($filearea === 'description' && $canview) {
+            $filename = array_pop($args);
+            $filepath = $args ? '/'.implode('/', $args).'/' : '/';
+            if (($file = $fs->get_file($cohortcontext->id, 'cohort', 'description', $cohort->id, $filepath, $filename))
+                    && !$file->is_directory()) {
+                \core\session\manager::write_close(); // Unlock session during file serving.
+                send_stored_file($file, 60 * 60, 0, $forcedownload, array('preview' => $preview));
+            }
+        }
+
+        send_file_not_found();
 
     } else if ($component === 'group') {
         if ($context->contextlevel != CONTEXT_COURSE) {
