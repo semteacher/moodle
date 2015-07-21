@@ -369,4 +369,31 @@ class behat_forms extends behat_base {
         $field->set_value($value);
     }
 
+    /**
+     * Select a value from single select and redirect.
+     *
+     * @Given /^I select "(?P<singleselect_option_string>(?:[^"]|\\")*)" from the "(?P<singleselect_name_string>(?:[^"]|\\")*)" singleselect$/
+     */
+    public function i_select_from_the_singleselect($option, $singleselect) {
+        $actions = array(
+            new Given('I set the field "' . $this->escape($singleselect) . '" to "' . $this->escape($option) . '"'),
+        );
+
+        if (!$this->running_javascript()) {
+            // Press button in the specified select container.
+            $containerxpath = "//div[" .
+                "(contains(concat(' ', normalize-space(@class), ' '), ' singleselect ') " .
+                    "or contains(concat(' ', normalize-space(@class), ' '), ' urlselect ')".
+                ") and (
+                .//label[contains(normalize-space(string(.)), '" . $singleselect . "')] " .
+                    "or .//select[(./@name='" . $singleselect . "' or ./@id='". $singleselect . "')]" .
+                ")]";
+
+            $actions[] = new Given('I click on "' . get_string('go') . '" "button" in the "' . $containerxpath .
+                '" "xpath_element"');
+        }
+
+        return $actions;
+    }
+
 }
