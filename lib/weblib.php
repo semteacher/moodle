@@ -85,7 +85,7 @@ define('URL_MATCH_EXACT', 2);
  * Add quotes to HTML characters.
  *
  * Returns $var with HTML characters (like "<", ">", etc.) properly quoted.
- * This function is very similar to {@link p()}
+ * Related function {@link p()} simply prints the output of this function.
  *
  * @param string $var the string potentially containing HTML characters
  * @return string
@@ -106,17 +106,14 @@ function s($var) {
  * Add quotes to HTML characters.
  *
  * Prints $var with HTML characters (like "<", ">", etc.) properly quoted.
- * This function simply calls {@link s()}
+ * This function simply calls & displays {@link s()}.
  * @see s()
  *
- * @todo Remove obsolete param $obsolete if not used anywhere
- *
  * @param string $var the string potentially containing HTML characters
- * @param boolean $obsolete no longer used.
  * @return string
  */
-function p($var, $obsolete = false) {
-    echo s($var, $obsolete);
+function p($var) {
+    echo s($var);
 }
 
 /**
@@ -1207,8 +1204,13 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
     if ($options['filter']) {
         $filtermanager = filter_manager::instance();
         $filtermanager->setup_page_for_filters($PAGE, $context); // Setup global stuff filters may have.
+        $filteroptions = array(
+            'originalformat' => $format,
+            'noclean' => $options['noclean'],
+        );
     } else {
         $filtermanager = new null_filter_manager();
+        $filteroptions = array();
     }
 
     switch ($format) {
@@ -1216,10 +1218,7 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
             if (!$options['noclean']) {
                 $text = clean_text($text, FORMAT_HTML, $options);
             }
-            $text = $filtermanager->filter_text($text, $context, array(
-                'originalformat' => FORMAT_HTML,
-                'noclean' => $options['noclean']
-            ));
+            $text = $filtermanager->filter_text($text, $context, $filteroptions);
             break;
 
         case FORMAT_PLAIN:
@@ -1242,10 +1241,7 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
             if (!$options['noclean']) {
                 $text = clean_text($text, FORMAT_HTML, $options);
             }
-            $text = $filtermanager->filter_text($text, $context, array(
-                'originalformat' => FORMAT_MARKDOWN,
-                'noclean' => $options['noclean']
-            ));
+            $text = $filtermanager->filter_text($text, $context, $filteroptions);
             break;
 
         default:  // FORMAT_MOODLE or anything else.
@@ -1253,10 +1249,7 @@ function format_text($text, $format = FORMAT_MOODLE, $options = null, $courseidd
             if (!$options['noclean']) {
                 $text = clean_text($text, FORMAT_HTML, $options);
             }
-            $text = $filtermanager->filter_text($text, $context, array(
-                'originalformat' => $format,
-                'noclean' => $options['noclean']
-            ));
+            $text = $filtermanager->filter_text($text, $context, $filteroptions);
             break;
     }
     if ($options['filter']) {

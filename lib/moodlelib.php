@@ -408,7 +408,7 @@ define('FEATURE_COMPLETION_HAS_RULES', 'completion_has_rules');
 
 /** True if module has no 'view' page (like label) */
 define('FEATURE_NO_VIEW_LINK', 'viewlink');
-/** True if module supports outcomes */
+/** True (which is default) if the module wants support for setting the ID number for grade calculation purposes. */
 define('FEATURE_IDNUMBER', 'idnumber');
 /** True if module supports groups */
 define('FEATURE_GROUPS', 'groups');
@@ -622,9 +622,6 @@ function required_param_array($parname, $type) {
 function optional_param($parname, $default, $type) {
     if (func_num_args() != 3 or empty($parname) or empty($type)) {
         throw new coding_exception('optional_param requires $parname, $default + $type to be specified (parameter: '.$parname.')');
-    }
-    if (!isset($default)) {
-        $default = null;
     }
 
     // POST has precedence.
@@ -1032,10 +1029,20 @@ function clean_param($param, $type) {
             // Allow http absolute, root relative and relative URLs within wwwroot.
             $param = clean_param($param, PARAM_URL);
             if (!empty($param)) {
-                if (preg_match(':^/:', $param)) {
+
+                // Simulate the HTTPS version of the site.
+                $httpswwwroot = str_replace('http://', 'https://', $CFG->wwwroot);
+
+                if ($param === $CFG->wwwroot) {
+                    // Exact match;
+                } else if (!empty($CFG->loginhttps) && $param === $httpswwwroot) {
+                    // Exact match;
+                } else if (preg_match(':^/:', $param)) {
                     // Root-relative, ok!
-                } else if (preg_match('/^'.preg_quote($CFG->wwwroot, '/').'/i', $param)) {
+                } else if (preg_match('/^' . preg_quote($CFG->wwwroot . '/', '/') . '/i', $param)) {
                     // Absolute, and matches our wwwroot.
+                } else if (!empty($CFG->loginhttps) && preg_match('/^' . preg_quote($httpswwwroot . '/', '/') . '/i', $param)) {
+                    // Absolute, and matches our httpswwwroot.
                 } else {
                     // Relative - let's make sure there are no tricks.
                     if (validateUrlSyntax('/' . $param, 's-u-P-a-p-f+q?r?')) {
@@ -2796,11 +2803,7 @@ function require_login($courseorid = null, $autologinguest = true, $cm = null, $
             if ($setwantsurltome) {
                 $SESSION->wantsurl = qualified_me();
             }
-            $redirecturl = new moodle_url($CFG->wwwroot .'/enrol/index.php', array('id' => $course->id));
-            if ($PAGE->url->get_param('returnurl')) {
-                $redirecturl->param('returnurl', $PAGE->url->get_param('returnurl'));
-            }
-            redirect($redirecturl);
+            redirect($CFG->wwwroot .'/enrol/index.php?id='. $course->id);
         }
     }
 
@@ -5603,7 +5606,7 @@ function email_to_user($user, $from, $subject, $messagetext, $messagehtml = '', 
 
             // If the attachment is a full path to a file in the tempdir, use it as is,
             // otherwise assume it is a relative path from the dataroot (for backwards compatibility reasons).
-            if (strpos($attachpath, $temppath) !== 0) {
+            if (strpos($attachpath, realpath($temppath)) !== 0) {
                 $attachmentpath = $CFG->dataroot . '/' . $attachmentpath;
             }
 
