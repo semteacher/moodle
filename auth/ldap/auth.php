@@ -534,6 +534,7 @@ class auth_plugin_ldap extends auth_plugin_base {
      *
      * @param object $user new user object
      * @param boolean $notify print notice with link and terminate
+     * @return boolean success
      */
     function user_signup($user, $notify=true) {
         global $CFG, $DB, $PAGE, $OUTPUT;
@@ -607,11 +608,11 @@ class auth_plugin_ldap extends auth_plugin_base {
         $user = get_complete_user_data('username', $username);
 
         if (!empty($user)) {
-            if ($user->confirmed) {
-                return AUTH_CONFIRM_ALREADY;
-
-            } else if ($user->auth != $this->authtype) {
+            if ($user->auth != $this->authtype) {
                 return AUTH_CONFIRM_ERROR;
+
+            } else if ($user->secret == $confirmsecret && $user->confirmed) {
+                return AUTH_CONFIRM_ALREADY;
 
             } else if ($user->secret == $confirmsecret) {   // They have provided the secret key to get in
                 if (!$this->user_activate($username)) {
@@ -889,7 +890,7 @@ class auth_plugin_ldap extends auth_plugin_base {
 
                 foreach ($users as $user) {
                     echo "\t"; print_string('auth_dbupdatinguser', 'auth_db', array('name'=>$user->username, 'id'=>$user->id));
-                    if (!$this->update_user_record($user->username, $updatekeys)) {
+                    if (!$this->update_user_record($user->username, $updatekeys, true)) {
                         echo ' - '.get_string('skipped');
                     }
                     echo "\n";
@@ -987,8 +988,11 @@ class auth_plugin_ldap extends auth_plugin_base {
      *
      * @param string $username username
      * @param boolean $updatekeys true to update the local record with the external LDAP values.
+     * @param bool $triggerevent set false if user_updated event should not be triggered.
+     *             This will not affect user_password_updated event triggering.
+     * @return stdClass|bool updated user record or false if there is no new info to update.
      */
-    function update_user_record($username, $updatekeys = false) {
+    function update_user_record($username, $updatekeys = false, $triggerevent = false) {
         global $CFG, $DB;
 
         // Just in case check text case
@@ -1030,7 +1034,7 @@ class auth_plugin_ldap extends auth_plugin_base {
                         }
                     }
                 }
-                user_update_user($newuser, false, false);
+                user_update_user($newuser, false, $triggerevent);
             }
         } else {
             return false;
@@ -1653,7 +1657,8 @@ class auth_plugin_ldap extends auth_plugin_base {
                                       $_SERVER['HTTP_REFERER'] != $CFG->wwwroot &&
                                       $_SERVER['HTTP_REFERER'] != $CFG->wwwroot.'/' &&
                                       $_SERVER['HTTP_REFERER'] != $CFG->httpswwwroot.'/login/' &&
-                                      $_SERVER['HTTP_REFERER'] != $CFG->httpswwwroot.'/login/index.php')
+                                      $_SERVER['HTTP_REFERER'] != $CFG->httpswwwroot.'/login/index.php' &&
+                                      clean_param($_SERVER['HTTP_REFERER'], PARAM_LOCALURL) != '')
                     ? $_SERVER['HTTP_REFERER'] : NULL;
             }
 

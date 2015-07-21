@@ -503,7 +503,7 @@ class help_icon implements renderable {
  * @package core
  * @category output
  */
-class pix_icon implements renderable {
+class pix_icon implements renderable, templatable {
 
     /**
      * @var string The icon name
@@ -544,6 +544,24 @@ class pix_icon implements renderable {
             // and some browsers might overwrite it with an empty title.
             unset($this->attributes['title']);
         }
+    }
+
+    /**
+     * Export this data so it can be used as the context for a mustache template.
+     *
+     * @param renderer_base $output Used to do a final render of any components that need to be rendered for export.
+     * @return array
+     */
+    public function export_for_template(renderer_base $output) {
+        $attributes = $this->attributes;
+        $attributes['src'] = $output->pix_url($this->pix, $this->component);
+        $templatecontext = array();
+        foreach ($attributes as $name => $value) {
+            $templatecontext[] = array('name' => $name, 'value' => $value);
+        }
+        $data = array('attributes' => $templatecontext);
+
+        return $data;
     }
 }
 
@@ -3095,7 +3113,7 @@ class context_header implements renderable {
      */
     public $headinglevel;
     /**
-     * @var string $imagedata HTML for the Image for the header.
+     * @var string|null $imagedata HTML code for the picture in the page header.
      */
     public $imagedata;
     /**
@@ -3113,7 +3131,7 @@ class context_header implements renderable {
      *
      * @param string $heading Main heading data.
      * @param int $headinglevel Main heading 'h' tag level.
-     * @param object $imagedata Information needed to include a picture in the header.
+     * @param string|null $imagedata HTML code for the picture in the page header.
      * @param string $additionalbuttons Buttons for the header e.g. Messaging button for the user header.
      */
     public function __construct($heading = null, $headinglevel = 1, $imagedata = null, $additionalbuttons = null) {
