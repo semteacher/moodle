@@ -75,7 +75,7 @@ class core_rating_external extends external_api {
      * @since Moodle 2.9
      */
     public static function get_item_ratings($contextlevel, $instanceid, $component, $ratingarea, $itemid, $scaleid, $sort) {
-        global $USER;
+        global $USER, $PAGE;
 
         $warnings = array();
 
@@ -96,7 +96,13 @@ class core_rating_external extends external_api {
         self::validate_context($context);
 
         // Minimal capability required.
-        if (!has_capability('moodle/rating:view', $context)) {
+        $callbackparams = array('contextid' => $context->id,
+                        'component' => $component,
+                        'ratingarea' => $ratingarea,
+                        'itemid' => $itemid,
+                        'scaleid' => $scaleid);
+        if (!has_capability('moodle/rating:view', $context) ||
+                !component_callback($component, 'rating_can_see_item_ratings', array($callbackparams), true)) {
             throw new moodle_exception('noviewrate', 'rating');
         }
 
@@ -140,13 +146,10 @@ class core_rating_external extends external_api {
                     $rating->rating = $maxrating;
                 }
 
-                $profileimageurl = '';
-                // We can have ratings from deleted users. In this case, those users don't have a valid context.
-                $usercontext = context_user::instance($rating->userid, IGNORE_MISSING);
-                if ($usercontext) {
-                    $profileimageurl = moodle_url::make_webservice_pluginfile_url($usercontext->id, 'user', 'icon', null,
-                                                                                    '/', 'f1')->out(false);
-                }
+                // The rating object has all the required fields for generating the picture url.
+                $userpicture = new user_picture($rating);
+                $userpicture->size = 1; // Size f1.
+                $profileimageurl = $userpicture->get_url($PAGE)->out(false);
 
                 $result = array();
                 $result['id'] = $rating->id;
