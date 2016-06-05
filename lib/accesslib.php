@@ -980,20 +980,17 @@ function load_course_context($userid, context_course $coursecontext, &$accessdat
     }
 
     // now get overrides of interesting roles in all interesting contexts (this course + children + parents)
-    $params = array('c'=>$coursecontext->id);
+    $params = array('pathprefix' => $coursecontext->path . '/%');
     list($parentsaself, $rparams) = $DB->get_in_or_equal($coursecontext->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'pc_');
     $params = array_merge($params, $rparams);
     list($roleids, $rparams) = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED, 'r_');
     $params = array_merge($params, $rparams);
 
     $sql = "SELECT ctx.path, rc.roleid, rc.capability, rc.permission
-                 FROM {role_capabilities} rc
-                 JOIN {context} ctx
-                      ON (ctx.id = rc.contextid)
-                 JOIN {context} cctx
-                      ON (cctx.id = :c
-                          AND (ctx.id $parentsaself OR ctx.path LIKE ".$DB->sql_concat('cctx.path',"'/%'")."))
+                 FROM {context} ctx
+                 JOIN {role_capabilities} rc ON rc.contextid = ctx.id
                 WHERE rc.roleid $roleids
+                  AND (ctx.id $parentsaself OR ctx.path LIKE :pathprefix)
              ORDER BY rc.capability"; // fixed capability order is necessary for rdef dedupe
     $rs = $DB->get_recordset_sql($sql, $params);
 
@@ -1673,7 +1670,7 @@ function get_roles_with_capability($capability, $permission = null, $context = n
  * @return int new/existing id of the assignment
  */
 function role_assign($roleid, $userid, $contextid, $component = '', $itemid = 0, $timemodified = '') {
-    global $USER, $DB;
+    global $USER, $DB, $CFG;
 
     // first of all detect if somebody is using old style parameters
     if ($contextid === 0 or is_numeric($component)) {
@@ -1754,6 +1751,9 @@ function role_assign($roleid, $userid, $contextid, $component = '', $itemid = 0,
         reload_all_capabilities();
     }
 
+    require_once($CFG->libdir . '/coursecatlib.php');
+    coursecat::role_assignment_changed($roleid, $context);
+
     $event = \core\event\role_assigned::create(array(
         'context' => $context,
         'objectid' => $ra->roleid,
@@ -1811,6 +1811,7 @@ function role_unassign($roleid, $userid, $contextid, $component = '', $itemid = 
  */
 function role_unassign_all(array $params, $subcontexts = false, $includemanual = false) {
     global $USER, $CFG, $DB;
+    require_once($CFG->libdir . '/coursecatlib.php');
 
     if (!$params) {
         throw new coding_exception('Missing parameters in role_unsassign_all() call');
@@ -1861,6 +1862,7 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
             ));
             $event->add_record_snapshot('role_assignments', $ra);
             $event->trigger();
+            coursecat::role_assignment_changed($ra->roleid, $context);
         }
     }
     unset($ras);
@@ -1892,6 +1894,7 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
                             'other'=>array('id'=>$ra->id, 'component'=>$ra->component, 'itemid'=>$ra->itemid)));
                     $event->add_record_snapshot('role_assignments', $ra);
                     $event->trigger();
+                    coursecat::role_assignment_changed($ra->roleid, $context);
                 }
             }
         }
@@ -4104,8 +4107,7 @@ function sort_by_roleassignment_authority($users, context $context, $roles = arr
  * system is more flexible. If you really need, you can to use this
  * function but consider has_capability() as a possible substitute.
  *
- * The caller function is responsible for including all the
- * $sort fields in $fields param.
+ * All $sort fields are added into $fields if not present there yet.
  *
  * If $roleid is an array or is empty (all roles) you need to set $fields
  * (and $sort by extension) params according to it, as the first field
@@ -4201,6 +4203,24 @@ function get_role_users($roleid, context $context, $parent = false, $fields = ''
     if (!$sort) {
         list($sort, $sortparams) = users_order_by_sql('u');
         $params = array_merge($params, $sortparams);
+    }
+
+    // Adding the fields from $sort that are not present in $fields.
+    $sortarray = preg_split('/,\s*/', $sort);
+    $fieldsarray = preg_split('/,\s*/', $fields);
+    $addedfields = array();
+    foreach ($sortarray as $sortfield) {
+        // Throw away any additional arguments to the sort (e.g. ASC/DESC).
+        list ($sortfield) = explode(' ', $sortfield);
+        if (!in_array($sortfield, $fieldsarray)) {
+            $fieldsarray[] = $sortfield;
+            $addedfields[] = $sortfield;
+        }
+    }
+    $fields = implode(', ', $fieldsarray);
+    if (!empty($addedfields)) {
+        $addedfields = implode(', ', $addedfields);
+        debugging('get_role_users() adding '.$addedfields.' to the query result because they were required by $sort but missing in $fields');
     }
 
     if ($all === null) {
@@ -6216,7 +6236,7 @@ class context_system extends context {
      * Returns system context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $instanceid should be 0
      * @param int $strictness
      * @param bool $cache
      * @return context_system context instance
@@ -6468,19 +6488,19 @@ class context_user extends context {
      * Returns user context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $userid id from {user} table
      * @param int $strictness
      * @return context_user context instance
      */
-    public static function instance($instanceid, $strictness = MUST_EXIST) {
+    public static function instance($userid, $strictness = MUST_EXIST) {
         global $DB;
 
-        if ($context = context::cache_get(CONTEXT_USER, $instanceid)) {
+        if ($context = context::cache_get(CONTEXT_USER, $userid)) {
             return $context;
         }
 
-        if (!$record = $DB->get_record('context', array('contextlevel'=>CONTEXT_USER, 'instanceid'=>$instanceid))) {
-            if ($user = $DB->get_record('user', array('id'=>$instanceid, 'deleted'=>0), 'id', $strictness)) {
+        if (!$record = $DB->get_record('context', array('contextlevel' => CONTEXT_USER, 'instanceid' => $userid))) {
+            if ($user = $DB->get_record('user', array('id' => $userid, 'deleted' => 0), 'id', $strictness)) {
                 $record = context::insert_context_record(CONTEXT_USER, $user->id, '/'.SYSCONTEXTID, 0);
             }
         }
@@ -6646,19 +6666,19 @@ class context_coursecat extends context {
      * Returns course category context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $categoryid id from {course_categories} table
      * @param int $strictness
      * @return context_coursecat context instance
      */
-    public static function instance($instanceid, $strictness = MUST_EXIST) {
+    public static function instance($categoryid, $strictness = MUST_EXIST) {
         global $DB;
 
-        if ($context = context::cache_get(CONTEXT_COURSECAT, $instanceid)) {
+        if ($context = context::cache_get(CONTEXT_COURSECAT, $categoryid)) {
             return $context;
         }
 
-        if (!$record = $DB->get_record('context', array('contextlevel'=>CONTEXT_COURSECAT, 'instanceid'=>$instanceid))) {
-            if ($category = $DB->get_record('course_categories', array('id'=>$instanceid), 'id,parent', $strictness)) {
+        if (!$record = $DB->get_record('context', array('contextlevel' => CONTEXT_COURSECAT, 'instanceid' => $categoryid))) {
+            if ($category = $DB->get_record('course_categories', array('id' => $categoryid), 'id,parent', $strictness)) {
                 if ($category->parent) {
                     $parentcontext = context_coursecat::instance($category->parent);
                     $record = context::insert_context_record(CONTEXT_COURSECAT, $category->id, $parentcontext->path);
@@ -6900,19 +6920,19 @@ class context_course extends context {
      * Returns course context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $courseid id from {course} table
      * @param int $strictness
      * @return context_course context instance
      */
-    public static function instance($instanceid, $strictness = MUST_EXIST) {
+    public static function instance($courseid, $strictness = MUST_EXIST) {
         global $DB;
 
-        if ($context = context::cache_get(CONTEXT_COURSE, $instanceid)) {
+        if ($context = context::cache_get(CONTEXT_COURSE, $courseid)) {
             return $context;
         }
 
-        if (!$record = $DB->get_record('context', array('contextlevel'=>CONTEXT_COURSE, 'instanceid'=>$instanceid))) {
-            if ($course = $DB->get_record('course', array('id'=>$instanceid), 'id,category', $strictness)) {
+        if (!$record = $DB->get_record('context', array('contextlevel' => CONTEXT_COURSE, 'instanceid' => $courseid))) {
+            if ($course = $DB->get_record('course', array('id' => $courseid), 'id,category', $strictness)) {
                 if ($course->category) {
                     $parentcontext = context_coursecat::instance($course->category);
                     $record = context::insert_context_record(CONTEXT_COURSE, $course->id, $parentcontext->path);
@@ -7161,19 +7181,19 @@ class context_module extends context {
      * Returns module context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $cmid id of the record from {course_modules} table; pass cmid there, NOT id in the instance column
      * @param int $strictness
      * @return context_module context instance
      */
-    public static function instance($instanceid, $strictness = MUST_EXIST) {
+    public static function instance($cmid, $strictness = MUST_EXIST) {
         global $DB;
 
-        if ($context = context::cache_get(CONTEXT_MODULE, $instanceid)) {
+        if ($context = context::cache_get(CONTEXT_MODULE, $cmid)) {
             return $context;
         }
 
-        if (!$record = $DB->get_record('context', array('contextlevel'=>CONTEXT_MODULE, 'instanceid'=>$instanceid))) {
-            if ($cm = $DB->get_record('course_modules', array('id'=>$instanceid), 'id,course', $strictness)) {
+        if (!$record = $DB->get_record('context', array('contextlevel' => CONTEXT_MODULE, 'instanceid' => $cmid))) {
+            if ($cm = $DB->get_record('course_modules', array('id' => $cmid), 'id,course', $strictness)) {
                 $parentcontext = context_course::instance($cm->course);
                 $record = context::insert_context_record(CONTEXT_MODULE, $cm->id, $parentcontext->path);
             }
@@ -7373,19 +7393,19 @@ class context_block extends context {
      * Returns block context instance.
      *
      * @static
-     * @param int $instanceid
+     * @param int $blockinstanceid id from {block_instances} table.
      * @param int $strictness
      * @return context_block context instance
      */
-    public static function instance($instanceid, $strictness = MUST_EXIST) {
+    public static function instance($blockinstanceid, $strictness = MUST_EXIST) {
         global $DB;
 
-        if ($context = context::cache_get(CONTEXT_BLOCK, $instanceid)) {
+        if ($context = context::cache_get(CONTEXT_BLOCK, $blockinstanceid)) {
             return $context;
         }
 
-        if (!$record = $DB->get_record('context', array('contextlevel'=>CONTEXT_BLOCK, 'instanceid'=>$instanceid))) {
-            if ($bi = $DB->get_record('block_instances', array('id'=>$instanceid), 'id,parentcontextid', $strictness)) {
+        if (!$record = $DB->get_record('context', array('contextlevel' => CONTEXT_BLOCK, 'instanceid' => $blockinstanceid))) {
+            if ($bi = $DB->get_record('block_instances', array('id' => $blockinstanceid), 'id,parentcontextid', $strictness)) {
                 $parentcontext = context::instance_by_id($bi->parentcontextid);
                 $record = context::insert_context_record(CONTEXT_BLOCK, $bi->id, $parentcontext->path);
             }

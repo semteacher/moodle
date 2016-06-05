@@ -880,6 +880,30 @@ EOF;
     }
 
     /**
+     * Tests for get_mimetype_for_sending function.
+     */
+    public function test_get_mimetype_for_sending() {
+        // Without argument.
+        $this->assertEquals('application/octet-stream', get_mimetype_for_sending());
+
+        // Argument is null.
+        $this->assertEquals('application/octet-stream', get_mimetype_for_sending(null));
+
+        // Filename having no extension.
+        $this->assertEquals('application/octet-stream', get_mimetype_for_sending('filenamewithoutextension'));
+
+        // Test using the extensions listed from the get_mimetypes_array function.
+        $mimetypes = get_mimetypes_array();
+        foreach ($mimetypes as $ext => $info) {
+            if ($ext === 'xxx') {
+                $this->assertEquals('application/octet-stream', get_mimetype_for_sending('SampleFile.' . $ext));
+            } else {
+                $this->assertEquals($info['type'], get_mimetype_for_sending('SampleFile.' . $ext));
+            }
+        }
+    }
+
+    /**
      * Test curl agent settings.
      */
     public function test_curl_useragent() {
@@ -926,6 +950,26 @@ EOF;
         $this->assertSame('200 OK', reset($response));
         $this->assertSame(0, $extcurl->get_errno());
         $this->assertSame('', $contents);
+    }
+
+    /**
+     * Test file_rewrite_pluginfile_urls.
+     */
+    public function test_file_rewrite_pluginfile_urls() {
+
+        $syscontext = context_system::instance();
+        $originaltext = 'Fake test with an image <img src="@@PLUGINFILE@@/image.png">';
+
+        // Do the rewrite.
+        $finaltext = file_rewrite_pluginfile_urls($originaltext, 'pluginfile.php', $syscontext->id, 'user', 'private', 0);
+        $this->assertContains("pluginfile.php", $finaltext);
+
+        // Now undo.
+        $options = array('reverse' => true);
+        $finaltext = file_rewrite_pluginfile_urls($finaltext, 'pluginfile.php', $syscontext->id, 'user', 'private', 0, $options);
+
+        // Compare the final text is the same that the original.
+        $this->assertEquals($originaltext, $finaltext);
     }
 }
 

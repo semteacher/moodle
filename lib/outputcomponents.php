@@ -533,13 +533,23 @@ class pix_icon implements renderable, templatable {
         $this->component  = $component;
         $this->attributes = (array)$attributes;
 
-        $this->attributes['alt'] = $alt;
         if (empty($this->attributes['class'])) {
             $this->attributes['class'] = 'smallicon';
         }
-        if (!isset($this->attributes['title'])) {
-            $this->attributes['title'] = $this->attributes['alt'];
-        } else if (empty($this->attributes['title'])) {
+
+        // If the alt is empty, don't place it in the attributes, otherwise it will override parent alt text.
+        if (!is_null($alt)) {
+            $this->attributes['alt'] = $alt;
+
+            // If there is no title, set it to the attribute.
+            if (!isset($this->attributes['title'])) {
+                $this->attributes['title'] = $this->attributes['alt'];
+            }
+        } else {
+            unset($this->attributes['alt']);
+        }
+
+        if (empty($this->attributes['title'])) {
             // Remove the title attribute if empty, we probably want to use the parent node's title
             // and some browsers might overwrite it with an empty title.
             unset($this->attributes['title']);
@@ -1376,28 +1386,23 @@ class html_writer {
         if (!$currenttime) {
             $currenttime = time();
         }
-        $currentdate = usergetdate($currenttime);
+        $calendartype = \core_calendar\type_factory::get_calendar_instance();
+        $currentdate = $calendartype->timestamp_to_date_array($currenttime);
         $userdatetype = $type;
         $timeunits = array();
 
         switch ($type) {
             case 'years':
-                for ($i=1970; $i<=2020; $i++) {
-                    $timeunits[$i] = $i;
-                }
+                $timeunits = $calendartype->get_years();
                 $userdatetype = 'year';
                 break;
             case 'months':
-                for ($i=1; $i<=12; $i++) {
-                    $timeunits[$i] = userdate(gmmktime(12,0,0,$i,15,2000), "%B");
-                }
+                $timeunits = $calendartype->get_months();
                 $userdatetype = 'month';
                 $currentdate['month'] = (int)$currentdate['mon'];
                 break;
             case 'days':
-                for ($i=1; $i<=31; $i++) {
-                    $timeunits[$i] = $i;
-                }
+                $timeunits = $calendartype->get_days();
                 $userdatetype = 'mday';
                 break;
             case 'hours':
@@ -2454,7 +2459,7 @@ class paging_bar implements renderable {
 
             $pagenum = $this->page + 1;
 
-            if ($pagenum != $displaypage) {
+            if ($pagenum != $lastpage) {
                 $this->nextlink = html_writer::link(new moodle_url($this->baseurl, array($this->pagevar=>$pagenum)), get_string('next'), array('class'=>'next'));
             }
         }

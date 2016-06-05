@@ -20,13 +20,15 @@ $focus = '';
 // now we'll deal with the case that the admin has submitted the form with changed settings
 if ($data = data_submitted() and confirm_sesskey()) {
     if (admin_write_settings($data)) {
-        $statusmsg = get_string('changessaved');
+        redirect($PAGE->url, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     if (!empty($adminroot->errors)) {
         $errormsg = get_string('errorwithsettings', 'admin');
         $firsterror = reset($adminroot->errors);
         $focus = $firsterror->id;
+    } else {
+        redirect($PAGE->url);
     }
 }
 
@@ -46,6 +48,8 @@ $resultshtml = admin_search_settings_html($query); // case insensitive search on
 echo '<form action="' . $PAGE->url->out(true) . '" method="post" id="adminsettings">';
 echo '<div>';
 echo '<input type="hidden" name="sesskey" value="'.sesskey().'" />';
+// HACK to prevent browsers from automatically inserting the user's password into the wrong fields.
+echo prevent_form_autofill_password();
 echo '</div>';
 echo '<fieldset>';
 echo '<div class="clearer"><!-- --></div>';
