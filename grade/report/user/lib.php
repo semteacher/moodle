@@ -731,7 +731,12 @@ class grade_report_user extends grade_report {
                 if ($gradecat->aggregation == GRADE_AGGREGATE_SUM) {
                     // Natural aggregation/Sum of grades does not consider the mingrade, cannot traditionnally normalise it.
                     $graderange = $this->aggregationhints[$itemid]['grademax'];
-                    $gradeval = $this->aggregationhints[$itemid]['grade'] / $graderange;
+
+                    if ($graderange != 0) {
+                        $gradeval = $this->aggregationhints[$itemid]['grade'] / $graderange;
+                    } else {
+                        $gradeval = 0;
+                    }
                 } else {
                     $gradeval = grade_grade::standardise_score($this->aggregationhints[$itemid]['grade'],
                         $this->aggregationhints[$itemid]['grademin'], $this->aggregationhints[$itemid]['grademax'], 0, 1);
@@ -1157,9 +1162,6 @@ function grade_report_user_profilereport($course, $user, $viewasuser = false) {
     if (!empty($course->showgrades)) {
 
         $context = context_course::instance($course->id);
-
-        //first make sure we have proper final grades - this must be done before constructing of the grade tree
-        grade_regrade_final_grades($course->id);
 
         /// return tracking object
         $gpr = new grade_plugin_return(array('type'=>'report', 'plugin'=>'user', 'courseid'=>$course->id, 'userid'=>$user->id));

@@ -79,20 +79,23 @@ function choice_user_outline($course, $user, $mod, $choice) {
 }
 
 /**
- * @global object
+ * Callback for the "Complete" report - prints the activity summary for the given user
+ *
  * @param object $course
  * @param object $user
  * @param object $mod
  * @param object $choice
- * @return string|void
  */
 function choice_user_complete($course, $user, $mod, $choice) {
     global $DB;
-    if ($answer = $DB->get_record('choice_answers', array("choiceid" => $choice->id, "userid" => $user->id))) {
-        $result = new stdClass();
-        $result->info = "'".format_string(choice_get_option_text($choice, $answer->optionid))."'";
-        $result->time = $answer->timemodified;
-        echo get_string("answered", "choice").": $result->info. ".get_string("updated", '', userdate($result->time));
+    if ($answers = $DB->get_records('choice_answers', array("choiceid" => $choice->id, "userid" => $user->id))) {
+        $info = [];
+        foreach ($answers as $answer) {
+            $info[] = "'" . format_string(choice_get_option_text($choice, $answer->optionid)) . "'";
+        }
+        core_collator::asort($info);
+        echo get_string("answered", "choice") . ": ". join(', ', $info) . ". " .
+                get_string("updated", '', userdate($answer->timemodified));
     } else {
         print_string("notanswered", "choice");
     }
@@ -269,6 +272,12 @@ function choice_user_submit_response($formanswer, $choice, $userid, $course, $cm
         $formanswers = array($formanswer);
     }
 
+    $options = $DB->get_records('choice_options', array('choiceid' => $choice->id), '', 'id');
+    foreach ($formanswers as $key => $val) {
+        if (!isset($options[$val])) {
+            print_error('cannotsubmit', 'choice', $continueurl);
+        }
+    }
     // Start lock to prevent synchronous access to the same data
     // before it's updated, if using limits.
     if ($choice->limitanswers) {
@@ -507,7 +516,7 @@ function prepare_choice_show_results($choice, $course, $cm, $allresponses) {
  * @return bool
  */
 function choice_delete_responses($attemptids, $choice, $cm, $course) {
-    global $DB, $CFG;
+    global $DB, $CFG, $USER;
     require_once($CFG->libdir.'/completionlib.php');
 
     if(!is_array($attemptids) || empty($attemptids)) {
@@ -520,16 +529,36 @@ function choice_delete_responses($attemptids, $choice, $cm, $course) {
         }
     }
 
+    $context = context_module::instance($cm->id);
     $completion = new completion_info($course);
     foreach($attemptids as $attemptid) {
         if ($todelete = $DB->get_record('choice_answers', array('choiceid' => $choice->id, 'id' => $attemptid))) {
+            // Trigger the event answer deleted.
+            $eventdata = array();
+            $eventdata['objectid'] = $todelete->id;
+            $eventdata['context'] = $context;
+            $eventdata['userid'] = $USER->id;
+            $eventdata['courseid'] = $course->id;
+            $eventdata['relateduserid'] = $todelete->userid;
+            $eventdata['other'] = array();
+            $eventdata['other']['choiceid'] = $choice->id;
+            $eventdata['other']['optionid'] = $todelete->optionid;
+            $event = \mod_choice\event\answer_deleted::create($eventdata);
+            $event->add_record_snapshot('course', $course);
+            $event->add_record_snapshot('course_modules', $cm);
+            $event->add_record_snapshot('choice', $choice);
+            $event->add_record_snapshot('choice_answers', $todelete);
+            $event->trigger();
+
             $DB->delete_records('choice_answers', array('choiceid' => $choice->id, 'id' => $attemptid));
-            // Update completion state
-            if ($completion->is_enabled($cm) && $choice->completionsubmit) {
-                $completion->update_state($cm, COMPLETION_INCOMPLETE, $attemptid);
-            }
         }
     }
+
+    // Update completion state.
+    if ($completion->is_enabled($cm) && $choice->completionsubmit) {
+        $completion->update_state($cm, COMPLETION_INCOMPLETE);
+    }
+
     return true;
 }
 
@@ -920,4 +949,120 @@ function choice_print_overview($courses, &$htmlarray) {
         }
     }
     return;
+}
+
+
+/**
+ * Get my responses on a given choice.
+ *
+ * @param stdClass $choice Choice record
+ * @return array of choice answers records
+ * @since  Moodle 3.0
+ */
+function choice_get_my_response($choice) {
+    global $DB, $USER;
+    return $DB->get_records('choice_answers', array('choiceid' => $choice->id, 'userid' => $USER->id));
+}
+
+
+/**
+ * Get all the responses on a given choice.
+ *
+ * @param stdClass $choice Choice record
+ * @return array of choice answers records
+ * @since  Moodle 3.0
+ */
+function choice_get_all_responses($choice) {
+    global $DB;
+    return $DB->get_records('choice_answers', array('choiceid' => $choice->id));
+}
+
+
+/**
+ * Return true if we are allowd to view the choice results.
+ *
+ * @param stdClass $choice Choice record
+ * @param rows|null $current my choice responses
+ * @param bool|null $choiceopen if the choice is open
+ * @return bool true if we can view the results, false otherwise.
+ * @since  Moodle 3.0
+ */
+function choice_can_view_results($choice, $current = null, $choiceopen = null) {
+
+    if (is_null($choiceopen)) {
+        $timenow = time();
+        if ($choice->timeclose != 0 && $timenow > $choice->timeclose) {
+            $choiceopen = false;
+        } else {
+            $choiceopen = true;
+        }
+    }
+    if (empty($current)) {
+        $current = choice_get_my_response($choice);
+    }
+
+    if ($choice->showresults == CHOICE_SHOWRESULTS_ALWAYS or
+       ($choice->showresults == CHOICE_SHOWRESULTS_AFTER_ANSWER and !empty($current)) or
+       ($choice->showresults == CHOICE_SHOWRESULTS_AFTER_CLOSE and !$choiceopen)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Mark the activity completed (if required) and trigger the course_module_viewed event.
+ *
+ * @param  stdClass $choice     choice object
+ * @param  stdClass $course     course object
+ * @param  stdClass $cm         course module object
+ * @param  stdClass $context    context object
+ * @since Moodle 3.0
+ */
+function choice_view($choice, $course, $cm, $context) {
+
+    // Trigger course_module_viewed event.
+    $params = array(
+        'context' => $context,
+        'objectid' => $choice->id
+    );
+
+    $event = \mod_choice\event\course_module_viewed::create($params);
+    $event->add_record_snapshot('course_modules', $cm);
+    $event->add_record_snapshot('course', $course);
+    $event->add_record_snapshot('choice', $choice);
+    $event->trigger();
+
+    // Completion.
+    $completion = new completion_info($course);
+    $completion->set_module_viewed($cm);
+}
+
+/**
+ * Check if a choice is available for the current user.
+ *
+ * @param  stdClass  $choice            choice record
+ * @return array                       status (available or not and possible warnings)
+ */
+function choice_get_availability_status($choice) {
+    $available = true;
+    $warnings = array();
+
+    if ($choice->timeclose != 0) {
+        $timenow = time();
+
+        if ($choice->timeopen > $timenow) {
+            $available = false;
+            $warnings['notopenyet'] = userdate($choice->timeopen);
+        } else if ($timenow > $choice->timeclose) {
+            $available = false;
+            $warnings['expired'] = userdate($choice->timeclose);
+        }
+    }
+    if (!$choice->allowupdate && choice_get_my_response($choice)) {
+        $available = false;
+        $warnings['choicesaved'] = '';
+    }
+
+    // Choice is available.
+    return array($available, $warnings);
 }

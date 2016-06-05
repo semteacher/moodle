@@ -413,7 +413,7 @@ function chat_refresh_events($courseid = 0) {
     $moduleid = $DB->get_field('modules', 'id', array('name' => 'chat'));
 
     foreach ($chats as $chat) {
-        $cm = get_coursemodule_from_id('chat', $chat->id);
+        $cm = get_coursemodule_from_instance('chat', $chat->id, $chat->course);
         $event = new stdClass();
         $event->name        = $chat->name;
         $event->description = format_module_intro('chat', $chat, $cm->id);
@@ -634,7 +634,7 @@ function chat_update_chat_times($chatid=0) {
         $event = new stdClass(); // Update calendar too.
 
         $cond = "modulename='chat' AND instance = :chatid AND timestart <> :chattime";
-        $params = array('chattime' => $chat->chattime, 'chatid' => $chatid);
+        $params = array('chattime' => $chat->chattime, 'chatid' => $chat->id);
 
         if ($event->id = $DB->get_field_select('event', 'id', $cond, $params)) {
             $event->timestart   = $chat->chattime;
@@ -749,6 +749,7 @@ function chat_format_message_manually($message, $courseid, $sender, $currentuser
     // Parse the text to clean and filter it.
     $options = new stdClass();
     $options->para = false;
+    $options->blanktarget = true;
     $text = format_text($text, FORMAT_MOODLE, $options, $courseid);
 
     // And now check for special cases.
@@ -922,6 +923,7 @@ function chat_format_message_theme ($message, $chatuser, $currentuser, $grouping
     // Parse the text to clean and filter it.
     $options = new stdClass();
     $options->para = false;
+    $options->blanktarget = true;
     $text = format_text($text, FORMAT_MOODLE, $options, $courseid);
 
     // And now check for special cases.
@@ -1265,7 +1267,7 @@ function chat_extend_settings_navigation(settings_navigation $settings, navigati
     if ($chat->chattime && $chat->schedule) {
         $nextsessionnode = $chatnode->add(get_string('nextsession', 'chat').
                                           ': '.userdate($chat->chattime).
-                                          ' ('.usertimezone($USER->timezone));
+                                          ' ('.usertimezone($USER->timezone).')');
         $nextsessionnode->add_class('note');
     }
 
@@ -1303,4 +1305,51 @@ function chat_user_logout(\core\event\user_loggedout $event) {
 function chat_page_type_list($pagetype, $parentcontext, $currentcontext) {
     $modulepagetype = array('mod-chat-*' => get_string('page-mod-chat-x', 'chat'));
     return $modulepagetype;
+}
+
+/**
+ * Return a list of the latest messages in the given chat session.
+ *
+ * @param  stdClass $chatuser     chat user session data
+ * @param  int      $chatlasttime last time messages were retrieved
+ * @return array    list of messages
+ * @since  Moodle 3.0
+ */
+function chat_get_latest_messages($chatuser, $chatlasttime) {
+    global $DB;
+
+    $params = array('groupid' => $chatuser->groupid, 'chatid' => $chatuser->chatid, 'lasttime' => $chatlasttime);
+
+    $groupselect = $chatuser->groupid ? " AND (groupid=" . $chatuser->groupid . " OR groupid=0) " : "";
+
+    return $DB->get_records_select('chat_messages_current', 'chatid = :chatid AND timestamp > :lasttime ' . $groupselect,
+                                    $params, 'timestamp ASC');
+}
+
+/**
+ * Mark the activity completed (if required) and trigger the course_module_viewed event.
+ *
+ * @param  stdClass $chat       chat object
+ * @param  stdClass $course     course object
+ * @param  stdClass $cm         course module object
+ * @param  stdClass $context    context object
+ * @since Moodle 3.0
+ */
+function chat_view($chat, $course, $cm, $context) {
+
+    // Trigger course_module_viewed event.
+    $params = array(
+        'context' => $context,
+        'objectid' => $chat->id
+    );
+
+    $event = \mod_chat\event\course_module_viewed::create($params);
+    $event->add_record_snapshot('course_modules', $cm);
+    $event->add_record_snapshot('course', $course);
+    $event->add_record_snapshot('chat', $chat);
+    $event->trigger();
+
+    // Completion.
+    $completion = new completion_info($course);
+    $completion->set_module_viewed($cm);
 }
