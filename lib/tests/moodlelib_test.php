@@ -869,6 +869,14 @@ class core_moodlelib_testcase extends advanced_testcase {
             "tags that ...</blockquote></p></div>", shorten_text($text));
     }
 
+    public function test_shorten_text_with_tags_and_html_comment() {
+        $text = "<div class='frog'><p><blockquote><!--[if !IE]><!-->Long text with ".
+            "tags that will<!--<![endif]--> ".
+            "be chopped off but <b>should be added back again</b></blockquote></p></div>";
+        $this->assertEquals("<div class='frog'><p><blockquote><!--[if !IE]><!-->Long text with " .
+            "tags that ...<!--<![endif]--></blockquote></p></div>", shorten_text($text));
+    }
+
     public function test_shorten_text_with_entities() {
         // Remember to allow 3 chars for the final '...'.
         // ......123456789012345678901234567_____890...
@@ -1574,7 +1582,7 @@ class core_moodlelib_testcase extends advanced_testcase {
                 'expectedoutput' => '1309485600'
             ),
             array(
-                'usertimezone' => '14', // Server time.
+                'usertimezone' => '-14', // Server time.
                 'year' => '2011',
                 'month' => '7',
                 'day' => '1',
@@ -1882,6 +1890,10 @@ class core_moodlelib_testcase extends advanced_testcase {
 
         $user = $this->getDataGenerator()->create_user(array('idnumber'=>'abc'));
         $user2 = $this->getDataGenerator()->create_user(array('idnumber'=>'xyz'));
+        $usersharedemail1 = $this->getDataGenerator()->create_user(array('email' => 'sharedemail@example.invalid'));
+        $usersharedemail2 = $this->getDataGenerator()->create_user(array('email' => 'sharedemail@example.invalid'));
+        $useremptyemail1 = $this->getDataGenerator()->create_user(array('email' => ''));
+        $useremptyemail2 = $this->getDataGenerator()->create_user(array('email' => ''));
 
         // Delete user and capture event.
         $sink = $this->redirectEvents();
@@ -1946,6 +1958,30 @@ class core_moodlelib_testcase extends advanced_testcase {
 
         $result = delete_user($admin);
         $this->assertFalse($result);
+
+        // Simultaneously deleting users with identical email addresses.
+        $result1 = delete_user($usersharedemail1);
+        $result2 = delete_user($usersharedemail2);
+
+        $usersharedemail1after = $DB->get_record('user', array('id' => $usersharedemail1->id));
+        $usersharedemail2after = $DB->get_record('user', array('id' => $usersharedemail2->id));
+        $this->assertTrue($result1);
+        $this->assertTrue($result2);
+        $this->assertStringStartsWith($usersharedemail1->email . '.', $usersharedemail1after->username);
+        $this->assertStringStartsWith($usersharedemail2->email . '.', $usersharedemail2after->username);
+
+        // Simultaneously deleting users without email addresses.
+        $result1 = delete_user($useremptyemail1);
+        $result2 = delete_user($useremptyemail2);
+
+        $useremptyemail1after = $DB->get_record('user', array('id' => $useremptyemail1->id));
+        $useremptyemail2after = $DB->get_record('user', array('id' => $useremptyemail2->id));
+        $this->assertTrue($result1);
+        $this->assertTrue($result2);
+        $this->assertStringStartsWith($useremptyemail1->username . '.' . $useremptyemail1->id . '@unknownemail.invalid.',
+            $useremptyemail1after->username);
+        $this->assertStringStartsWith($useremptyemail2->username . '.' . $useremptyemail2->id . '@unknownemail.invalid.',
+            $useremptyemail2after->username);
 
         $this->resetDebugging();
     }
@@ -2178,6 +2214,84 @@ class core_moodlelib_testcase extends advanced_testcase {
         $result = get_max_upload_sizes();
         $this->assertArrayHasKey('0', $result);
         $this->assertArrayHasKey(get_max_upload_file_size(), $result);
+    }
+
+    /**
+     * Provider for get_max_upload_file_size.
+     *
+     * @return array
+     */
+    public function get_max_upload_file_size_provider() {
+        $inisize = min(array(get_real_size(ini_get('post_max_size')), get_real_size(ini_get('upload_max_filesize'))));
+        return [
+            'POST: inisize smallest' => [
+                $inisize + 10,
+                $inisize + 20,
+                $inisize + 30,
+                true,
+                $inisize,
+            ],
+            'POST: sitebytes smallest' => [
+                $inisize - 30,
+                $inisize - 20,
+                $inisize - 10,
+                true,
+                $inisize - 30,
+            ],
+            'POST: coursebytes smallest' => [
+                $inisize - 20,
+                $inisize - 30,
+                $inisize - 10,
+                true,
+                $inisize - 30,
+            ],
+            'POST: modulebytes smallest' => [
+                $inisize - 20,
+                $inisize - 10,
+                $inisize - 30,
+                true,
+                $inisize - 30,
+            ],
+            'POST: User can ignore site limit (respect ini)' => [
+                USER_CAN_IGNORE_FILE_SIZE_LIMITS,
+                0,
+                0,
+                true,
+                $inisize,
+            ],
+            'NOPOST: inisize smallest' => [
+                $inisize + 10,
+                $inisize + 20,
+                $inisize + 30,
+                false,
+                $inisize + 10,
+            ],
+            'NOPOST: User can ignore site limit (no limit)' => [
+                USER_CAN_IGNORE_FILE_SIZE_LIMITS,
+                0,
+                0,
+                false,
+                USER_CAN_IGNORE_FILE_SIZE_LIMITS,
+            ],
+        ];
+    }
+
+    /**
+     * Test get_max_upload_file_size with various combinations.
+     *
+     * @dataProvider get_max_upload_file_size_provider
+     */
+    public function test_get_max_upload_file_size($sitebytes, $coursebytes, $modulebytes, $ispost, $expectation) {
+        $this->assertEquals($expectation, get_max_upload_file_size($sitebytes, $coursebytes, $modulebytes, $ispost));
+    }
+
+    /**
+     * Test that when get_max_upload_file_size is called with no sizes, and no post, an exception is thrown.
+     */
+    public function test_get_max_upload_file_size_no_sizes() {
+        // If not using post we have to provide at least one other limit.
+        $this->setExpectedException('coding_exception', 'You must specify at least one filesize limit.');
+        get_max_upload_file_size(0, 0, 0, false);
     }
 
     /**
@@ -2608,6 +2722,123 @@ class core_moodlelib_testcase extends advanced_testcase {
         $this->assertEventContextNotUsed($event);
     }
 
+    /**
+     * A data provider for testing email messageid
+     */
+    public function generate_email_messageid_provider() {
+        return array(
+            'nopath' => array(
+                'wwwroot' => 'http://www.example.com',
+                'ids' => array(
+                    'a-custom-id' => '<a-custom-id@www.example.com>',
+                    'an-id-with-/-a-slash' => '<an-id-with-%2F-a-slash@www.example.com>',
+                ),
+            ),
+            'path' => array(
+                'wwwroot' => 'http://www.example.com/path/subdir',
+                'ids' => array(
+                    'a-custom-id' => '<a-custom-id/path/subdir@www.example.com>',
+                    'an-id-with-/-a-slash' => '<an-id-with-%2F-a-slash/path/subdir@www.example.com>',
+                ),
+            ),
+        );
+    }
+
+    /**
+     * Test email message id generation
+     *
+     * @dataProvider generate_email_messageid_provider
+     *
+     * @param string $wwwroot The wwwroot
+     * @param array $msgids An array of msgid local parts and the final result
+     */
+    public function test_generate_email_messageid($wwwroot, $msgids) {
+        global $CFG;
+
+        $this->resetAfterTest();
+        $CFG->wwwroot = $wwwroot;
+
+        foreach ($msgids as $local => $final) {
+            $this->assertEquals($final, generate_email_messageid($local));
+        }
+    }
+
+    /**
+     * A data provider for testing email diversion
+     */
+    public function diverted_emails_provider() {
+        return array(
+            'nodiverts' => array(
+                'divertallemailsto' => null,
+                'divertallemailsexcept' => null,
+                array(
+                    'foo@example.com',
+                    'test@real.com',
+                    'fred.jones@example.com',
+                    'dev1@dev.com',
+                    'fred@example.com',
+                    'fred+verp@example.com',
+                ),
+                false,
+            ),
+            'alldiverts' => array(
+                'divertallemailsto' => 'somewhere@elsewhere.com',
+                'divertallemailsexcept' => null,
+                array(
+                    'foo@example.com',
+                    'test@real.com',
+                    'fred.jones@example.com',
+                    'dev1@dev.com',
+                    'fred@example.com',
+                    'fred+verp@example.com',
+                ),
+                true,
+            ),
+            'alsodiverts' => array(
+                'divertallemailsto' => 'somewhere@elsewhere.com',
+                'divertallemailsexcept' => '@dev.com, fred(\+.*)?@example.com',
+                array(
+                    'foo@example.com',
+                    'test@real.com',
+                    'fred.jones@example.com',
+                ),
+                true,
+            ),
+            'divertsexceptions' => array(
+                'divertallemailsto' => 'somewhere@elsewhere.com',
+                'divertallemailsexcept' => '@dev.com, fred(\+.*)?@example.com',
+                array(
+                    'dev1@dev.com',
+                    'fred@example.com',
+                    'fred+verp@example.com',
+                ),
+                false,
+            ),
+        );
+    }
+
+    /**
+     * Test email diversion
+     *
+     * @dataProvider diverted_emails_provider
+     *
+     * @param string $divertallemailsto An optional email address
+     * @param string $divertallemailsexcept An optional exclusion list
+     * @param array $addresses An array of test addresses
+     * @param boolean $expected Expected result
+     */
+    public function test_email_should_be_diverted($divertallemailsto, $divertallemailsexcept, $addresses, $expected) {
+        global $CFG;
+
+        $this->resetAfterTest();
+        $CFG->divertallemailsto = $divertallemailsto;
+        $CFG->divertallemailsexcept = $divertallemailsexcept;
+
+        foreach ($addresses as $address) {
+            $this->assertEquals($expected, email_should_be_diverted($address));
+        }
+    }
+
     public function test_email_to_user() {
         global $CFG;
 
@@ -2810,7 +3041,7 @@ class core_moodlelib_testcase extends advanced_testcase {
         $this->assertEquals(3, $count);
 
         $count = count_words('one"two three-four');
-        $this->assertEquals(3, $count);
+        $this->assertEquals(2, $count);
 
         $count = count_words('one@two three_four');
         $this->assertEquals(4, $count);
@@ -2877,5 +3108,101 @@ class core_moodlelib_testcase extends advanced_testcase {
 
         $_SERVER['HTTP_X_FORWARDED_FOR'] = $xforwardedfor;
 
+    }
+
+    /*
+     * Test emulation of random_bytes() function.
+     */
+    public function test_random_bytes_emulate() {
+        $result = random_bytes_emulate(10);
+        $this->assertSame(10, strlen($result));
+        $this->assertnotSame($result, random_bytes_emulate(10));
+
+        $result = random_bytes_emulate(21);
+        $this->assertSame(21, strlen($result));
+        $this->assertnotSame($result, random_bytes_emulate(21));
+
+        $result = random_bytes_emulate(666);
+        $this->assertSame(666, strlen($result));
+
+        $this->assertDebuggingNotCalled();
+
+        $result = random_bytes_emulate(0);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
+
+        $result = random_bytes_emulate(-1);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * Test function for creation of random strings.
+     */
+    public function test_random_string() {
+        $pool = 'a-zA-Z0-9';
+
+        $result = random_string(10);
+        $this->assertSame(10, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+        $this->assertNotSame($result, random_string(10));
+
+        $result = random_string(21);
+        $this->assertSame(21, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+        $this->assertNotSame($result, random_string(21));
+
+        $result = random_string(666);
+        $this->assertSame(666, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+
+        $result = random_string();
+        $this->assertSame(15, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+
+        $this->assertDebuggingNotCalled();
+
+        $result = random_string(0);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
+
+        $result = random_string(-1);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * Test function for creation of complex random strings.
+     */
+    public function test_complex_random_string() {
+        $pool = preg_quote('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789`~!@#%^&*()_+-=[];,./<>?:{} ', '/');
+
+        $result = complex_random_string(10);
+        $this->assertSame(10, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+        $this->assertNotSame($result, complex_random_string(10));
+
+        $result = complex_random_string(21);
+        $this->assertSame(21, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+        $this->assertNotSame($result, complex_random_string(21));
+
+        $result = complex_random_string(666);
+        $this->assertSame(666, strlen($result));
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+
+        $result = complex_random_string();
+        $this->assertEquals(28, strlen($result), '', 4); // Expected length is 24 - 32.
+        $this->assertRegExp('/^[' . $pool . ']+$/', $result);
+
+        $this->assertDebuggingNotCalled();
+
+        $result = complex_random_string(0);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
+
+        $result = complex_random_string(-1);
+        $this->assertSame('', $result);
+        $this->assertDebuggingCalled();
     }
 }

@@ -88,6 +88,55 @@ function assign_reset_userdata($data) {
 }
 
 /**
+ * This standard function will check all instances of this module
+ * and make sure there are up-to-date events created for each of them.
+ * If courseid = 0, then every assignment event in the site is checked, else
+ * only assignment events belonging to the course specified are checked.
+ *
+ * @param int $courseid
+ * @return bool
+ */
+function assign_refresh_events($courseid = 0) {
+    global $CFG, $DB;
+    require_once($CFG->dirroot . '/mod/assign/locallib.php');
+
+    if ($courseid) {
+        // Make sure that the course id is numeric.
+        if (!is_numeric($courseid)) {
+            return false;
+        }
+        if (!$assigns = $DB->get_records('assign', array('course' => $courseid))) {
+            return false;
+        }
+        // Get course from courseid parameter.
+        if (!$course = $DB->get_record('course', array('id' => $courseid), '*')) {
+            return false;
+        }
+    } else {
+        if (!$assigns = $DB->get_records('assign')) {
+            return false;
+        }
+    }
+    foreach ($assigns as $assign) {
+        // Use assignment's course column if courseid parameter is not given.
+        if (!$courseid) {
+            $courseid = $assign->course;
+            if (!$course = $DB->get_record('course', array('id' => $courseid), '*')) {
+                continue;
+            }
+        }
+        if (!$cm = get_coursemodule_from_instance('assign', $assign->id, $courseid, false)) {
+            continue;
+        }
+        $context = context_module::instance($cm->id);
+        $assignment = new assign($context, $cm, $course);
+        $assignment->update_calendar($cm->id);
+    }
+
+    return true;
+}
+
+/**
  * Removes all grades from gradebook
  *
  * @param int $courseid The ID of the course to reset
@@ -680,7 +729,14 @@ function assign_print_recent_activity($course, $viewfullnames, $timestart) {
 
     foreach ($show as $submission) {
         $cm = $modinfo->get_cm($submission->cmid);
+        $context = context_module::instance($submission->cmid);
+        $assign = new assign($context, $cm, $cm->course);
         $link = $CFG->wwwroot.'/mod/assign/view.php?id='.$cm->id;
+        // Obscure first and last name if blind marking enabled.
+        if ($assign->is_blind_marking()) {
+            $submission->firstname = get_string('participant', 'mod_assign');
+            $submission->lastname = $assign->get_uniqueid_for_user($submission->userid);
+        }
         print_recent_activity_note($submission->timemodified,
                                    $submission,
                                    $cm->name,
@@ -1260,6 +1316,52 @@ function assign_user_complete($course, $user, $coursemodule, $assign) {
 }
 
 /**
+ * Rescale all grades for this activity and push the new grades to the gradebook.
+ *
+ * @param stdClass $course Course db record
+ * @param stdClass $cm Course module db record
+ * @param float $oldmin
+ * @param float $oldmax
+ * @param float $newmin
+ * @param float $newmax
+ */
+function assign_rescale_activity_grades($course, $cm, $oldmin, $oldmax, $newmin, $newmax) {
+    global $DB;
+
+    if ($oldmax <= $oldmin) {
+        // Grades cannot be scaled.
+        return false;
+    }
+    $scale = ($newmax - $newmin) / ($oldmax - $oldmin);
+    if (($newmax - $newmin) <= 1) {
+        // We would lose too much precision, lets bail.
+        return false;
+    }
+
+    $params = array(
+        'p1' => $oldmin,
+        'p2' => $scale,
+        'p3' => $newmin,
+        'a' => $cm->instance
+    );
+
+    $sql = 'UPDATE {assign_grades} set grade = (((grade - :p1) * :p2) + :p3) where assignment = :a';
+    $dbupdate = $DB->execute($sql, $params);
+    if (!$dbupdate) {
+        return false;
+    }
+
+    // Now re-push all grades to the gradebook.
+    $dbparams = array('id' => $cm->instance);
+    $assign = $DB->get_record('assign', $dbparams);
+    $assign->cmidnumber = $cm->idnumber;
+
+    assign_update_grades($assign);
+
+    return true;
+}
+
+/**
  * Print the grade information for the assignment for this user.
  *
  * @param stdClass $course
@@ -1309,8 +1411,7 @@ function assign_get_completion_state($course, $cm, $userid, $type) {
 
     // If completion option is enabled, evaluate it and return true/false.
     if ($assign->get_instance()->completionsubmit) {
-        $dbparams = array('assignment'=>$assign->get_instance()->id, 'userid'=>$userid);
-        $submission = $DB->get_record('assign_submission', $dbparams, '*', IGNORE_MISSING);
+        $submission = $assign->get_user_submission($userid, false);
         return $submission && $submission->status == ASSIGN_SUBMISSION_STATUS_SUBMITTED;
     } else {
         // Completion option is not enabled so just return $type.
@@ -1372,4 +1473,37 @@ function assign_pluginfile($course,
         return false;
     }
     send_stored_file($file, 0, 0, $forcedownload, $options);
+}
+
+/**
+ * Serve the grading panel as a fragment.
+ *
+ * @param array $args List of named arguments for the fragment loader.
+ * @return string
+ */
+function mod_assign_output_fragment_gradingpanel($args) {
+    global $CFG;
+
+    $context = $args['context'];
+
+    if ($context->contextlevel != CONTEXT_MODULE) {
+        return null;
+    }
+    require_once($CFG->dirroot . '/mod/assign/locallib.php');
+    $assign = new assign($context, null, null);
+
+    $userid = clean_param($args['userid'], PARAM_INT);
+    $attemptnumber = clean_param($args['attemptnumber'], PARAM_INT);
+    $formdata = array();
+    if (!empty($args['jsonformdata'])) {
+        $serialiseddata = json_decode($args['jsonformdata']);
+        parse_str($serialiseddata, $formdata);
+    }
+    $viewargs = array(
+        'userid' => $userid,
+        'attemptnumber' => $attemptnumber,
+        'formdata' => $formdata
+    );
+
+    return $assign->view('gradingpanel', $viewargs);
 }

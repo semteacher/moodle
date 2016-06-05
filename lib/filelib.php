@@ -445,6 +445,8 @@ function file_prepare_draft_area(&$draftitemid, $contextid, $component, $fileare
 
 /**
  * Convert encoded URLs in $text from the @@PLUGINFILE@@/... form to an actual URL.
+ * Passing a new option reverse = true in the $options var will make the function to convert actual URLs in $text to encoded URLs
+ * in the @@PLUGINFILE@@ form.
  *
  * @category files
  * @global stdClass $CFG
@@ -454,7 +456,7 @@ function file_prepare_draft_area(&$draftitemid, $contextid, $component, $fileare
  * @param string $component
  * @param string $filearea helps identify the file area.
  * @param int $itemid helps identify the file area.
- * @param array $options text and file options ('forcehttps'=>false)
+ * @param array $options text and file options ('forcehttps'=>false), use reverse = true to reverse the behaviour of the function.
  * @return string the processed text.
  */
 function file_rewrite_pluginfile_urls($text, $file, $contextid, $component, $filearea, $itemid, array $options=null) {
@@ -479,7 +481,11 @@ function file_rewrite_pluginfile_urls($text, $file, $contextid, $component, $fil
         $baseurl = str_replace('http://', 'https://', $baseurl);
     }
 
-    return str_replace('@@PLUGINFILE@@/', $baseurl, $text);
+    if (!empty($options['reverse'])) {
+        return str_replace($baseurl, '@@PLUGINFILE@@/', $text);
+    } else {
+        return str_replace('@@PLUGINFILE@@/', $baseurl, $text);
+    }
 }
 
 /**
@@ -1391,6 +1397,29 @@ function &get_mimetypes_array() {
 }
 
 /**
+ * Determine a file's MIME type based on the given filename using the function mimeinfo.
+ *
+ * This function retrieves a file's MIME type for a file that will be sent to the user.
+ * This should only be used for file-sending purposes just like in send_stored_file, send_file, and send_temp_file.
+ * Should the file's MIME type cannot be determined by mimeinfo, it will return 'application/octet-stream' as a default
+ * MIME type which should tell the browser "I don't know what type of file this is, so just download it.".
+ *
+ * @param string $filename The file's filename.
+ * @return string The file's MIME type or 'application/octet-stream' if it cannot be determined.
+ */
+function get_mimetype_for_sending($filename = '') {
+    // Guess the file's MIME type using mimeinfo.
+    $mimetype = mimeinfo('type', $filename);
+
+    // Use octet-stream as fallback if MIME type cannot be determined by mimeinfo.
+    if (!$mimetype || $mimetype === 'document/unknown') {
+        $mimetype = 'application/octet-stream';
+    }
+
+    return $mimetype;
+}
+
+/**
  * Obtains information about a filetype based on its extension. Will
  * use a default if no information is present about that particular
  * extension.
@@ -1988,12 +2017,8 @@ function readstring_accel($string, $mimetype, $accelerate) {
 function send_temp_file($path, $filename, $pathisstring=false) {
     global $CFG;
 
-    if (core_useragent::is_firefox()) {
-        // only FF is known to correctly save to disk before opening...
-        $mimetype = mimeinfo('type', $filename);
-    } else {
-        $mimetype = 'application/x-forcedownload';
-    }
+    // Guess the file's MIME type.
+    $mimetype = get_mimetype_for_sending($filename);
 
     // close session - not needed anymore
     \core\session\manager::write_close();
@@ -2076,12 +2101,10 @@ function send_file($path, $filename, $lifetime = null , $filter=0, $pathisstring
 
     \core\session\manager::write_close(); // Unlock session during file serving.
 
-    // Use given MIME type if specified, otherwise guess it using mimeinfo.
-    // IE, Konqueror and Opera open html file directly in browser from web even when directed to save it to disk :-O
-    // only Firefox saves all files locally before opening when content-disposition: attachment stated
-    $isFF         = core_useragent::is_firefox(); // only FF properly tested
-    $mimetype     = ($forcedownload and !$isFF) ? 'application/x-forcedownload' :
-                         ($mimetype ? $mimetype : mimeinfo('type', $filename));
+    // Use given MIME type if specified, otherwise guess it.
+    if (!$mimetype || $mimetype === 'document/unknown') {
+        $mimetype = get_mimetype_for_sending($filename);
+    }
 
     // if user is using IE, urlencode the filename so that multibyte file name will show up correctly on popup
     if (core_useragent::is_ie()) {
@@ -2254,13 +2277,15 @@ function send_stored_file($stored_file, $lifetime=null, $filter=0, $forcedownloa
 
     \core\session\manager::write_close(); // Unlock session during file serving.
 
-    // Use given MIME type if specified, otherwise guess it using mimeinfo.
-    // IE, Konqueror and Opera open html file directly in browser from web even when directed to save it to disk :-O
-    // only Firefox saves all files locally before opening when content-disposition: attachment stated
     $filename     = is_null($filename) ? $stored_file->get_filename() : $filename;
-    $isFF         = core_useragent::is_firefox(); // only FF properly tested
-    $mimetype     = ($forcedownload and !$isFF) ? 'application/x-forcedownload' :
-                         ($stored_file->get_mimetype() ? $stored_file->get_mimetype() : mimeinfo('type', $filename));
+
+    // Use given MIME type if specified.
+    $mimetype = $stored_file->get_mimetype();
+
+    // Otherwise guess it.
+    if (!$mimetype || $mimetype === 'document/unknown') {
+        $mimetype = get_mimetype_for_sending($filename);
+    }
 
     // if user is using IE, urlencode the filename so that multibyte file name will show up correctly on popup
     if (core_useragent::is_ie()) {
@@ -2632,6 +2657,35 @@ function file_modify_html_header($text) {
     // if not, just stick a <head> tag at the beginning
     $text = '<head>'.$stylesheetshtml.'</head>'."\n".$text;
     return $text;
+}
+
+/**
+ * Tells whether the filename is executable.
+ *
+ * @link http://php.net/manual/en/function.is-executable.php
+ * @link https://bugs.php.net/bug.php?id=41062
+ * @param string $filename Path to the file.
+ * @return bool True if the filename exists and is executable; otherwise, false.
+ */
+function file_is_executable($filename) {
+    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+        if (is_executable($filename)) {
+            return true;
+        } else {
+            $fileext = strrchr($filename, '.');
+            // If we have an extension we can check if it is listed as executable.
+            if ($fileext && file_exists($filename) && !is_dir($filename)) {
+                $winpathext = strtolower(getenv('PATHEXT'));
+                $winpathexts = explode(';', $winpathext);
+
+                return in_array(strtolower($fileext), $winpathexts);
+            }
+
+            return false;
+        }
+    } else {
+        return is_executable($filename);
+    }
 }
 
 /**
@@ -4485,6 +4539,14 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null) {
             if ($birecord->blockname !== $blockname) {
                 // somebody tries to gain illegal access, cm type must match the component!
                 send_file_not_found();
+            }
+
+            if ($context->get_course_context(false)) {
+                // If block is in course context, then check if user has capability to access course.
+                require_course_login($course);
+            } else if ($CFG->forcelogin) {
+                // If user is logged out, bp record will not be visible, even if the user would have access if logged in.
+                require_login();
             }
 
             $bprecord = $DB->get_record('block_positions', array('contextid' => $context->id, 'blockinstanceid' => $context->instanceid));

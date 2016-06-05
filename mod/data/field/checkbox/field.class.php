@@ -46,10 +46,9 @@ class data_field_checkbox extends data_field_base {
         if ($this->field->required) {
             $str .= '$nbsp;' . get_string('requiredelement', 'form');
             $str .= '</span></legend>';
-            $str .= '<div>';
-            $str .= html_writer::img($OUTPUT->pix_url('req'), get_string('requiredelement', 'form'),
+            $image = html_writer::img($OUTPUT->pix_url('req'), get_string('requiredelement', 'form'),
                                      array('class' => 'req', 'title' => get_string('requiredelement', 'form')));
-            $str .= '</div>';
+            $str .= html_writer::div($image, 'inline-req');
         } else {
             $str .= '</span></legend>';
         }
@@ -62,7 +61,7 @@ class data_field_checkbox extends data_field_base {
             }
             $str .= '<input type="hidden" name="field_' . $this->field->id . '[]" value="" />';
             $str .= '<input type="checkbox" id="field_'.$this->field->id.'_'.$i.'" name="field_' . $this->field->id . '[]" ';
-            $str .= 'value="' . s($checkbox) . '" ';
+            $str .= 'value="' . s($checkbox) . '" class="mod-data-input" ';
 
             if (array_search($checkbox, $content) !== false) {
                 $str .= 'checked />';
@@ -98,6 +97,7 @@ class data_field_checkbox extends data_field_base {
             } else {
                 $str .= html_writer::checkbox('f_'.$this->field->id.'[]', s($checkbox), false, $checkbox);
             }
+            $str .= html_writer::empty_tag('br');
             $found = true;
         }
         if (!$found) {
@@ -177,7 +177,7 @@ class data_field_checkbox extends data_field_base {
         global $DB;
 
         if ($content = $DB->get_record('data_content', array('fieldid'=>$this->field->id, 'recordid'=>$recordid))) {
-            if (empty($content->content)) {
+            if (strval($content->content) === '') {
                 return false;
             }
 
@@ -234,7 +234,7 @@ class data_field_checkbox extends data_field_base {
     function notemptyfield($value, $name) {
         $found = false;
         foreach ($value as $checkboxitem) {
-            if (!empty($checkboxitem)) {
+            if (strval($checkboxitem) !== '') {
                 $found = true;
                 break;
             }

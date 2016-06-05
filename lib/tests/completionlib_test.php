@@ -59,15 +59,7 @@ class core_completionlib_testcase extends advanced_testcase {
         // Create a course with activities.
         $this->course = $this->getDataGenerator()->create_course(array('enablecompletion' => true));
         $this->user = $this->getDataGenerator()->create_user();
-        $studentrole = $DB->get_record('role', array('shortname' => 'student'));
-        $this->assertNotEmpty($studentrole);
-
-        // Get manual enrolment plugin and enrol user.
-        require_once($CFG->dirroot.'/enrol/manual/locallib.php');
-        $manplugin = enrol_get_plugin('manual');
-        $maninstance = $DB->get_record('enrol', array('courseid' => $this->course->id, 'enrol' => 'manual'), '*', MUST_EXIST);
-        $manplugin->enrol_user($maninstance, $this->user->id, $studentrole->id);
-        $this->assertEquals(1, $DB->count_records('user_enrolments'));
+        $this->getDataGenerator()->enrol_user($this->user->id, $this->course->id);
 
         $this->module1 = $this->getDataGenerator()->create_module('forum', array('course' => $this->course->id));
         $this->module2 = $this->getDataGenerator()->create_module('forum', array('course' => $this->course->id));
@@ -195,9 +187,11 @@ class core_completionlib_testcase extends advanced_testcase {
         $changed = clone($current);
         $changed->timemodified = time();
         $changed->completionstate = COMPLETION_INCOMPLETE;
+        $comparewith = new phpunit_constraint_object_is_equal_with_exceptions($changed);
+        $comparewith->add_exception('timemodified', 'assertGreaterThanOrEqual');
         $c->expects($this->at(2))
             ->method('internal_set_data')
-            ->with($cm, $changed);
+            ->with($cm, $comparewith);
         $c->update_state($cm, COMPLETION_INCOMPLETE);
 
         // Auto, change state.
@@ -217,9 +211,11 @@ class core_completionlib_testcase extends advanced_testcase {
         $changed = clone($current);
         $changed->timemodified = time();
         $changed->completionstate = COMPLETION_COMPLETE_PASS;
+        $comparewith = new phpunit_constraint_object_is_equal_with_exceptions($changed);
+        $comparewith->add_exception('timemodified', 'assertGreaterThanOrEqual');
         $c->expects($this->at(3))
             ->method('internal_set_data')
-            ->with($cm, $changed);
+            ->with($cm, $comparewith);
         $c->update_state($cm, COMPLETION_COMPLETE_PASS);
     }
 
@@ -853,6 +849,17 @@ class core_completionlib_testcase extends advanced_testcase {
         $this->assertInstanceOf('moodle_url', $event->get_url());
         $expectedlegacylog = array($this->course->id, 'course', 'completion updated', 'completion.php?id='.$this->course->id);
         $this->assertEventLegacyLogData($expectedlegacylog, $event);
+    }
+
+    public function test_completion_can_view_data() {
+        $this->setup_data();
+
+        $student = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($student->id, $this->course->id);
+
+        $this->setUser($student);
+        $this->assertTrue(completion_can_view_data($student->id, $this->course->id));
+        $this->assertFalse(completion_can_view_data($this->user->id, $this->course->id));
     }
 }
 

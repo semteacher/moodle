@@ -58,7 +58,7 @@ function my_get_page($userid, $private=MY_PAGE_PRIVATE) {
 function my_copy_page($userid, $private=MY_PAGE_PRIVATE, $pagetype='my-index') {
     global $DB;
 
-    if ($customised = $DB->record_exists('my_pages', array('userid' => $userid, 'private' => $private))) {
+    if ($customised = $DB->get_record('my_pages', array('userid' => $userid, 'private' => $private))) {
         return $customised;  // We're done!
     }
 
@@ -134,6 +134,60 @@ function my_reset_page($userid, $private=MY_PAGE_PRIVATE, $pagetype='my-index') 
         return false; // error
     }
     return $systempage;
+}
+
+/**
+ * Resets the page customisations for all users.
+ *
+ * @param int $private Either MY_PAGE_PRIVATE or MY_PAGE_PUBLIC.
+ * @param string $pagetype Either my-index or user-profile.
+ * @return void
+ */
+function my_reset_page_for_all_users($private = MY_PAGE_PRIVATE, $pagetype = 'my-index') {
+    global $DB;
+
+    // This may take a while. Raise the execution time limit.
+    core_php_time_limit::raise();
+
+    // Find all the user pages.
+    $where = 'userid IS NOT NULL AND private = :private';
+    $params = array('private' => $private);
+    $pages = $DB->get_recordset_select('my_pages', $where, $params, 'id, userid');
+    $blockids = array();
+
+    foreach ($pages as $page) {
+        $usercontext = context_user::instance($page->userid);
+
+        // Find all block instances in that page.
+        $blockswhere = 'parentcontextid = :parentcontextid AND
+            pagetypepattern = :pagetypepattern AND
+            (subpagepattern IS NULL OR subpagepattern = :subpagepattern)';
+        $blockswhereparams = [
+            'parentcontextid' => $usercontext->id,
+            'pagetypepattern' => $pagetype,
+            'subpagepattern' => $page->id
+        ];
+        if ($pageblockids = $DB->get_fieldset_select('block_instances', 'id', $blockswhere, $blockswhereparams)) {
+            $blockids = array_merge($blockids, $pageblockids);
+        }
+    }
+    $pages->close();
+
+    // Wrap the SQL queries in a transaction.
+    $transaction = $DB->start_delegated_transaction();
+
+    // Delete the block instances.
+    if (!empty($blockids)) {
+        blocks_delete_instances($blockids);
+    }
+
+    // Finally delete the pages.
+    if (!empty($pages)) {
+        $DB->delete_records_select('my_pages', $where, $params);
+    }
+
+    // We should be good to go now.
+    $transaction->allow_commit();
 }
 
 class my_syspage_block_manager extends block_manager {
