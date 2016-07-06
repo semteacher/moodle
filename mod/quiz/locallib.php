@@ -533,19 +533,19 @@ function quiz_rescale_grade($rawgrade, $quiz, $format = true) {
         $grade = null;
     } else if ($quiz->sumgrades >= 0.000005) {
         $grade = $rawgrade * $quiz->grade / $quiz->sumgrades;
-		//TDMU grading method
-        $grade2 = $grade * 2;
-		if ($grade2<13){$grade = 0;}
-		if (($grade2==13)||($grade2==14)){$grade = 4;}
-		if ($grade2==15){$grade = 5;}
-		if ($grade2==16){$grade = 6;}
-		if (($grade2==17)||($grade2==18)){$grade = 7;}
-		if ($grade2==19){$grade = 8;}
-		if ($grade2==20){$grade = 9;}
-		if (($grade2==21)||($grade2==22)){$grade = 10;}
-		if ($grade2==23){$grade = 11;}
-		if ($grade2==24){$grade = 12;}
-		if ($grade2>24){$grade = 0;}
+		//TDMU grading method - cancelled 2016-07
+        //$grade2 = $grade * 2;
+		//if ($grade2<13){$grade = 0;}
+		//if (($grade2==13)||($grade2==14)){$grade = 4;}
+		//if ($grade2==15){$grade = 5;}
+		//if ($grade2==16){$grade = 6;}
+		//if (($grade2==17)||($grade2==18)){$grade = 7;}
+		//if ($grade2==19){$grade = 8;}
+		//if ($grade2==20){$grade = 9;}
+		//if (($grade2==21)||($grade2==22)){$grade = 10;}
+		//if ($grade2==23){$grade = 11;}
+		//if ($grade2==24){$grade = 12;}
+		//if ($grade2>24){$grade = 0;}
     } else {
         $grade = 0;
     }
