@@ -58,8 +58,16 @@ class behat_enrol extends behat_base {
             array($this->escape($enrolmethod), get_string('addinstance', 'enrol'))
         );
 
+        // Wait again, for page to reloaded.
+        $this->execute('behat_general::i_wait_to_be_redirected');
+
         // Set form fields.
         $this->execute("behat_forms::i_set_the_following_fields_to_these_values", $table);
+
+        // Ensure we get button in focus, before pressing button.
+        if ($this->running_javascript()) {
+            $this->execute("behat_general::i_take_focus_off_field", array(get_string('addinstance', 'enrol'), "button"));
+        }
 
         // Save changes.
         $this->execute("behat_forms::press_button", get_string('addinstance', 'enrol'));

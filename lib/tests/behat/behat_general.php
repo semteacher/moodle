@@ -87,6 +87,15 @@ class behat_general extends behat_base {
     }
 
     /**
+     * Opens course index page.
+     *
+     * @Given /^I am on course index$/
+     */
+    public function i_am_on_course_index() {
+        $this->getSession()->visit($this->locate_path('/course/index.php'));
+    }
+
+    /**
      * Reloads the current page.
      *
      * @Given /^I reload the page$/
@@ -993,6 +1002,43 @@ class behat_general extends behat_base {
     }
 
     /**
+     * Runs all ad-hoc tasks in the queue.
+     *
+     * This is faster and more reliable than running cron (running cron won't
+     * work more than once in the same test, for instance). However it is
+     * a little less 'realistic'.
+     *
+     * While the task is running, we suppress mtrace output because it makes
+     * the Behat result look ugly.
+     *
+     * @Given /^I run all adhoc tasks$/
+     * @throws DriverException
+     */
+    public function i_run_all_adhoc_tasks() {
+        // Do setup for cron task.
+        cron_setup_user();
+
+        // Run tasks. Locking is handled by get_next_adhoc_task.
+        $now = time();
+        ob_start(); // Discard task output as not appropriate for Behat output!
+        while (($task = \core\task\manager::get_next_adhoc_task($now)) !== null) {
+
+            try {
+                $task->execute();
+
+                // Mark task complete.
+                \core\task\manager::adhoc_task_complete($task);
+            } catch (Exception $e) {
+                // Mark task failed and throw exception.
+                \core\task\manager::adhoc_task_failed($task);
+                ob_end_clean();
+                throw new DriverException('An adhoc task failed', 0, $e);
+            }
+        }
+        ob_end_clean();
+    }
+
+    /**
      * Checks that an element and selector type exists in another element and selector type on the current page.
      *
      * This step is for advanced users, use it if you don't find anything else suitable for what you need.
@@ -1057,13 +1103,15 @@ class behat_general extends behat_base {
      * Change browser window size small: 640x480, medium: 1024x768, large: 2560x1600, custom: widthxheight
      *
      * Example: I change window size to "small" or I change window size to "1024x768"
+     * or I change viewport size to "800x600". The viewport option is useful to guarantee that the
+     * browser window has same viewport size even when you run Behat on multiple operating systems.
      *
      * @throws ExpectationException
-     * @Then /^I change window size to "(small|medium|large|\d+x\d+)"$/
+     * @Then /^I change (window|viewport) size to "(small|medium|large|\d+x\d+)"$/
      * @param string $windowsize size of the window (small|medium|large|wxh).
      */
-    public function i_change_window_size_to($windowsize) {
-        $this->resize_window($windowsize);
+    public function i_change_window_size_to($windowviewport, $windowsize) {
+        $this->resize_window($windowsize, $windowviewport === 'viewport');
     }
 
     /**
@@ -1538,5 +1586,46 @@ class behat_general extends behat_base {
         $node->keyDown($char, $modifier);
         $node->keyPress($char, $modifier);
         $node->keyUp($char, $modifier);
+    }
+
+    /**
+     * Press tab key on a specific element.
+     *
+     * @When /^I press tab key in "(?P<element_string>(?:[^"]|\\")*)" "(?P<selector_string>[^"]*)"$/
+     * @param string $element Element we look for
+     * @param string $selectortype The type of what we look for
+     * @throws DriverException
+     * @throws ExpectationException
+     */
+    public function i_post_tab_key_in_element($element, $selectortype) {
+        if (!$this->running_javascript()) {
+            throw new DriverException('Tab press step is not available with Javascript disabled');
+        }
+        // Gets the node based on the requested selector type and locator.
+        $node = $this->get_selected_node($selectortype, $element);
+        $this->getSession()->getDriver()->post_key("\xEE\x80\x84", $node->getXpath());
+    }
+
+    /**
+     * Checks if database family used is using one of the specified, else skip. (mysql, postgres, mssql, oracle, etc.)
+     *
+     * @Given /^database family used is one of the following:$/
+     * @param TableNode $databasefamilies list of database.
+     * @return void.
+     * @throws \Moodle\BehatExtension\Exception\SkippedException
+     */
+    public function database_family_used_is_one_of_the_following(TableNode $databasefamilies) {
+        global $DB;
+
+        $dbfamily = $DB->get_dbfamily();
+
+        // Check if used db family is one of the specified ones. If yes then return.
+        foreach ($databasefamilies->getRows() as $dbfamilytocheck) {
+            if ($dbfamilytocheck[0] == $dbfamily) {
+                return;
+            }
+        }
+
+        throw new \Moodle\BehatExtension\Exception\SkippedException();
     }
 }
