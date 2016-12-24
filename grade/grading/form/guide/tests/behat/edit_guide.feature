@@ -29,10 +29,10 @@ Feature: Marking guides can be created and edited
       | Name        | Assignment 1 marking guide     |
       | Description | Marking guide test description |
     And I define the following marking guide:
-      | Criterion name    | Description for students         | Description for markers         | Maximum mark |
-      | Guide criterion A | Guide A description for students | Guide A description for markers | 30           |
-      | Guide criterion B | Guide B description for students | Guide B description for markers | 30           |
-      | Guide criterion C | Guide C description for students | Guide C description for markers | 40           |
+      | Criterion name    | Description for students         | Description for markers         | Maximum score |
+      | Guide criterion A | Guide A description for students | Guide A description for markers | 30            |
+      | Guide criterion B | Guide B description for students | Guide B description for markers | 30            |
+      | Guide criterion C | Guide C description for students | Guide C description for markers | 40            |
     And I define the following frequently used comments:
       | Comment 1 |
       | Comment 2 |
@@ -87,7 +87,7 @@ Feature: Marking guides can be created and edited
     And I press "Ok"
     And I follow "Edit settings"
     And I follow "Test assignment 1 name"
-    And I follow "View all submissions"
+    And I navigate to "View all submissions" in current page administration
     # Checking that the user grade is correct.
     Then I should see "80" in the "Student 1" "table_row"
     And I log out

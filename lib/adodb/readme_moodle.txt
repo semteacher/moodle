@@ -1,4 +1,4 @@
-Description of ADODB V5.20.1 library import into Moodle
+Description of ADODB V5.20.7 library import into Moodle
 
 This library will be probably removed in Moodle 2.1,
 it is now used only in enrol and auth db plugins.
@@ -28,4 +28,4 @@ Our changes:
  * MDL-52286 Added muting erros in ADORecordSet::__destruct().
    Check if fixed upstream during the next upgrade and remove this note.
 
-skodak, iarenaza, moodler, stronk7, abgreeve
+skodak, iarenaza, moodler, stronk7, abgreeve, lameze
