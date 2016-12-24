@@ -401,7 +401,7 @@ class behat_course extends behat_base {
     public function i_edit_the_section_and_i_fill_the_form_with($sectionnumber, TableNode $data) {
 
         // Edit given section.
-        $this->execute("behat_course::i_edit_the_section");
+        $this->execute("behat_course::i_edit_the_section", $sectionnumber);
 
         // Set form fields.
         $this->execute("behat_forms::i_set_the_following_fields_to_these_values", $data);
@@ -1719,5 +1719,17 @@ class behat_course extends behat_base {
     public function i_click_on_category_in_the_management_category_listing($name) {
         $node = $this->get_management_category_listing_node_by_name($name);
         $node->find('css', 'a.categoryname')->click();
+    }
+
+    /**
+     * Go to the course participants
+     *
+     * @Given /^I navigate to course participants$/
+     */
+    public function i_navigate_to_course_participants() {
+        $coursestr = behat_context_helper::escape(get_string('courses'));
+        $mycoursestr = behat_context_helper::escape(get_string('mycourses'));
+        $xpath = "//div[contains(@class,'block')]//li[p/*[string(.)=$coursestr or string(.)=$mycoursestr]]";
+        $this->execute('behat_general::i_click_on_in_the', [get_string('participants'), 'link', $xpath, 'xpath_element']);
     }
 }

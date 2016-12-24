@@ -1879,6 +1879,71 @@ class core_competency_api_testcase extends advanced_testcase {
         $this->assertInstanceOf('core_competency\\template_cohort', $result);
     }
 
+    public function test_reorder_template_competencies_permissions() {
+        $this->resetAfterTest(true);
+
+        $dg = $this->getDataGenerator();
+        $lpg = $this->getDataGenerator()->get_plugin_generator('core_competency');
+        $cat = $dg->create_category();
+        $catcontext = context_coursecat::instance($cat->id);
+        $syscontext = context_system::instance();
+
+        $user = $dg->create_user();
+        $role = $dg->create_role();
+        assign_capability('moodle/competency:templatemanage', CAP_ALLOW, $role, $syscontext->id, true);
+        $dg->role_assign($role, $user->id, $syscontext->id);
+
+        // Create a template.
+        $template = $lpg->create_template(array('contextid' => $catcontext->id));
+
+        // Create a competency framework.
+        $framework = $lpg->create_framework(array('contextid' => $catcontext->id));
+
+        // Create competencies.
+        $competency1 = $lpg->create_competency(array('competencyframeworkid' => $framework->get_id()));
+        $competency2 = $lpg->create_competency(array('competencyframeworkid' => $framework->get_id()));
+
+        // Add the competencies.
+        $lpg->create_template_competency(array(
+            'templateid' => $template->get_id(),
+            'competencyid' => $competency1->get_id()
+        ));
+        $lpg->create_template_competency(array(
+            'templateid' => $template->get_id(),
+            'competencyid' => $competency2->get_id()
+        ));
+        $this->setUser($user);
+        // Can reorder competencies with system context permissions in category context.
+        $result = api::reorder_template_competency($template->get_id(), $competency2->get_id(), $competency1->get_id());
+        $this->assertTrue($result);
+        unassign_capability('moodle/competency:templatemanage', $role, $syscontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
+
+        try {
+            api::reorder_template_competency($template->get_id(), $competency2->get_id(), $competency1->get_id());
+            $this->fail('Exception expected due to not permissions to manage template competencies');
+        } catch (required_capability_exception $e) {
+            $this->assertEquals('nopermissions', $e->errorcode);
+        }
+
+        // Giving permissions in category context.
+        assign_capability('moodle/competency:templatemanage', CAP_ALLOW, $role, $catcontext->id, true);
+        $dg->role_assign($role, $user->id, $catcontext->id);
+        // User with templatemanage capability in category context can reorder competencies in temple.
+        $result = api::reorder_template_competency($template->get_id(), $competency1->get_id(), $competency2->get_id());
+        $this->assertTrue($result);
+        // Removing templatemanage capability in category context.
+        unassign_capability('moodle/competency:templatemanage', $role, $catcontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
+
+        try {
+            api::reorder_template_competency($template->get_id(), $competency2->get_id(), $competency1->get_id());
+            $this->fail('Exception expected due to not permissions to manage template competencies');
+        } catch (required_capability_exception $e) {
+            $this->assertEquals('nopermissions', $e->errorcode);
+        }
+    }
+
     public function test_delete_template() {
         $this->resetAfterTest(true);
         $this->setAdminUser();
@@ -2577,6 +2642,47 @@ class core_competency_api_testcase extends advanced_testcase {
         $this->assertEquals($coursectx->id, $ev4->get_contextid());
         $this->assertEquals(\core_competency\evidence::ACTION_COMPLETE, $ev4->get_action());
         $this->assertEquals(null, $ev4->get_actionuserid());
+    }
+
+    public function test_list_evidence_in_course() {
+        global $SITE;
+
+        $this->resetAfterTest(true);
+        $dg = $this->getDataGenerator();
+        $lpg = $dg->get_plugin_generator('core_competency');
+        $u1 = $dg->create_user();
+        $course = $dg->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        $this->setAdminUser();
+        $f = $lpg->create_framework();
+        $c = $lpg->create_competency(array('competencyframeworkid' => $f->get_id()));
+        $c2 = $lpg->create_competency(array('competencyframeworkid' => $f->get_id()));
+        $cc = api::add_competency_to_course($course->id, $c->get_id());
+        $cc2 = api::add_competency_to_course($course->id, $c2->get_id());
+
+        $pagegenerator = $this->getDataGenerator()->get_plugin_generator('mod_page');
+        $page = $pagegenerator->create_instance(array('course' => $course->id));
+
+        $cm = get_coursemodule_from_instance('page', $page->id);
+        $cmcontext = context_module::instance($cm->id);
+        // Add the competency to the course module.
+        $ccm = api::add_competency_to_course_module($cm, $c->get_id());
+
+        // Now add the evidence to the course.
+        $evidence1 = api::add_evidence($u1->id, $c->get_id(), $coursecontext->id, \core_competency\evidence::ACTION_LOG,
+            'invaliddata', 'error');
+
+        $result = api::list_evidence_in_course($u1->id, $course->id, $c->get_id());
+        $this->assertEquals($result[0]->get_id(), $evidence1->get_id());
+
+        // Now add the evidence to the course module.
+        $evidence2 = api::add_evidence($u1->id, $c->get_id(), $cmcontext->id, \core_competency\evidence::ACTION_LOG,
+            'invaliddata', 'error');
+
+        $result = api::list_evidence_in_course($u1->id, $course->id, $c->get_id(), 'timecreated', 'ASC');
+        $this->assertEquals($evidence1->get_id(), $result[0]->get_id());
+        $this->assertEquals($evidence2->get_id(), $result[1]->get_id());
     }
 
     public function test_list_course_modules_using_competency() {

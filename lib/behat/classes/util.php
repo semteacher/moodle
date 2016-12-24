@@ -114,6 +114,9 @@ class behat_util extends testing_util {
         // Enable web cron.
         set_config('cronclionly', 0);
 
+        // Set editor autosave to high value, so as to avoid unwanted ajax.
+        set_config('autosavefrequency', '604800', 'editor_atto');
+
         // Keeps the current version of database and dataroot.
         self::store_versions_hash();
 
@@ -342,5 +345,9 @@ class behat_util extends testing_util {
 
         // Inform data generator.
         self::get_data_generator()->reset();
+
+        // Initialise $CFG with default values. This is needed for behat cli process, so we don't have modified
+        // $CFG values from the old run. @see set_config.
+        initialise_cfg();
     }
 }
