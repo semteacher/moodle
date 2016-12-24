@@ -36,6 +36,7 @@
             print_error('blockdoesnotexist', 'error');
         }
         $DB->set_field('block', 'visible', '0', array('id'=>$block->id));      // Hide block
+        add_to_config_log('block_visibility', $block->visible, '0', $block->name);
         core_plugin_manager::reset_caches();
         admin_get_root(true, false);  // settings not required - only pages
     }
@@ -45,6 +46,7 @@
             print_error('blockdoesnotexist', 'error');
         }
         $DB->set_field('block', 'visible', '1', array('id'=>$block->id));      // Show block
+        add_to_config_log('block_visibility', $block->visible, '1', $block->name);
         core_plugin_manager::reset_caches();
         admin_get_root(true, false);  // settings not required - only pages
     }
@@ -64,6 +66,7 @@
         if (!in_array($block->name, $undeletableblocktypes)) {
             $undeletableblocktypes[] = $block->name;
             set_config('undeletableblocktypes', implode(',', $undeletableblocktypes));
+            add_to_config_log('block_protect', $unprotect, $protect, $block->name);
         }
         admin_get_root(true, false);  // settings not required - only pages
     }
@@ -75,6 +78,7 @@
         if (in_array($block->name, $undeletableblocktypes)) {
             $undeletableblocktypes = array_diff($undeletableblocktypes, array($block->name));
             set_config('undeletableblocktypes', implode(',', $undeletableblocktypes));
+            add_to_config_log('block_protect', $unprotect, $protect, $block->name);
         }
         admin_get_root(true, false);  // settings not required - only pages
     }
@@ -154,7 +158,10 @@
                 $settings = '<a href="' . $blocksettings->url .  '">' . get_string('settings') . '</a>';
             } else if ($blocksettings instanceof admin_settingpage) {
                 $settings = '<a href="'.$CFG->wwwroot.'/'.$CFG->admin.'/settings.php?section=blocksetting'.$block->name.'">'.$strsettings.'</a>';
-            } else {
+            } else if (!file_exists($CFG->dirroot.'/blocks/'.$block->name.'/settings.php')) {
+                // If the block's settings node was not found, we check that the block really provides the settings.php file.
+                // Note that blocks can inject their settings to other nodes in the admin tree without using the default locations.
+                // This can be done by assigning null to $setting in settings.php and it is a valid case.
                 debugging('Warning: block_'.$block->name.' returns true in has_config() but does not provide a settings.php file',
                     DEBUG_DEVELOPER);
             }

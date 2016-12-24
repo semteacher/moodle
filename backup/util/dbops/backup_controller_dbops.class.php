@@ -105,6 +105,12 @@ abstract class backup_controller_dbops extends backup_dbops {
             throw new backup_dbops_exception('backup_controller_dbops_nonexisting');
         }
         $controller = unserialize(base64_decode($controllerrec->controller));
+        if (!is_object($controller)) {
+            // The controller field of the table did not contain a serialized object.
+            // It is made empty after it has been used successfully, it is likely that
+            // the user has pressed the browser back button at some point.
+            throw new backup_dbops_exception('backup_controller_dbops_loading_invalid_controller');
+        }
         // Check checksum is ok. Sounds silly but it isn't ;-)
         if (!$controller->is_checksum_correct($controllerrec->checksum)) {
             throw new backup_dbops_exception('backup_controller_dbops_loading_checksum_mismatch');
@@ -629,7 +635,9 @@ abstract class backup_controller_dbops extends backup_dbops {
             $locked = (get_config('backup', $config.'_locked') == true);
             if ($plan->setting_exists($settingname)) {
                 $setting = $plan->get_setting($settingname);
-                if ($setting->get_value() != $value || 1==1) {
+                // We can only update the setting if it isn't already locked by config or permission.
+                if ($setting->get_status() !== base_setting::LOCKED_BY_CONFIG
+                        && $setting->get_status() !== base_setting::LOCKED_BY_PERMISSION) {
                     $setting->set_value($value);
                     if ($locked) {
                         $setting->set_status(base_setting::LOCKED_BY_CONFIG);

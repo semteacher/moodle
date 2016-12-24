@@ -2196,10 +2196,13 @@ class api {
      */
     public static function reorder_template_competency($templateid, $competencyidfrom, $competencyidto) {
         static::require_enabled();
-        // First we do a permissions check.
-        $context = context_system::instance();
+        $template = new template($templateid);
 
-        require_capability('moodle/competency:templatemanage', $context);
+        // First we do a permissions check.
+        if (!$template->can_manage()) {
+            throw new required_capability_exception($template->get_context(), 'moodle/competency:templatemanage',
+                'nopermissions', '');
+        }
 
         $down = true;
         $matches = template_competency::get_records(array('templateid' => $templateid, 'competencyid' => $competencyidfrom));
@@ -4166,11 +4169,8 @@ class api {
             return array();
         }
 
-        $params = array(
-            'usercompetencyid' => $usercompetency->get_id(),
-            'contextid' => context_course::instance($courseid)->id
-        );
-        return evidence::get_records($params, $sort, $order, $skip, $limit);
+        $context = context_course::instance($courseid);
+        return evidence::get_records_for_usercompetency($usercompetency->get_id(), $context, $sort, $order, $skip, $limit);
     }
 
     /**
