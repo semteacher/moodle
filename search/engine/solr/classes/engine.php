@@ -316,6 +316,9 @@ class engine extends \core_search\engine {
             $query->setGroupLimit(3);
             $query->setGroupNGroups(true);
             $query->addGroupField('solr_filegroupingid');
+        } else {
+            // Make sure we only get text files, in case the index has pre-existing files.
+            $query->addFilterQuery('type:'.\core_search\manager::TYPE_TEXT);
         }
 
         return $query;
@@ -742,7 +745,7 @@ class engine extends \core_search\engine {
                     if (isset($files[$fileid])) {
                         // Check for changes that would mean we need to re-index the file. If so, just leave in $files.
                         // Filelib does not guarantee time modified is updated, so we will check important values.
-                        if ($indexedfile->modified < $files[$fileid]->get_timemodified()) {
+                        if ($indexedfile->modified != $files[$fileid]->get_timemodified()) {
                             continue;
                         }
                         if (strcmp($indexedfile->title, $files[$fileid]->get_filename()) !== 0) {
@@ -998,7 +1001,7 @@ class engine extends \core_search\engine {
      *
      * Return false to prevent the search area completed time and stats from being updated.
      *
-     * @param \core_search\area\base $searcharea The search area that was complete
+     * @param \core_search\base $searcharea The search area that was complete
      * @param int $numdocs The number of documents that were added to the index
      * @param bool $fullindex True if a full index is being performed
      * @return bool True means that data is considered indexed
@@ -1098,9 +1101,11 @@ class engine extends \core_search\engine {
                 return get_string('minimumsolr4', 'search_solr');
             }
         } catch (\SolrClientException $ex) {
-            return 'Solr client error: ' . $ex->getMessage();
+            debugging('Solr client error: ' . html_to_text($ex->getMessage()), DEBUG_DEVELOPER);
+            return get_string('engineserverstatus', 'search');
         } catch (\SolrServerException $ex) {
-            return 'Solr server error: ' . $ex->getMessage();
+            debugging('Solr server error: ' . html_to_text($ex->getMessage()), DEBUG_DEVELOPER);
+            return get_string('engineserverstatus', 'search');
         }
 
         return true;
@@ -1112,7 +1117,10 @@ class engine extends \core_search\engine {
      * @return int
      */
     public function get_solr_major_version() {
-        $systemdata = $this->get_search_client()->system();
+        // We should really ping first the server to see if the specified indexname is valid but
+        // we want to minimise solr server requests as they are expensive. system() emits a warning
+        // if it can not connect to the configured index in the configured server.
+        $systemdata = @$this->get_search_client()->system();
         $solrversion = $systemdata->getResponse()->offsetGet('lucene')->offsetGet('solr-spec-version');
         return intval(substr($solrversion, 0, strpos($solrversion, '.')));
     }
@@ -1156,6 +1164,10 @@ class engine extends \core_search\engine {
             'ssl_capath' => !empty($this->config->ssl_capath) ? $this->config->ssl_capath : '',
             'timeout' => !empty($this->config->server_timeout) ? $this->config->server_timeout : '30'
         );
+
+        if (!class_exists('\SolrClient')) {
+            throw new \core_search\engine_exception('enginenotinstalled', 'search', '', 'solr');
+        }
 
         $client = new \SolrClient($options);
 
@@ -1212,7 +1224,7 @@ class engine extends \core_search\engine {
 
         if (!empty($this->config->server_username) && !empty($this->config->server_password)) {
             $authorization = $this->config->server_username . ':' . $this->config->server_password;
-            $this->curl->setHeader('Authorization', 'Basic ' . base64_encode($authorization));
+            $this->curl->setHeader('Authorization: Basic ' . base64_encode($authorization));
         }
 
         return $this->curl;

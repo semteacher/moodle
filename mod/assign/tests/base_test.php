@@ -90,7 +90,7 @@ class mod_assign_base_testcase extends advanced_testcase {
 
         $this->resetAfterTest(true);
 
-        $this->course = $this->getDataGenerator()->create_course();
+        $this->course = $this->getDataGenerator()->create_course(array('enablecompletion' => 1));
         $this->teachers = array();
         for ($i = 0; $i < self::DEFAULT_TEACHER_COUNT; $i++) {
             array_push($this->teachers, $this->getDataGenerator()->create_user());
@@ -205,7 +205,9 @@ class mod_assign_base_testcase extends advanced_testcase {
      */
     protected function create_instance($params=array()) {
         $generator = $this->getDataGenerator()->get_plugin_generator('mod_assign');
-        $params['course'] = $this->course->id;
+        if (!isset($params['course'])) {
+            $params['course'] = $this->course->id;
+        }
         $instance = $generator->create_instance($params);
         $cm = get_coursemodule_from_instance('assign', $instance->id);
         $context = context_module::instance($cm->id);
@@ -349,5 +351,19 @@ class testable_assign extends assign {
         $mform = new mod_assign_grading_batch_operations_form(null, $formparams);
 
         return $mform;
+    }
+
+    public function testable_update_activity_completion_records($teamsubmission,
+                                                          $requireallteammemberssubmit,
+                                                          $submission,
+                                                          $userid,
+                                                          $complete,
+                                                          $completion) {
+        return parent::update_activity_completion_records($teamsubmission,
+                                                          $requireallteammemberssubmit,
+                                                          $submission,
+                                                          $userid,
+                                                          $complete,
+                                                          $completion);
     }
 }

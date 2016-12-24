@@ -23,10 +23,10 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+defined('MOODLE_INTERNAL') || die();
+
 /** Include eventslib.php */
 require_once($CFG->libdir.'/eventslib.php');
-/** Include calendar/lib.php */
-require_once($CFG->dirroot.'/calendar/lib.php');
 // Include forms lib.
 require_once($CFG->libdir.'/formslib.php');
 
@@ -313,35 +313,43 @@ function feedback_delete_instance($id) {
 }
 
 /**
- * this is called after deleting all instances if the course will be deleted.
- * only templates have to be deleted
- *
- * @global object
- * @param object $course
- * @return boolean
- */
-function feedback_delete_course($course) {
-    global $DB;
-
-    //delete all templates of given course
-    return $DB->delete_records('feedback_template', array('course'=>$course->id));
-}
-
-/**
  * Return a small object with summary information about what a
  * user has done with a given particular instance of this module
  * Used for user activity reports.
  * $return->time = the time they did it
  * $return->info = a short text description
  *
- * @param object $course
- * @param object $user
- * @param object $mod
- * @param object $feedback
- * @return object
+ * @param stdClass $course
+ * @param stdClass $user
+ * @param cm_info|stdClass $mod
+ * @param stdClass $feedback
+ * @return stdClass
  */
 function feedback_user_outline($course, $user, $mod, $feedback) {
-    return null;
+    global $DB;
+    $outline = (object)['info' => '', 'time' => 0];
+    if ($feedback->anonymous != FEEDBACK_ANONYMOUS_NO) {
+        // Do not disclose any user info if feedback is anonymous.
+        return $outline;
+    }
+    $params = array('userid' => $user->id, 'feedback' => $feedback->id,
+        'anonymous_response' => FEEDBACK_ANONYMOUS_NO);
+    $status = null;
+    $context = context_module::instance($mod->id);
+    if ($completed = $DB->get_record('feedback_completed', $params)) {
+        // User has completed feedback.
+        $outline->info = get_string('completed', 'feedback');
+        $outline->time = $completed->timemodified;
+    } else if ($completedtmp = $DB->get_record('feedback_completedtmp', $params)) {
+        // User has started but not completed feedback.
+        $outline->info = get_string('started', 'feedback');
+        $outline->time = $completedtmp->timemodified;
+    } else if (has_capability('mod/feedback:complete', $context, $user)) {
+        // User has not started feedback but has capability to do so.
+        $outline->info = get_string('not_started', 'feedback');
+    }
+
+    return $outline;
 }
 
 /**
@@ -529,19 +537,46 @@ function feedback_get_completion_state($course, $cm, $userid, $type) {
     }
 }
 
-
 /**
  * Print a detailed representation of what a  user has done with
  * a given particular instance of this module, for user activity reports.
  *
- * @param object $course
- * @param object $user
- * @param object $mod
- * @param object $feedback
- * @return bool
+ * @param stdClass $course
+ * @param stdClass $user
+ * @param cm_info|stdClass $mod
+ * @param stdClass $feedback
  */
 function feedback_user_complete($course, $user, $mod, $feedback) {
-    return true;
+    global $DB;
+    if ($feedback->anonymous != FEEDBACK_ANONYMOUS_NO) {
+        // Do not disclose any user info if feedback is anonymous.
+        return;
+    }
+    $params = array('userid' => $user->id, 'feedback' => $feedback->id,
+        'anonymous_response' => FEEDBACK_ANONYMOUS_NO);
+    $url = $status = null;
+    $context = context_module::instance($mod->id);
+    if ($completed = $DB->get_record('feedback_completed', $params)) {
+        // User has completed feedback.
+        if (has_capability('mod/feedback:viewreports', $context)) {
+            $url = new moodle_url('/mod/feedback/show_entries.php',
+                ['id' => $mod->id, 'userid' => $user->id,
+                    'showcompleted' => $completed->id]);
+        }
+        $status = get_string('completedon', 'feedback', userdate($completed->timemodified));
+    } else if ($completedtmp = $DB->get_record('feedback_completedtmp', $params)) {
+        // User has started but not completed feedback.
+        $status = get_string('startedon', 'feedback', userdate($completedtmp->timemodified));
+    } else if (has_capability('mod/feedback:complete', $context, $user)) {
+        // User has not started feedback but has capability to do so.
+        $status = get_string('not_started', 'feedback');
+    }
+
+    if ($url && $status) {
+        echo html_writer::link($url, $status);
+    } else if ($status) {
+        echo html_writer::div($status);
+    }
 }
 
 /**
@@ -648,6 +683,12 @@ function feedback_reset_userdata($data) {
                         'error'=>false);
     }
 
+    // Updating dates - shift may be negative too.
+    if ($data->timeshift) {
+        $shifterror = !shift_course_mod_dates('feedback', array('timeopen', 'timeclose'), $data->timeshift, $data->courseid);
+        $status[] = array('component' => $componentstr, 'item' => get_string('datechanged'), 'error' => $shifterror);
+    }
+
     return $status;
 }
 
@@ -746,55 +787,109 @@ function feedback_get_editor_options() {
  * @return void
  */
 function feedback_set_events($feedback) {
-    global $DB;
+    global $DB, $CFG;
 
-    // adding the feedback to the eventtable (I have seen this at quiz-module)
-    $DB->delete_records('event', array('modulename'=>'feedback', 'instance'=>$feedback->id));
+    // Include calendar/lib.php.
+    require_once($CFG->dirroot.'/calendar/lib.php');
 
+    // Get CMID if not sent as part of $feedback.
     if (!isset($feedback->coursemodule)) {
-        $cm = get_coursemodule_from_id('feedback', $feedback->id);
+        $cm = get_coursemodule_from_instance('feedback', $feedback->id, $feedback->course);
         $feedback->coursemodule = $cm->id;
     }
 
-    // the open-event
-    if ($feedback->timeopen > 0) {
+    // Feedback start calendar events.
+    $eventid = $DB->get_field('event', 'id',
+            array('modulename' => 'feedback', 'instance' => $feedback->id, 'eventtype' => 'open'));
+
+    if (isset($feedback->timeopen) && $feedback->timeopen > 0) {
         $event = new stdClass();
-        $event->name         = get_string('start', 'feedback').' '.$feedback->name;
+        $event->name         = get_string('calendarstart', 'feedback', $feedback->name);
         $event->description  = format_module_intro('feedback', $feedback, $feedback->coursemodule);
-        $event->courseid     = $feedback->course;
-        $event->groupid      = 0;
-        $event->userid       = 0;
-        $event->modulename   = 'feedback';
-        $event->instance     = $feedback->id;
-        $event->eventtype    = 'open';
         $event->timestart    = $feedback->timeopen;
         $event->visible      = instance_is_visible('feedback', $feedback);
-        if ($feedback->timeclose > 0) {
-            $event->timeduration = ($feedback->timeclose - $feedback->timeopen);
+        $event->timeduration = 0;
+        if ($eventid) {
+            // Calendar event exists so update it.
+            $event->id = $eventid;
+            $calendarevent = calendar_event::load($event->id);
+            $calendarevent->update($event);
         } else {
-            $event->timeduration = 0;
+            // Event doesn't exist so create one.
+            $event->courseid     = $feedback->course;
+            $event->groupid      = 0;
+            $event->userid       = 0;
+            $event->modulename   = 'feedback';
+            $event->instance     = $feedback->id;
+            $event->eventtype    = 'open';
+            calendar_event::create($event);
         }
-
-        calendar_event::create($event);
+    } else if ($eventid) {
+        // Calendar event is on longer needed.
+        $calendarevent = calendar_event::load($eventid);
+        $calendarevent->delete();
     }
 
-    // the close-event
-    if ($feedback->timeclose > 0) {
+    // Feedback close calendar events.
+    $eventid = $DB->get_field('event', 'id',
+            array('modulename' => 'feedback', 'instance' => $feedback->id, 'eventtype' => 'close'));
+
+    if (isset($feedback->timeclose) && $feedback->timeclose > 0) {
         $event = new stdClass();
-        $event->name         = get_string('stop', 'feedback').' '.$feedback->name;
+        $event->name         = get_string('calendarend', 'feedback', $feedback->name);
         $event->description  = format_module_intro('feedback', $feedback, $feedback->coursemodule);
-        $event->courseid     = $feedback->course;
-        $event->groupid      = 0;
-        $event->userid       = 0;
-        $event->modulename   = 'feedback';
-        $event->instance     = $feedback->id;
-        $event->eventtype    = 'close';
         $event->timestart    = $feedback->timeclose;
         $event->visible      = instance_is_visible('feedback', $feedback);
         $event->timeduration = 0;
-
-        calendar_event::create($event);
+        if ($eventid) {
+            // Calendar event exists so update it.
+            $event->id = $eventid;
+            $calendarevent = calendar_event::load($event->id);
+            $calendarevent->update($event);
+        } else {
+            // Event doesn't exist so create one.
+            $event->courseid     = $feedback->course;
+            $event->groupid      = 0;
+            $event->userid       = 0;
+            $event->modulename   = 'feedback';
+            $event->instance     = $feedback->id;
+            $event->eventtype    = 'close';
+            calendar_event::create($event);
+        }
+    } else if ($eventid) {
+        // Calendar event is on longer needed.
+        $calendarevent = calendar_event::load($eventid);
+        $calendarevent->delete();
     }
+}
+
+/**
+ * This standard function will check all instances of this module
+ * and make sure there are up-to-date events created for each of them.
+ * If courseid = 0, then every feedback event in the site is checked, else
+ * only feedback events belonging to the course specified are checked.
+ * This function is used, in its new format, by restore_refresh_events()
+ *
+ * @param int $courseid
+ * @return bool
+ */
+function feedback_refresh_events($courseid = 0) {
+    global $DB;
+
+    if ($courseid) {
+        if (! $feedbacks = $DB->get_records("feedback", array("course" => $courseid))) {
+            return true;
+        }
+    } else {
+        if (! $feedbacks = $DB->get_records("feedback")) {
+            return true;
+        }
+    }
+
+    foreach ($feedbacks as $feedback) {
+        feedback_set_events($feedback);
+    }
+    return true;
 }
 
 /**
@@ -2932,7 +3027,8 @@ function feedback_send_email($cm, $feedback, $course, $user) {
             }
 
             if ($feedback->anonymous == FEEDBACK_ANONYMOUS_NO) {
-                $eventdata = new stdClass();
+                $eventdata = new \core\message\message();
+                $eventdata->courseid         = $course->id;
                 $eventdata->name             = 'submission';
                 $eventdata->component        = 'mod_feedback';
                 $eventdata->userfrom         = $user;
@@ -2942,9 +3038,13 @@ function feedback_send_email($cm, $feedback, $course, $user) {
                 $eventdata->fullmessageformat = FORMAT_PLAIN;
                 $eventdata->fullmessagehtml  = $posthtml;
                 $eventdata->smallmessage     = '';
+                $eventdata->courseid         = $course->id;
+                $eventdata->contexturl       = $info->url;
+                $eventdata->contexturlname   = $info->feedback;
                 message_send($eventdata);
             } else {
-                $eventdata = new stdClass();
+                $eventdata = new \core\message\message();
+                $eventdata->courseid         = $course->id;
                 $eventdata->name             = 'submission';
                 $eventdata->component        = 'mod_feedback';
                 $eventdata->userfrom         = $teacher;
@@ -2954,6 +3054,9 @@ function feedback_send_email($cm, $feedback, $course, $user) {
                 $eventdata->fullmessageformat = FORMAT_PLAIN;
                 $eventdata->fullmessagehtml  = $posthtml;
                 $eventdata->smallmessage     = '';
+                $eventdata->courseid         = $course->id;
+                $eventdata->contexturl       = $info->url;
+                $eventdata->contexturlname   = $info->feedback;
                 message_send($eventdata);
             }
         }
@@ -3002,7 +3105,8 @@ function feedback_send_email_anonym($cm, $feedback, $course) {
                 $posthtml = '';
             }
 
-            $eventdata = new stdClass();
+            $eventdata = new \core\message\message();
+            $eventdata->courseid         = $course->id;
             $eventdata->name             = 'submission';
             $eventdata->component        = 'mod_feedback';
             $eventdata->userfrom         = $teacher;
@@ -3012,6 +3116,9 @@ function feedback_send_email_anonym($cm, $feedback, $course) {
             $eventdata->fullmessageformat = FORMAT_PLAIN;
             $eventdata->fullmessagehtml  = $posthtml;
             $eventdata->smallmessage     = '';
+            $eventdata->courseid         = $course->id;
+            $eventdata->contexturl       = $info->url;
+            $eventdata->contexturlname   = $info->feedback;
             message_send($eventdata);
         }
     }

@@ -380,8 +380,9 @@ class report_log_table_log extends table_sql {
                 $params['action'] = '%'.$action.'%';
             }
         } else if (!empty($this->filterparams->action)) {
-            $sql = "crud = :crud";
-            $params['crud'] = $this->filterparams->action;
+             list($sql, $params) = $DB->get_in_or_equal(str_split($this->filterparams->action),
+                    SQL_PARAMS_NAMED, 'crud');
+            $sql = "crud " . $sql;
         } else {
             // Add condition for all possible values of crud (to use db index).
             list($sql, $params) = $DB->get_in_or_equal(array('c', 'r', 'u', 'd'),
@@ -484,6 +485,11 @@ class report_log_table_log extends table_sql {
                 \core\event\base::LEVEL_PARTICIPATING, \core\event\base::LEVEL_TEACHING), SQL_PARAMS_NAMED, 'edulevel');
             $joins[] = "edulevel ".$edulevelsql;
             $params = array_merge($params, $edulevelparams);
+        }
+        // Origin.
+        if (isset($this->filterparams->origin) && ($this->filterparams->origin != '')) {
+            $joins[] = "origin = :origin";
+            $params['origin'] = $this->filterparams->origin;
         }
 
         if (!($this->filterparams->logreader instanceof logstore_legacy\log\store)) {
