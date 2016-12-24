@@ -107,6 +107,7 @@ function lesson_update_instance($data, $mform) {
 function lesson_update_events($lesson, $override = null) {
     global $CFG, $DB;
 
+    require_once($CFG->dirroot . '/mod/lesson/locallib.php');
     require_once($CFG->dirroot . '/calendar/lib.php');
 
     // Load the old events relating to this lesson.
@@ -272,19 +273,6 @@ function lesson_delete_instance($id) {
     $lesson = $DB->get_record("lesson", array("id"=>$id), '*', MUST_EXIST);
     $lesson = new lesson($lesson);
     return $lesson->delete();
-}
-
-/**
- * Given a course object, this function will clean up anything that
- * would be leftover after all the instances were deleted
- *
- * @global object
- * @param object $course an object representing the course that is being deleted
- * @param boolean $feedback to specify if the process must output a summary of its work
- * @return boolean
- */
-function lesson_delete_course($course, $feedback=true) {
-    return true;
 }
 
 /**

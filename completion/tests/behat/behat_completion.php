@@ -102,6 +102,9 @@ class behat_completion extends behat_base {
         // Go to course editing.
         $this->execute("behat_general::click_link", get_string('editsettings'));
 
+        // Expand all the form fields.
+        $this->execute("behat_forms::i_expand_all_fieldsets");
+
         // Enable completion.
         $this->execute("behat_forms::i_set_the_field_to",
             array(get_string('enablecompletion', 'completion'), $toggle));
@@ -121,11 +124,12 @@ class behat_completion extends behat_base {
         } else {
             $imgalttext = get_string("completion-alt-auto-y", 'core_completion', $activityname);
         }
-        $csselementforactivitytype = "li.modtype_".strtolower($activitytype);
+        $activityxpath = "//li[contains(concat(' ', @class, ' '), ' modtype_" . strtolower($activitytype) . " ')]";
+        $activityxpath .= "[descendant::*[contains(text(), '" . $activityname . "')]]";
 
         $xpathtocheck = "//img[contains(@alt, '$imgalttext')]";
         $this->execute("behat_general::should_exist_in_the",
-            array($xpathtocheck, "xpath_element", $csselementforactivitytype, "css_element")
+            array($xpathtocheck, "xpath_element", $activityxpath, "xpath_element")
         );
 
     }
@@ -141,12 +145,12 @@ class behat_completion extends behat_base {
         } else {
             $imgalttext = get_string("completion-alt-auto-n", 'core_completion', $activityname);
         }
-        $csselementforactivitytype = "li.modtype_".strtolower($activitytype);
+        $activityxpath = "//li[contains(concat(' ', @class, ' '), ' modtype_" . strtolower($activitytype) . " ')]";
+        $activityxpath .= "[descendant::*[contains(text(), '" . $activityname . "')]]";
 
         $xpathtocheck = "//img[contains(@alt, '$imgalttext')]";
         $this->execute("behat_general::should_exist_in_the",
-            array($xpathtocheck, "xpath_element", $csselementforactivitytype, "css_element")
+            array($xpathtocheck, "xpath_element", $activityxpath, "xpath_element")
         );
-
     }
 }
