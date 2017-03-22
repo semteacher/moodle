@@ -618,7 +618,7 @@ function lesson_get_media_html($lesson, $context) {
 
     $extension = resourcelib_get_extension($url->out(false));
 
-    $mediamanager = core_media_manager::instance();
+    $mediamanager = core_media_manager::instance($PAGE);
     $embedoptions = array(
         core_media_manager::OPTION_TRUSTED => true,
         core_media_manager::OPTION_BLOCK => true
@@ -1009,6 +1009,32 @@ class lesson extends lesson_base {
      * @var bool
      */
     protected $loadedallpages = false;
+
+    /**
+     * Course module object gets set and retrieved by directly calling <code>$lesson->cm;</code>
+     * @see get_cm()
+     * @var stdClass
+     */
+    protected $cm = null;
+
+    /**
+     * Context object gets set and retrieved by directly calling <code>$lesson->context;</code>
+     * @see get_context()
+     * @var stdClass
+     */
+    protected $context = null;
+
+    /**
+     * Constructor method
+     *
+     * @param object $properties
+     * @param stdClass $cm course module object
+     * @since Moodle 3.3
+     */
+    public function __construct($properties, $cm = null) {
+        parent::__construct($properties);
+        $this->cm = $cm;
+    }
 
     /**
      * Simply generates a lesson object given an array/object of properties
@@ -2065,6 +2091,271 @@ class lesson extends lesson_base {
             $event->trigger();
         }
 
+    }
+
+    /**
+     * Return the lesson context object.
+     *
+     * @return stdClass context
+     * @since  Moodle 3.3
+     */
+    public function get_context() {
+        if ($this->context == null) {
+            $this->context = context_module::instance($this->get_cm()->id);
+        }
+        return $this->context;
+    }
+
+    /**
+     * Set the lesson course module object.
+     *
+     * @param stdClass $cm course module objct
+     * @since  Moodle 3.3
+     */
+    private function set_cm($cm) {
+        $this->cm = $cm;
+    }
+
+    /**
+     * Return the lesson course module object.
+     *
+     * @return stdClass course module
+     * @since  Moodle 3.3
+     */
+    public function get_cm() {
+        if ($this->cm == null) {
+            $this->cm = get_coursemodule_from_instance('lesson', $this->properties->id);
+        }
+        return $this->cm;
+    }
+
+    /**
+     * Check if the user can manage the lesson activity.
+     *
+     * @return bool true if the user can manage the lesson
+     * @since  Moodle 3.3
+     */
+    public function can_manage() {
+        return has_capability('mod/lesson:manage', $this->get_context());
+    }
+
+    /**
+     * Check if time restriction is applied.
+     *
+     * @return mixed false if  there aren't restrictions or an object with the restriction information
+     * @since  Moodle 3.3
+     */
+    public function get_time_restriction_status() {
+        if ($this->can_manage()) {
+            return false;
+        }
+
+        if (!$this->is_accessible()) {
+            if ($this->properties->deadline != 0 && time() > $this->properties->deadline) {
+                $status = ['reason' => 'lessonclosed', 'time' => $this->properties->deadline];
+            } else {
+                $status = ['reason' => 'lessonopen', 'time' => $this->properties->available];
+            }
+            return (object) $status;
+        }
+        return false;
+    }
+
+    /**
+     * Check if password restriction is applied.
+     *
+     * @param string $userpassword the user password to check (if the restriction is set)
+     * @return mixed false if there aren't restrictions or an object with the restriction information
+     * @since  Moodle 3.3
+     */
+    public function get_password_restriction_status($userpassword) {
+        global $USER;
+        if ($this->can_manage()) {
+            return false;
+        }
+
+        if ($this->properties->usepassword && empty($USER->lessonloggedin[$this->id])) {
+            $correctpass = false;
+            if (!empty($userpassword) &&
+                    (($this->properties->password == md5(trim($userpassword))) || ($this->properties->password == trim($userpassword)))) {
+                // With or without md5 for backward compatibility (MDL-11090).
+                $correctpass = true;
+                $USER->lessonloggedin[$this->id] = true;
+            } else if (isset($this->properties->extrapasswords)) {
+                // Group overrides may have additional passwords.
+                foreach ($this->properties->extrapasswords as $password) {
+                    if (strcmp($password, md5(trim($userpassword))) === 0 || strcmp($password, trim($userpassword)) === 0) {
+                        $correctpass = true;
+                        $USER->lessonloggedin[$this->id] = true;
+                    }
+                }
+            }
+            return !$correctpass;
+        }
+        return false;
+    }
+
+    /**
+     * Check if dependencies restrictions are applied.
+     *
+     * @return mixed false if there aren't restrictions or an object with the restriction information
+     * @since  Moodle 3.3
+     */
+    public function get_dependencies_restriction_status() {
+        global $DB, $USER;
+        if ($this->can_manage()) {
+            return false;
+        }
+
+        if ($dependentlesson = $DB->get_record('lesson', array('id' => $this->properties->dependency))) {
+            // Lesson exists, so we can proceed.
+            $conditions = unserialize($this->properties->conditions);
+            // Assume false for all.
+            $errors = array();
+            // Check for the timespent condition.
+            if ($conditions->timespent) {
+                $timespent = false;
+                if ($attempttimes = $DB->get_records('lesson_timer', array("userid" => $USER->id, "lessonid" => $dependentlesson->id))) {
+                    // Go through all the times and test to see if any of them satisfy the condition.
+                    foreach ($attempttimes as $attempttime) {
+                        $duration = $attempttime->lessontime - $attempttime->starttime;
+                        if ($conditions->timespent < $duration / 60) {
+                            $timespent = true;
+                        }
+                    }
+                }
+                if (!$timespent) {
+                    $errors[] = get_string('timespenterror', 'lesson', $conditions->timespent);
+                }
+            }
+            // Check for the gradebetterthan condition.
+            if ($conditions->gradebetterthan) {
+                $gradebetterthan = false;
+                if ($studentgrades = $DB->get_records('lesson_grades', array("userid" => $USER->id, "lessonid" => $dependentlesson->id))) {
+                    // Go through all the grades and test to see if any of them satisfy the condition.
+                    foreach ($studentgrades as $studentgrade) {
+                        if ($studentgrade->grade >= $conditions->gradebetterthan) {
+                            $gradebetterthan = true;
+                        }
+                    }
+                }
+                if (!$gradebetterthan) {
+                    $errors[] = get_string('gradebetterthanerror', 'lesson', $conditions->gradebetterthan);
+                }
+            }
+            // Check for the completed condition.
+            if ($conditions->completed) {
+                if (!$DB->count_records('lesson_grades', array('userid' => $USER->id, 'lessonid' => $dependentlesson->id))) {
+                    $errors[] = get_string('completederror', 'lesson');
+                }
+            }
+            if (!empty($errors)) {
+                return (object) ['errors' => $errors, 'dependentlesson' => $dependentlesson];
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the lesson is in review mode. (The user already finished it and retakes are not allowed).
+     *
+     * @return bool true if is in review mode
+     * @since  Moodle 3.3
+     */
+    public function is_in_review_mode() {
+        global $DB, $USER;
+
+        $userhasgrade = $DB->count_records("lesson_grades", array("lessonid" => $this->properties->id, "userid" => $USER->id));
+        if ($userhasgrade && !$this->properties->retake) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Return the last page the current user saw.
+     *
+     * @param int $retriescount the number of retries for the lesson (the last retry number).
+     * @return mixed false if the user didn't see the lesson or the last page id
+     */
+    public function get_last_page_seen($retriescount) {
+        global $DB, $USER;
+
+        $lastpageseen = false;
+        $allattempts = $this->get_attempts($retriescount);
+        if (!empty($allattempts)) {
+            $attempt = end($allattempts);
+            $attemptpage = $this->load_page($attempt->pageid);
+            $jumpto = $DB->get_field('lesson_answers', 'jumpto', array('id' => $attempt->answerid));
+            // Convert the jumpto to a proper page id.
+            if ($jumpto == 0) {
+                // Check if a question has been incorrectly answered AND no more attempts at it are left.
+                $nattempts = $this->get_attempts($attempt->retry, false, $attempt->pageid, $USER->id);
+                if (count($nattempts) >= $this->properties->maxattempts) {
+                    $lastpageseen = $this->get_next_page($attemptpage->nextpageid);
+                } else {
+                    $lastpageseen = $attempt->pageid;
+                }
+            } else if ($jumpto == LESSON_NEXTPAGE) {
+                $lastpageseen = $this->get_next_page($attemptpage->nextpageid);
+            } else if ($jumpto == LESSON_CLUSTERJUMP) {
+                $lastpageseen = $this->cluster_jump($attempt->pageid);
+            } else {
+                $lastpageseen = $jumpto;
+            }
+        }
+
+        if ($branchtables = $DB->get_records('lesson_branch', array("lessonid" => $this->properties->id, "userid" => $USER->id,
+                "retry" => $retriescount), 'timeseen DESC')) {
+            // In here, user has viewed a branch table.
+            $lastbranchtable = current($branchtables);
+            if (count($allattempts) > 0) {
+                if ($lastbranchtable->timeseen > $attempt->timeseen) {
+                    // This branch table was viewed more recently than the question page.
+                    if (!empty($lastbranchtable->nextpageid)) {
+                        $lastpageseen = $lastbranchtable->nextpageid;
+                    } else {
+                        // Next page ID did not exist prior to MDL-34006.
+                        $lastpageseen = $lastbranchtable->pageid;
+                    }
+                }
+            } else {
+                // Has not answered any questions but has viewed a branch table.
+                if (!empty($lastbranchtable->nextpageid)) {
+                    $lastpageseen = $lastbranchtable->nextpageid;
+                } else {
+                    // Next page ID did not exist prior to MDL-34006.
+                    $lastpageseen = $lastbranchtable->pageid;
+                }
+            }
+        }
+        return $lastpageseen;
+    }
+
+    /**
+     * Return the number of retries in a lesson for a given user.
+     *
+     * @param  int $userid the user id
+     * @return int the retries count
+     * @since  Moodle 3.3
+     */
+    public function count_user_retries($userid) {
+        global $DB;
+
+        return $DB->count_records('lesson_grades', array("lessonid" => $this->properties->id, "userid" => $userid));
+    }
+
+    /**
+     * Check if a user left a timed session.
+     *
+     * @param int $retriescount the number of retries for the lesson (the last retry number).
+     * @return true if the user left the timed session
+     */
+    public function left_during_timed_session($retriescount) {
+        global $DB, $USER;
+
+        $conditions = array('lessonid' => $this->properties->id, 'userid' => $USER->id, 'retry' => $retriescount);
+        return $DB->count_records('lesson_attempts', $conditions) > 0 || $DB->count_records('lesson_branch', $conditions) > 0;
     }
 }
 

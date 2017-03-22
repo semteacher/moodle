@@ -63,6 +63,13 @@ $CFG->dboptions = array(
                                 // support advanced options on connection.
                                 // If you set those in the database then
                                 // the advanced settings will not be sent.
+    'dbcollation' => 'utf8mb4_unicode_ci', // MySQL has partial and full UTF-8
+                                // support. If you wish to use partial UTF-8
+                                // (three bytes) then set this option to
+                                // 'utf8_unicode_ci', otherwise this option
+                                // can be removed for MySQL (by default it will
+                                // use 'utf8mb4_unicode_ci'. This option should
+                                // be removed for all other databases.
 );
 
 
@@ -378,7 +385,15 @@ $CFG->admin = 'admin';
 //     LogFormat "%h %l %{MOODLEUSER}n %t \"%r\" %s %b \"%{Referer}i\" \"%{User-Agent}i\"" moodleformat
 // And in the part specific to your Moodle install / virtualhost:
 //     CustomLog "/your/path/to/log" moodleformat
-// CAUTION: Use of this option will expose usernames in the Apache log,
+//
+// Alternatively for other webservers such as nginx, you can instead have the username sent via a http header
+// 'X-MOODLEUSER' which can be saved in the logfile and then stripped out before being sent to the browser:
+//     $CFG->headerloguser = 0; // Turn this feature off. Default value.
+//     $CFG->headerloguser = 1; // Log user id.
+//     $CFG->headerloguser = 2; // Log full name in cleaned format. ie, Darth Vader will be displayed as darth_vader.
+//     $CFG->headerloguser = 3; // Log username.
+//
+// CAUTION: Use of this option will expose usernames in the Apache / nginx log,
 // If you are going to publish your log, or the output of your web stats analyzer
 // this will weaken the security of your website.
 //
