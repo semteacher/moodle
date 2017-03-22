@@ -312,7 +312,8 @@ abstract class persistent {
         $formatted = array();
         foreach ($properties as $property => $definition) {
             $propertyformat = $property . 'format';
-            if ($definition['type'] == PARAM_RAW && array_key_exists($propertyformat, $properties)
+            if (($definition['type'] == PARAM_RAW || $definition['type'] == PARAM_CLEANHTML)
+                    && array_key_exists($propertyformat, $properties)
                     && $properties[$propertyformat]['type'] == PARAM_INT) {
                 $formatted[$property] = $propertyformat;
             }
@@ -562,6 +563,22 @@ abstract class persistent {
     }
 
     /**
+     * Saves the record to the database.
+     *
+     * If this record has an ID, then {@link self::update()} is called, otherwise {@link self::create()} is called.
+     * Before and after hooks for create() or update() will be called appropriately.
+     *
+     * @return void
+     */
+    final public function save() {
+        if ($this->raw_get('id') <= 0) {
+            $this->create();
+        } else {
+            $this->update();
+        }
+    }
+
+    /**
      * Hook to execute before a delete.
      *
      * This is only intended to be used by child classes, do not put any logic here!
@@ -679,6 +696,10 @@ abstract class persistent {
                     if ($definition['type'] === PARAM_BOOL && $value === false) {
                         // Validate_param() does not like false with PARAM_BOOL, better to convert it to int.
                         $value = 0;
+                    }
+                    if ($definition['type'] === PARAM_CLEANHTML) {
+                        // We silently clean for this type. It may introduce changes even to valid data.
+                        $value = clean_param($value, PARAM_CLEANHTML);
                     }
                     validate_param($value, $definition['type'], $definition['null']);
                 } catch (invalid_parameter_exception $e) {
