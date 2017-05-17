@@ -466,11 +466,21 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
         $records = $DB->get_records('event', array('repeatid' => $this->event->id), 'timestart ASC');
 
         $expecteddate = clone($startdatetime);
+        $first = true;
         foreach ($records as $record) {
             $this->assertLessThanOrEqual($until, $record->timestart);
             $this->assertEquals($expecteddate->format('Y-m-d H:i:s'), date('Y-m-d H:i:s', $record->timestart));
             // Go to next iteration.
             $expecteddate->add($interval);
+            // Check UUID.
+            if ($first) {
+                // The first instance of the event contains the UUID.
+                $this->assertEquals('uuid', $record->uuid);
+                $first = false;
+            } else {
+                // Succeeding instances will not contain the UUID.
+                $this->assertEmpty($record->uuid);
+            }
         }
     }
 
@@ -2688,6 +2698,59 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
 
         foreach ($records as $record) {
             $this->assertContains($record->timestart, $expecteddates, date('Y-m-d H:i:s', $record->timestart) . ' is not found.');
+        }
+    }
+
+    /*
+     * Other edge case tests.
+     */
+
+    /**
+     * Tests for MONTHLY RRULE with BYMONTHDAY set to 31.
+     * Should not include February, April, June, September and November.
+     */
+    public function test_monthly_bymonthday_31() {
+        global $DB;
+
+        $rrule = 'FREQ=MONTHLY;BYMONTHDAY=31;COUNT=20';
+        $mang = new rrule_manager($rrule);
+        $mang->parse_rrule();
+        $mang->create_events($this->event);
+
+        $records = $DB->get_records('event', ['repeatid' => $this->event->id], 'timestart ASC', 'id, repeatid, timestart');
+        $this->assertCount(20, $records);
+
+        $non31months = ['February', 'April', 'June', 'September', 'November'];
+
+        foreach ($records as $record) {
+            $month = date('F', $record->timestart);
+            $this->assertNotContains($month, $non31months);
+        }
+    }
+
+    /**
+     * Tests for the last day in February. (Leap year test)
+     */
+    public function test_yearly_on_the_last_day_of_february() {
+        global $DB;
+
+        $rrule = 'FREQ=YEARLY;BYMONTH=2;BYMONTHDAY=-1;COUNT=30';
+        $mang = new rrule_manager($rrule);
+        $mang->parse_rrule();
+        $mang->create_events($this->event);
+
+        $records = $DB->get_records('event', ['repeatid' => $this->event->id], 'timestart ASC', 'id, repeatid, timestart');
+        $this->assertCount(30, $records);
+
+        foreach ($records as $record) {
+            $date = new DateTime(date('Y-m-d H:i:s', $record->timestart));
+            $year = $date->format('Y');
+            $day = $date->format('d');
+            if ($year % 4 == 0) {
+                $this->assertEquals(29, $day);
+            } else {
+                $this->assertEquals(28, $day);
+            }
         }
     }
 
