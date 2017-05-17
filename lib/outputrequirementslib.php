@@ -180,7 +180,7 @@ class page_requirements_manager {
         $this->yui3loader = new stdClass();
         $this->YUI_config = new YUI_config();
 
-        if (is_https()) {
+        if (is_https() && !empty($CFG->useexternalyui)) {
             // On HTTPS sites all JS must be loaded from https sites,
             // YUI CDN does not support https yet, sorry.
             $CFG->useexternalyui = 0;
@@ -313,13 +313,15 @@ class page_requirements_manager {
             // Otherwise, in some situations, users will get warnings about insecure content
             // on secure pages from their web browser.
 
+            $iconsystem = \core\output\icon_system::instance();
+
             $this->M_cfg = array(
                 'wwwroot'             => $CFG->httpswwwroot, // Yes, really. See above.
                 'sesskey'             => sesskey(),
-                'loadingicon'         => $renderer->pix_url('i/loading_small', 'moodle')->out(false),
                 'themerev'            => theme_get_revision(),
                 'slasharguments'      => (int)(!empty($CFG->slasharguments)),
                 'theme'               => $page->theme->name,
+                'iconsystemmodule'    => $iconsystem->get_amd_name(),
                 'jsrev'               => $this->get_jsrev(),
                 'admin'               => $CFG->admin,
                 'svgicons'            => $page->theme->use_svg_icons(),
