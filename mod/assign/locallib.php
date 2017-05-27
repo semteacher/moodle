@@ -1564,6 +1564,7 @@ class assign {
      * @return array List of user records
      */
     public function list_participants($currentgroup, $idsonly) {
+        global $DB, $USER;
 
         if (empty($currentgroup)) {
             $currentgroup = 0;
@@ -1571,12 +1572,58 @@ class assign {
 
         $key = $this->context->id . '-' . $currentgroup . '-' . $this->show_only_active_users();
         if (!isset($this->participants[$key])) {
-            $order = 'u.lastname, u.firstname, u.id';
-            if ($this->is_blind_marking()) {
-                $order = 'u.id';
-            }
-            $users = get_enrolled_users($this->context, 'mod/assign:submit', $currentgroup, 'u.*', $order, null, null,
+            list($esql, $params) = get_enrolled_sql($this->context, 'mod/assign:submit', $currentgroup,
                     $this->show_only_active_users());
+
+            $fields = 'u.*';
+            $orderby = 'u.lastname, u.firstname, u.id';
+            $additionaljoins = '';
+            $additionalfilters = '';
+            $instance = $this->get_instance();
+            if (!empty($instance->blindmarking)) {
+                $additionaljoins .= " LEFT JOIN {assign_user_mapping} um
+                                  ON u.id = um.userid
+                                 AND um.assignment = :assignmentid1
+                           LEFT JOIN {assign_submission} s
+                                  ON u.id = s.userid
+                                 AND s.assignment = :assignmentid2
+                                 AND s.latest = 1
+                        ";
+                $params['assignmentid1'] = (int) $instance->id;
+                $params['assignmentid2'] = (int) $instance->id;
+                $fields .= ', um.id as recordid ';
+
+                // Sort by submission time first, then by um.id to sort reliably by the blind marking id.
+                // Note, different DBs have different ordering of NULL values.
+                // Therefore we coalesce the current time into the timecreated field, and the max possible integer into
+                // the ID field.
+                $orderby = "COALESCE(s.timecreated, " . time() . ") ASC, COALESCE(s.id, " . PHP_INT_MAX . ") ASC, um.id ASC";
+            }
+
+            if ($instance->markingworkflow &&
+                    $instance->markingallocation &&
+                    !has_capability('mod/assign:manageallocations', $this->get_context()) &&
+                    has_capability('mod/assign:grade', $this->get_context())) {
+
+                $additionaljoins .= ' LEFT JOIN {assign_user_flags} uf
+                                     ON u.id = uf.userid
+                                     AND uf.assignment = :assignmentid3';
+
+                $params['assignmentid3'] = (int) $instance->id;
+
+                $additionalfilters .= ' AND uf.allocatedmarker = :markerid';
+                $params['markerid'] = $USER->id;
+            }
+
+            $sql = "SELECT $fields
+                      FROM {user} u
+                      JOIN ($esql) je ON je.id = u.id
+                           $additionaljoins
+                     WHERE u.deleted = 0
+                           $additionalfilters
+                  ORDER BY $orderby";
+
+            $users = $DB->get_records_sql($sql, $params);
 
             $cm = $this->get_course_module();
             $info = new \core_availability\info_module($cm);
@@ -1706,6 +1753,7 @@ class assign {
 
         $params['assignid'] = $this->get_instance()->id;
         $params['submitted'] = ASSIGN_SUBMISSION_STATUS_SUBMITTED;
+        $sqlscalegrade = $this->get_instance()->grade < 0 ? ' OR g.grade = -1' : '';
 
         $sql = 'SELECT COUNT(s.userid)
                    FROM {assign_submission} s
@@ -1719,7 +1767,8 @@ class assign {
                         s.assignment = :assignid AND
                         s.timemodified IS NOT NULL AND
                         s.status = :submitted AND
-                        (s.timemodified >= g.timemodified OR g.timemodified IS NULL OR g.grade IS NULL)';
+                        (s.timemodified >= g.timemodified OR g.timemodified IS NULL OR g.grade IS NULL '
+                            . $sqlscalegrade . ')';
 
         return $DB->count_records_sql($sql, $params);
     }
@@ -2761,7 +2810,7 @@ class assign {
      * Throw an error if the permissions to view this users submission are missing.
      *
      * @throws required_capability_exception
-     * @return none
+     * @return void
      */
     public function require_view_submission($userid) {
         if (!$this->can_view_submission($userid)) {
@@ -2773,7 +2822,7 @@ class assign {
      * Throw an error if the permissions to view grades in this assignment are missing.
      *
      * @throws required_capability_exception
-     * @return none
+     * @return void
      */
     public function require_view_grades() {
         if (!$this->can_view_grades()) {
@@ -2791,7 +2840,17 @@ class assign {
         if (!has_any_capability(array('mod/assign:viewgrades', 'mod/assign:grade'), $this->context)) {
             return false;
         }
-
+        // Checks for the edge case when user belongs to no groups and groupmode is sep.
+        if ($this->get_course_module()->effectivegroupmode == SEPARATEGROUPS) {
+            $groupflag = has_capability('moodle/site:accessallgroups', $this->get_context());
+            if ($groupflag) {
+                // Return early and save further checks.
+                return true;
+            }
+            $groups = groups_get_activity_allowed_groups($this->get_course_module());
+            $groupflag = !empty($groups);
+            return (bool)$groupflag;
+        }
         return true;
     }
 
@@ -6825,7 +6884,9 @@ class assign {
         }
 
         // Do not show if we are editing a previous attempt.
-        if ($attemptnumber == -1 && $this->get_instance()->attemptreopenmethod != ASSIGN_ATTEMPT_REOPEN_METHOD_NONE) {
+        if (($attemptnumber == -1 ||
+            ($attemptnumber + 1) == count($this->get_all_submissions($userid))) &&
+            $this->get_instance()->attemptreopenmethod != ASSIGN_ATTEMPT_REOPEN_METHOD_NONE) {
             $mform->addElement('header', 'attemptsettings', get_string('attemptsettings', 'assign'));
             $attemptreopenmethod = get_string('attemptreopenmethod_' . $this->get_instance()->attemptreopenmethod, 'assign');
             $mform->addElement('static', 'attemptreopenmethod', get_string('attemptreopenmethod', 'assign'), $attemptreopenmethod);
@@ -7374,6 +7435,14 @@ class assign {
                 $feedbackmodified) {
             $this->update_grade($grade, !empty($formdata->addattempt));
         }
+
+        // We never send notifications if we have marking workflow and the grade is not released.
+        if ($this->get_instance()->markingworkflow &&
+                isset($formdata->workflowstate) &&
+                $formdata->workflowstate != ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
+            $formdata->sendstudentnotifications = false;
+        }
+
         // Note the default if not provided for this option is true (e.g. webservices).
         // This is for backwards compatibility.
         if (!isset($formdata->sendstudentnotifications) || $formdata->sendstudentnotifications) {
