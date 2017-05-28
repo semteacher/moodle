@@ -1246,7 +1246,7 @@ class global_navigation extends navigation_node {
         } else {
             $this->rootnodes['courses']->isexpandable = true;
         }
-        $this->rootnodes['mycourses']->forceopen = true;
+        $this->rootnodes['mycourses']->forceopen = false;
 
         $canviewcourseprofile = true;
 
