@@ -131,12 +131,6 @@ class assign_grading_table extends table_sql implements renderable {
         $params['assignmentid2'] = (int)$this->assignment->get_instance()->id;
         $params['assignmentid3'] = (int)$this->assignment->get_instance()->id;
 
-        $params['assignmentid5'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid6'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid7'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid8'] = (int)$this->assignment->get_instance()->id;
-        $params['assignmentid9'] = (int)$this->assignment->get_instance()->id;
-
         $extrauserfields = get_extra_user_fields($this->assignment->get_context());
 
         $fields = user_picture::fields('u', $extrauserfields) . ', ';
@@ -187,6 +181,12 @@ class assign_grading_table extends table_sql implements renderable {
         $hasoverrides = $this->assignment->has_overrides();
 
         if ($hasoverrides) {
+            $params['assignmentid5'] = (int)$this->assignment->get_instance()->id;
+            $params['assignmentid6'] = (int)$this->assignment->get_instance()->id;
+            $params['assignmentid7'] = (int)$this->assignment->get_instance()->id;
+            $params['assignmentid8'] = (int)$this->assignment->get_instance()->id;
+            $params['assignmentid9'] = (int)$this->assignment->get_instance()->id;
+
             $fields .= ', priority.priority, ';
             $fields .= 'effective.allowsubmissionsfromdate, ';
             $fields .= 'effective.duedate, ';
@@ -209,14 +209,13 @@ class assign_grading_table extends table_sql implements renderable {
                       JOIN {groups_members} gm ON gm.groupid = g.id
                      WHERE go.assignid = :assignmentid6
                   )
-                ) AS merged
+                ) merged
                 GROUP BY merged.userid
               ) priority ON priority.userid = u.id
 
             JOIN (
               (SELECT 9999999 AS priority,
                       u.id AS userid,
-
                       a.allowsubmissionsfromdate,
                       a.duedate,
                       a.cutoffdate
@@ -226,7 +225,6 @@ class assign_grading_table extends table_sql implements renderable {
               UNION
               (SELECT 0 AS priority,
                       uo.userid,
-
                       uo.allowsubmissionsfromdate,
                       uo.duedate,
                       uo.cutoffdate
@@ -236,7 +234,6 @@ class assign_grading_table extends table_sql implements renderable {
               UNION
               (SELECT go.sortorder AS priority,
                       gm.userid,
-
                       go.allowsubmissionsfromdate,
                       go.duedate,
                       go.cutoffdate
@@ -246,14 +243,14 @@ class assign_grading_table extends table_sql implements renderable {
                 WHERE go.assignid = :assignmentid9
               )
 
-            ) AS effective ON effective.priority = priority.priority AND effective.userid = priority.userid ';
+            ) effective ON effective.priority = priority.priority AND effective.userid = priority.userid ';
         }
 
         if (!empty($this->assignment->get_instance()->blindmarking)) {
             $from .= 'LEFT JOIN {assign_user_mapping} um
                              ON u.id = um.userid
-                            AND um.assignment = :assignmentid5 ';
-            $params['assignmentid5'] = (int)$this->assignment->get_instance()->id;
+                            AND um.assignment = :assignmentidblind ';
+            $params['assignmentidblind'] = (int)$this->assignment->get_instance()->id;
             $fields .= ', um.id as recordid ';
         }
 
