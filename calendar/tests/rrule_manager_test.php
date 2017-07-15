@@ -705,7 +705,9 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
         $rrule = "FREQ=MONTHLY;INTERVAL=12;BYMONTHDAY=2";
 
         $mang = new rrule_manager($rrule);
-        $until = time() + (YEARSECS * $mang::TIME_UNLIMITED_YEARS);
+        $untildate = new DateTime();
+        $untildate->add(new DateInterval('P' . $mang::TIME_UNLIMITED_YEARS . 'Y'));
+        $until = $untildate->getTimestamp();
 
         $mang->parse_rrule();
         $mang->create_events($this->event);
@@ -860,7 +862,9 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
         $rrule = "FREQ=MONTHLY;INTERVAL=12;BYDAY=1MO";
 
         $mang = new rrule_manager($rrule);
-        $until = time() + (YEARSECS * $mang::TIME_UNLIMITED_YEARS);
+        $untildate = new DateTime();
+        $untildate->add(new DateInterval('P' . $mang::TIME_UNLIMITED_YEARS . 'Y'));
+        $until = $untildate->getTimestamp();
 
         $mang->parse_rrule();
         $mang->create_events($this->event);
@@ -1024,8 +1028,8 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
     public function test_yearly_september_every_two_years_forever() {
         global $DB;
 
-        // Change the start date for forever events to 9am on the month of September of the current year using the current day.
-        $this->change_event_startdate(date('Y09d\T090000'));
+        // Change the start date for forever events to 9am on the 2nd day of September of the current year.
+        $this->change_event_startdate(date('Y0902\T090000'));
 
         $rrule = "FREQ=YEARLY;BYMONTH=9;INTERVAL=2"; // Forever event.
         $mang = new rrule_manager($rrule);
@@ -1038,7 +1042,7 @@ class core_calendar_rrule_manager_testcase extends advanced_testcase {
         $records = $DB->get_records('event', ['repeatid' => $this->event->id], 'timestart ASC', 'id, repeatid, timestart');
 
         $interval = new DateInterval('P2Y');
-        $expecteddate = new DateTime(date('Y09d\T090000'));
+        $expecteddate = new DateTime(date('Y0902\T090000'));
         foreach ($records as $record) {
             $this->assertLessThanOrEqual($untiltimestamp, $record->timestart);
             $this->assertEquals($expecteddate->format('Y-m-d H:i:s'), date('Y-m-d H:i:s', $record->timestart));
