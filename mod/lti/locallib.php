@@ -386,15 +386,15 @@ function lti_build_request($instance, $typeconfig, $course, $typeid = null, $isl
         'lis_person_sourcedid' => $USER->idnumber,
         'roles' => $role,
         'context_id' => $course->id,
-        'context_label' => $course->shortname,
-        'context_title' => $course->fullname,
+        'context_label' => trim(html_to_text($course->shortname)),
+        'context_title' => trim(html_to_text($course->fullname)),
     );
     if (!empty($instance->name)) {
-        $requestparams['resource_link_title'] = $instance->name;
+        $requestparams['resource_link_title'] = trim(html_to_text($instance->name));
     }
     if (!empty($instance->cmid)) {
         $intro = format_module_intro('lti', $instance, $instance->cmid);
-        $intro = html_to_text($intro, 0, false);
+        $intro = trim(html_to_text($intro, 0, false));
 
         // This may look weird, but this is required for new lines
         // so we generate the same OAuth signature as the tool provider.
@@ -531,11 +531,11 @@ function lti_build_standard_request($instance, $orgid, $islti2, $messagetype = '
         $requestparams["tool_consumer_instance_guid"] = $orgid;
     }
     if (!empty($CFG->mod_lti_institution_name)) {
-        $requestparams['tool_consumer_instance_name'] = $CFG->mod_lti_institution_name;
+        $requestparams['tool_consumer_instance_name'] = trim(html_to_text($CFG->mod_lti_institution_name));
     } else {
         $requestparams['tool_consumer_instance_name'] = get_site()->shortname;
     }
-    $requestparams['tool_consumer_instance_description'] = get_site()->fullname;
+    $requestparams['tool_consumer_instance_description'] = trim(html_to_text(get_site()->fullname));
 
     return $requestparams;
 }
@@ -1302,9 +1302,9 @@ function lti_get_ims_role($user, $cmid, $courseid, $islti2) {
         // If no cmid is passed, check if the user is a teacher in the course
         // This allows other modules to programmatically "fake" a launch without
         // a real LTI instance.
-        $coursecontext = context_course::instance($courseid);
+        $context = context_course::instance($courseid);
 
-        if (has_capability('moodle/course:manageactivities', $coursecontext, $user)) {
+        if (has_capability('moodle/course:manageactivities', $context, $user)) {
             array_push($roles, 'Instructor');
         } else {
             array_push($roles, 'Learner');
@@ -1319,7 +1319,9 @@ function lti_get_ims_role($user, $cmid, $courseid, $islti2) {
         }
     }
 
-    if (is_siteadmin($user)) {
+    if (is_siteadmin($user) || has_capability('mod/lti:admin', $context)) {
+        // Make sure admins do not have the Learner role, then set admin role.
+        $roles = array_diff($roles, array('Learner'));
         if (!$islti2) {
             array_push($roles, 'urn:lti:sysrole:ims/lis/Administrator', 'urn:lti:instrole:ims/lis/Administrator');
         } else {

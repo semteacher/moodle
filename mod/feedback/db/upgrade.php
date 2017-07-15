@@ -42,15 +42,6 @@ function xmldb_feedback_upgrade($oldversion) {
 
     $dbman = $DB->get_manager(); // Loads ddl manager and xmldb classes.
 
-    // Moodle v2.8.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Moodle v2.9.0 release upgrade line.
-    // Put any upgrade step following this.
-
-    // Moodle v3.0.0 release upgrade line.
-    // Put any upgrade step following this.
-
     if ($oldversion < 2016031600) {
         // Remove labels from all 'captcha' and 'label' items.
         $DB->execute('UPDATE {feedback_item} SET label = ? WHERE typ = ? OR typ = ?',
@@ -173,6 +164,9 @@ function xmldb_feedback_upgrade($oldversion) {
         // Feedback savepoint reached.
         upgrade_mod_savepoint(true, 2017032800, 'feedback');
     }
+
+    // Automatically generated Moodle v3.3.0 release upgrade line.
+    // Put any upgrade step following this.
 
     return true;
 }
