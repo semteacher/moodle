@@ -24,6 +24,10 @@
 
 namespace core_user;
 
+use context;
+use core_user\output\status_field;
+use DateTime;
+
 defined('MOODLE_INTERNAL') || die;
 
 global $CFG;
@@ -86,14 +90,29 @@ class participants_table extends \table_sql {
     protected $extrafields;
 
     /**
-     * @var \stdClass The course details.
+     * @var \stdClass $course The course details.
      */
     protected $course;
 
     /**
-     * @var \context The course context.
+     * @var  context $context The course context.
      */
     protected $context;
+
+    /**
+     * @var \stdClass[] List of roles indexed by roleid.
+     */
+    protected $allroles;
+
+    /**
+     * @var \stdClass[] List of roles indexed by roleid.
+     */
+    protected $allroleassignments;
+
+    /**
+     * @var \stdClass[] Assignable roles in this course.
+     */
+    protected $assignableroles;
 
     /**
      * Sets up the table.
@@ -115,6 +134,7 @@ class participants_table extends \table_sql {
         // Get the context.
         $this->course = get_course($courseid);
         $context = \context_course::instance($courseid, MUST_EXIST);
+        $this->context = $context;
 
         // Define the headers and columns.
         $headers = [];
@@ -134,6 +154,9 @@ class participants_table extends \table_sql {
             $columns[] = $field;
         }
 
+        $headers[] = get_string('roles');
+        $columns[] = 'roles';
+
         // Load and cache the course groupinfo.
         // Add column for groups.
         $headers[] = get_string('groups');
@@ -146,14 +169,6 @@ class participants_table extends \table_sql {
         }
 
         // Do not show the columns if it exists in the hiddenfields array.
-        if (!isset($hiddenfields['city'])) {
-            $headers[] = get_string('city');
-            $columns[] = 'city';
-        }
-        if (!isset($hiddenfields['country'])) {
-            $headers[] = get_string('country');
-            $columns[] = 'country';
-        }
         if (!isset($hiddenfields['lastaccess'])) {
             if ($courseid == SITEID) {
                 $headers[] = get_string('lastsiteaccess');
@@ -163,8 +178,18 @@ class participants_table extends \table_sql {
             $columns[] = 'lastaccess';
         }
 
+        $canreviewenrol = has_capability('moodle/course:enrolreview', $context);
+        if ($canreviewenrol) {
+            $columns[] = 'status';
+            $headers[] = get_string('participationstatus', 'enrol');
+            $this->no_sorting('status');
+        };
+
         $this->define_columns($columns);
         $this->define_headers($headers);
+
+        // Make this table sorted by first name by default.
+        $this->sortable(true, 'firstname');
 
         $this->no_sorting('select');
 
@@ -180,6 +205,27 @@ class participants_table extends \table_sql {
         $this->extrafields = $extrafields;
         $this->context = $context;
         $this->groups = groups_get_all_groups($courseid, 0, 0, 'g.*', true);
+        $this->allroles = role_fix_names(get_all_roles($this->context), $this->context);
+        $this->allroleassignments = get_users_roles($this->context, [], true, 'c.contextlevel DESC, r.sortorder ASC');
+        $this->assignableroles = get_assignable_roles($this->context, ROLENAME_ALIAS, false);
+    }
+
+    /**
+     * Render the participants table.
+     *
+     * @param int $pagesize Size of page for paginated displayed table.
+     * @param bool $useinitialsbar Whether to use the initials bar which will only be used if there is a fullname column defined.
+     * @param string $downloadhelpbutton
+     */
+    public function out($pagesize, $useinitialsbar, $downloadhelpbutton = '') {
+        global $PAGE;
+
+        parent::out($pagesize, $useinitialsbar, $downloadhelpbutton);
+
+        if (has_capability('moodle/course:enrolreview', $this->context)) {
+            $params = ['contextid' => $this->context->id, 'courseid' => $this->course->id];
+            $PAGE->requires->js_call_amd('core_user/status_field', 'init', [$params]);
+        }
     }
 
     /**
@@ -206,7 +252,32 @@ class participants_table extends \table_sql {
     public function col_fullname($data) {
         global $OUTPUT;
 
-        return $OUTPUT->user_picture($data, array('size' => 35, 'courseid' => $this->course->id)) . ' ' . fullname($data);
+        return $OUTPUT->user_picture($data, array('size' => 35, 'courseid' => $this->course->id, 'includefullname' => true));
+    }
+
+    /**
+     * User roles column.
+     *
+     * @param \stdClass $data
+     * @return string
+     */
+    public function col_roles($data) {
+        global $OUTPUT;
+
+        $roles = isset($this->allroleassignments[$data->id]) ? $this->allroleassignments[$data->id] : [];
+        $getrole = function($role) {
+            return $role->roleid;
+        };
+        $ids = array_values(array_unique(array_map($getrole, $roles)));
+
+        $editable = new \core_user\output\user_roles_editable($this->course,
+                                                              $this->context,
+                                                              $data,
+                                                              $this->allroles,
+                                                              $this->assignableroles,
+                                                              $ids);
+
+        return $OUTPUT->render_from_template('core/inplace_editable', $editable->export_for_template($OUTPUT));
     }
 
     /**
@@ -226,16 +297,6 @@ class participants_table extends \table_sql {
         }
         $editable = new \core_group\output\user_groups_editable($this->course, $this->context, $data, $this->groups, $usergroups);
         return $OUTPUT->render_from_template('core/inplace_editable', $editable->export_for_template($OUTPUT));
-    }
-
-    /**
-     * Generate the city column.
-     *
-     * @param \stdClass $data
-     * @return string
-     */
-    public function col_city($data) {
-        return $data->city;
     }
 
     /**
@@ -263,6 +324,56 @@ class participants_table extends \table_sql {
         }
 
         return get_string('never');
+    }
+
+    /**
+     * Generate the status column.
+     *
+     * @param \stdClass $data The data object.
+     * @return string
+     */
+    public function col_status($data) {
+        global $CFG, $OUTPUT, $PAGE;
+
+        $enrolstatusoutput = '';
+        $canreviewenrol = has_capability('moodle/course:enrolreview', $this->context);
+        if ($canreviewenrol) {
+            $fullname = fullname($data);
+            $coursename = $this->course->fullname;
+            require_once($CFG->dirroot . '/enrol/locallib.php');
+            $manager = new \course_enrolment_manager($PAGE, $this->course);
+            $userenrolments = $manager->get_user_enrolments($data->id);
+            foreach ($userenrolments as $ue) {
+                $timestart = $ue->timestart;
+                $timeend = $ue->timeend;
+                $actions = $ue->enrolmentplugin->get_user_enrolment_actions($manager, $ue);
+                $instancename = $ue->enrolmentinstancename;
+
+                // Default status field label and value.
+                $status = get_string('participationactive', 'enrol');
+                $statusval = status_field::STATUS_ACTIVE;
+                switch ($ue->status) {
+                    case ENROL_USER_ACTIVE:
+                        $currentdate = new DateTime();
+                        $now = $currentdate->getTimestamp();
+                        // If user enrolment status has not yet started/already ended.
+                        if ($timestart > $now || ($timeend > 0 && $timeend < $now)) {
+                            $status = get_string('participationnotcurrent', 'enrol');
+                            $statusval = status_field::STATUS_NOT_CURRENT;
+                        }
+                        break;
+                    case ENROL_USER_SUSPENDED:
+                        $status = get_string('participationsuspended', 'enrol');
+                        $statusval = status_field::STATUS_SUSPENDED;
+                        break;
+                }
+
+                $statusfield = new status_field($instancename, $coursename, $fullname, $status, $timestart, $timeend, $actions);
+                $statusfielddata = $statusfield->set_status($statusval)->export_for_template($OUTPUT);
+                $enrolstatusoutput .= $OUTPUT->render_from_template('core_user/status_field', $statusfielddata);
+            }
+        }
+        return $enrolstatusoutput;
     }
 
     /**

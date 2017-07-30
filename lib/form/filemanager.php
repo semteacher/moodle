@@ -308,6 +308,47 @@ class MoodleQuickForm_filemanager extends HTML_QuickForm_element implements temp
         $context['html'] = $this->toHtml();
         return $context;
     }
+
+    /**
+     * Check that all files have the allowed type.
+     *
+     * @param array $value Draft item id with the uploaded files.
+     * @return string|null Validation error message or null.
+     */
+    public function validateSubmitValue($value) {
+
+        $filetypesutil = new \core_form\filetypes_util();
+        $whitelist = $filetypesutil->normalize_file_types($this->_options['accepted_types']);
+
+        if (empty($whitelist) || $whitelist === ['*']) {
+            // Any file type is allowed, nothing to check here.
+            return;
+        }
+
+        $draftfiles = file_get_drafarea_files($value);
+        $wrongfiles = array();
+
+        if (empty($draftfiles)) {
+            // No file uploaded, nothing to check here.
+            return;
+        }
+
+        foreach ($draftfiles->list as $file) {
+            if (!$filetypesutil->is_allowed_file_type($file->filename, $whitelist)) {
+                $wrongfiles[] = $file->filename;
+            }
+        }
+
+        if ($wrongfiles) {
+            $a = array(
+                'whitelist' => implode(', ', $whitelist),
+                'wrongfiles' => implode(', ', $wrongfiles),
+            );
+            return get_string('err_wrongfileextension', 'core_form', $a);
+        }
+
+        return;
+    }
 }
 
 /**
@@ -404,6 +445,10 @@ class form_filemanager implements renderable {
             $maxbytes = $this->options->maxbytes;
         }
         $this->options->maxbytes = get_user_max_upload_file_size($context, $CFG->maxbytes, $coursebytes, $maxbytes);
+
+        $this->options->userprefs = array();
+        $this->options->userprefs['recentviewmode'] = get_user_preferences('filemanager_recentviewmode', '');
+        user_preference_allow_ajax_update('filemanager_recentviewmode', PARAM_INT);
 
         // building file picker options
         $params = new stdClass();
