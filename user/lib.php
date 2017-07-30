@@ -1234,23 +1234,24 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
 
     $isfrontpage = ($courseid == SITEID);
 
-    list($esql, $params) = get_enrolled_sql($context, null, $groupid, true);
+    // Show active users only if the user doesn't have the 'moodle/course:enrolreview' capability.
+    $onlyactive = !has_capability('moodle/course:enrolreview', $context);
+    list($esql, $params) = get_enrolled_sql($context, null, $groupid, $onlyactive);
 
     $joins = array('FROM {user} u');
     $wheres = array();
 
-    $userfields = array('username', 'email', 'city', 'country', 'lang', 'timezone', 'maildisplay');
-    $mainuserfields = user_picture::fields('u', $userfields);
-    $extrasql = get_extra_user_fields_sql($context, 'u', '', $userfields);
+    $userfields = get_extra_user_fields($context, array('username', 'lang', 'timezone', 'maildisplay'));
+    $userfieldssql = user_picture::fields('u', $userfields);
 
     if ($isfrontpage) {
-        $select = "SELECT $mainuserfields, u.lastaccess$extrasql";
+        $select = "SELECT $userfieldssql, u.lastaccess";
         $joins[] = "JOIN ($esql) e ON e.id = u.id"; // Everybody on the frontpage usually.
         if ($accesssince) {
             $wheres[] = user_get_user_lastaccess_sql($accesssince);
         }
     } else {
-        $select = "SELECT $mainuserfields, COALESCE(ul.timeaccess, 0) AS lastaccess$extrasql";
+        $select = "SELECT $userfieldssql, COALESCE(ul.timeaccess, 0) AS lastaccess";
         $joins[] = "JOIN ($esql) e ON e.id = u.id"; // Course enrolled users only.
         // Not everybody has accessed the course yet.
         $joins[] = 'LEFT JOIN {user_lastaccess} ul ON (ul.userid = u.id AND ul.courseid = :courseid)';
@@ -1384,5 +1385,19 @@ function user_get_user_lastaccess_sql($accesssince = null, $tableprefix = 'u') {
         return $tableprefix . '.lastaccess = 0';
     } else {
         return $tableprefix . '.lastaccess != 0 AND u.lastaccess < ' . $accesssince;
+    }
+}
+
+/**
+ * Callback for inplace editable API.
+ *
+ * @param string $itemtype - Only user_roles is supported.
+ * @param string $itemid - Courseid and userid separated by a :
+ * @param string $newvalue - json encoded list of roleids.
+ * @return \core\output\inplace_editable
+ */
+function core_user_inplace_editable($itemtype, $itemid, $newvalue) {
+    if ($itemtype === 'user_roles') {
+        return \core_user\output\user_roles_editable::update($itemid, $newvalue);
     }
 }
