@@ -3479,30 +3479,32 @@ function duplicate_module($course, $cm) {
         }
     }
 
+    $rc->destroy();
+
+    if (empty($CFG->keeptempdirectoriesonbackup)) {
+        fulldelete($backupbasepath);
+    }
+
     // If we know the cmid of the new course module, let us move it
     // right below the original one. otherwise it will stay at the
     // end of the section.
     if ($newcmid) {
-        $info = get_fast_modinfo($course);
-        $newcm = $info->get_cm($newcmid);
         $section = $DB->get_record('course_sections', array('id' => $cm->section, 'course' => $cm->course));
-        moveto_module($newcm, $section, $cm);
-        moveto_module($cm, $section, $newcm);
+        $modarray = explode(",", trim($section->sequence));
+        $cmindex = array_search($cm->id, $modarray);
+        if ($cmindex !== false && $cmindex < count($modarray) - 1) {
+            $newcm = get_coursemodule_from_id($cm->modname, $newcmid, $cm->course);
+            moveto_module($newcm, $section, $modarray[$cmindex + 1]);
+        }
 
         // Update calendar events with the duplicated module.
         // The following line is to be removed in MDL-58906.
         course_module_update_calendar_events($newcm->modname, null, $newcm);
 
         // Trigger course module created event. We can trigger the event only if we know the newcmid.
+        $newcm = get_fast_modinfo($cm->course)->get_cm($newcmid);
         $event = \core\event\course_module_created::create_from_cm($newcm);
         $event->trigger();
-    }
-    rebuild_course_cache($cm->course);
-
-    $rc->destroy();
-
-    if (empty($CFG->keeptempdirectoriesonbackup)) {
-        fulldelete($backupbasepath);
     }
 
     return isset($newcm) ? $newcm : null;
@@ -3891,18 +3893,17 @@ function course_get_user_navigation_options($context, $course = null) {
 
     // Frontpage settings?
     if ($isfrontpage) {
-        if ($course->id == SITEID) {
-            $options->participants = has_capability('moodle/site:viewparticipants', $sitecontext);
-        } else {
-            $options->participants = has_capability('moodle/course:viewparticipants', context_course::instance($course->id));
-        }
-
+        // We are on the front page, so make sure we use the proper capability (site:viewparticipants).
+        $options->participants = has_capability('moodle/site:viewparticipants', $sitecontext) ||
+            has_capability('moodle/course:enrolreview', $sitecontext);
         $options->badges = !empty($CFG->enablebadges) && has_capability('moodle/badges:viewbadges', $sitecontext);
         $options->tags = !empty($CFG->usetags) && $isloggedin;
         $options->search = !empty($CFG->enableglobalsearch) && has_capability('moodle/search:query', $sitecontext);
         $options->calendar = $isloggedin;
     } else {
-        $options->participants = has_capability('moodle/course:viewparticipants', $context);
+        // We are in a course, so make sure we use the proper capability (course:viewparticipants).
+        $options->participants = has_capability('moodle/course:viewparticipants', $context) ||
+            has_capability('moodle/course:enrolreview', $context);
         $options->badges = !empty($CFG->enablebadges) && !empty($CFG->badges_allowcoursebadges) &&
                             has_capability('moodle/badges:viewbadges', $context);
         // Add view grade report is permitted.

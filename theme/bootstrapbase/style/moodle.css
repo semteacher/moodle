@@ -4774,6 +4774,30 @@ h3.sectionname .inplaceeditable.inplaceeditingon .editinstructions {
   visibility: visible;
   transition: opacity 0.15s 0.5s, visibility 0.15s 0.5s;
 }
+.clickable {
+  cursor: pointer;
+}
+.overlay-icon-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+.overlay-icon-container .loading-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.overlay-icon-container .loading-icon .icon {
+  height: 40px;
+  width: 40px;
+}
+[data-drag-type="move"] {
+  cursor: move;
+}
 /* admin.less */
 .formtable tbody th {
   font-weight: normal;
@@ -5542,7 +5566,7 @@ img.iconsmall {
 .calendar_event_course {
   background-color: #ffd3bd;
 }
-.calendar_event_global {
+.calendar_event_site {
   background-color: #d6f8cd;
 }
 .calendar_event_group {
@@ -5570,6 +5594,8 @@ img.iconsmall {
 }
 .path-calendar .calendar-controls .previous {
   text-align: left;
+  border: 1px solid transparent;
+  box-sizing: border-box;
 }
 .path-calendar .calendar-controls .current {
   text-align: center;
@@ -5577,17 +5603,17 @@ img.iconsmall {
 }
 .path-calendar .calendar-controls .next {
   text-align: right;
+  border: 1px solid transparent;
+  box-sizing: border-box;
+}
+.path-calendar .calendar-controls .drop-target {
+  box-sizing: border-box;
+  border: 1px dashed #049cdb;
 }
 .path-calendar .filters table {
   border-collapse: separate;
   border-spacing: 2px;
   width: 100%;
-}
-.path-calendar .cal_courses_flt {
-  float: left;
-}
-.path-calendar .cal_courses_flt label {
-  margin-right: .45em;
 }
 .path-calendar .maincalendar {
   vertical-align: top;
@@ -5615,6 +5641,9 @@ img.iconsmall {
 .path-calendar .maincalendar .calendarmonth td {
   height: 5em;
 }
+.path-calendar .maincalendar .calendarmonth .clickable:hover {
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 1px 5px 0 rgba(0, 0, 0, 0.12);
+}
 .path-calendar .maincalendar .calendar-controls .previous,
 .path-calendar .maincalendar .calendar-controls .next {
   width: 30%;
@@ -5626,17 +5655,17 @@ img.iconsmall {
   width: 98%;
   margin: 10px auto;
 }
-.path-calendar .maincalendar .calendar_event_course,
-.path-calendar .maincalendar .calendar_event_global,
-.path-calendar .maincalendar .calendar_event_group,
-.path-calendar .maincalendar .calendar_event_user {
-  border-width: 1px 1px 1px 12px;
-  border-style: solid;
+.path-calendar .maincalendar .calendar_event_course:hover a,
+.path-calendar .maincalendar .calendar_event_site:hover a,
+.path-calendar .maincalendar .calendar_event_group:hover a,
+.path-calendar .maincalendar .calendar_event_user:hover a {
+  color: #003d5c;
+  text-decoration: underline;
 }
 .path-calendar .maincalendar .calendar_event_course {
   border-color: #ffd3bd;
 }
-.path-calendar .maincalendar .calendar_event_global {
+.path-calendar .maincalendar .calendar_event_site {
   border-color: #d6f8cd;
 }
 .path-calendar .maincalendar .calendar_event_group {
@@ -5689,14 +5718,14 @@ img.iconsmall {
   margin-right: 0.5rem;
 }
 .path-calendar .maincalendar .eventlist .event .name,
-.path-calendar .maincalendar .eventlist .event .course {
+.path-calendar .maincalendar .eventlist .event .action {
   margin-bottom: 5px;
 }
 .path-calendar .maincalendar .eventlist .event .date {
   float: right;
 }
-.path-calendar .maincalendar .eventlist .event .course,
-.path-calendar .maincalendar .eventlist .event .subscription {
+.path-calendar .maincalendar .eventlist .event .subscription,
+.path-calendar .maincalendar .eventlist .event .action {
   float: left;
   clear: left;
 }
@@ -5705,7 +5734,6 @@ img.iconsmall {
 }
 .path-calendar .maincalendar .eventlist .event .description {
   background-color: #fff;
-  padding: 5px;
   clear: both;
 }
 .path-calendar .maincalendar .eventlist .event .commands a {
@@ -9135,6 +9163,9 @@ a.ygtvspacer:hover {
 #categoryquestions label {
   margin: 0;
 }
+#categoryquestions .header {
+  text-align: left;
+}
 #page-mod-quiz-edit div.questionbankwindow div.header {
   margin: 0;
 }
@@ -9735,9 +9766,12 @@ body.path-question-type .mform fieldset.hidden {
 .userlist table#participants {
   text-align: center;
 }
-.userlist table#participants td,
-.userlist table#participants th {
+.userlist table#participants td {
+  text-align: left;
+  padding: 4px;
   vertical-align: middle;
+}
+.userlist table#participants th {
   text-align: left;
   padding: 4px;
 }
@@ -12923,8 +12957,7 @@ table th[class*="span"],
   -moz-border-radius: 4px;
   border-radius: 4px;
 }
-.well,
-.card {
+.well {
   min-height: 20px;
   padding: 19px;
   margin-bottom: 20px;
@@ -15625,8 +15658,7 @@ legend {
 .breadcrumb {
   background-color: #f5f5f5;
 }
-.well,
-.card {
+.well {
   border-color: #e3e3e3;
 }
 sup {
@@ -16527,6 +16559,12 @@ form {
 .singleselect label {
   margin-right: .3em;
 }
+.custom-select {
+  max-width: 100%;
+}
+.custom-select + input[type="submit"] {
+  margin: 0 0 0 5px;
+}
 #portfolio-add-button {
   display: inline;
 }
@@ -16896,9 +16934,26 @@ input[size] {
   width: auto;
 }
 /* Custom styles for autocomplete form element */
+[data-fieldtype=autocomplete] select,
+[data-fieldtype=tags] select,
+select.form-autocomplete-original-select {
+  visibility: hidden;
+  overflow: hidden;
+  width: 15rem;
+  height: 67px;
+  margin: 0;
+  margin-bottom: 0.2em;
+  padding: 0;
+  border: 0;
+  vertical-align: top;
+}
+.form-autocomplete-container {
+  display: inline-block;
+  min-height: 4.2rem;
+}
 .form-autocomplete-selection {
   margin: 0.2em;
-  min-height: 21px;
+  min-height: 27px;
 }
 .form-autocomplete-multiple [role=listitem] {
   cursor: pointer;
@@ -16985,6 +17040,9 @@ body.modal-open {
   border-radius: 10px;
   border: none;
 }
+.modal-container .modal.modal-lg {
+  max-width: 900px;
+}
 .modal-container .modal .modal-header {
   min-height: 13px;
   padding: 5px;
@@ -17044,11 +17102,7 @@ body.modal-open {
   box-shadow: none;
   border-radius: 0 0 10px 10px;
 }
-.modal-container.large .modal {
-  max-width: 900px;
-}
 .modal-backdrop {
-  z-index: 4049;
   background-color: #aaa;
   opacity: 0.4;
 }
@@ -17177,11 +17231,14 @@ body.path-mod-feedback #region-main .mform.feedback_form .feedback-item-pagebrea
 .path-mod-forum .forumheaderlist .discussion .topic,
 .path-mod-forum .forumheaderlist .discussion .discussionsubscription,
 .path-mod-forum .forumheaderlist .discussion .topic.starter,
-.path-mod-forum .forumheaderlist .discussion .picture,
 .path-mod-forum .forumheaderlist .discussion .author,
 .path-mod-forum .forumheaderlist .discussion .replies,
 .path-mod-forum .forumheaderlist .discussion .lastpost {
   vertical-align: top;
+}
+.path-mod-forum .forumheaderlist .discussion .picture {
+  margin: 0 20px;
+  float: left;
 }
 .path-mod-forum .forumheaderlist .discussion .unread img {
   margin: 0;
@@ -19300,7 +19357,6 @@ div[data-flexitour="backdrop"] {
   background-color: #000;
   opacity: 0.8;
   filter: alpha(opacity=80);
-  z-index: 4049;
   background-color: #aaa;
   opacity: 0.4;
   z-index: 4030;
@@ -21605,6 +21661,22 @@ ul.indented-list {
   margin-left: 20px;
 }
 /* stylelint-disable declaration-no-important, block-no-empty */
+.card {
+  position: relative;
+  display: block;
+  margin-bottom: .75rem;
+  background-color: #fff;
+  border: 1px solid #e3e3e3;
+  border-radius: 0;
+}
+.card-header {
+  padding: .75rem 1.25rem;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e3e3e3;
+}
+.card-block {
+  padding: 1.25rem;
+}
 .p-l-1 {
   padding-left: 14px !important;
 }
@@ -21798,4 +21870,37 @@ ul.indented-list {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.text-white {
+  color: #fff;
+}
+.bg-danger {
+  background-color: #b94a48;
+}
+.bg-danger[href] {
+  background-color: #953b39;
+}
+.bg-warning {
+  background-color: #f89406;
+}
+.bg-warning[href] {
+  background-color: #c67605;
+}
+.bg-success {
+  background-color: #468847;
+}
+.bg-success[href] {
+  background-color: #356635;
+}
+.bg-info {
+  background-color: #3a87ad;
+}
+.bg-info[href] {
+  background-color: #2d6987;
+}
+.bg-primary {
+  background-color: #049cdb;
+}
+.bg-primary[href] {
+  background-color: #0378a9;
 }

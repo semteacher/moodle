@@ -23,10 +23,13 @@
     {
         "timestart": 1490320388,
         "description": "An random event description",
-        "eventtype": "open"
+        "eventtype": "User",
+        "source": "Ical imported",
+        "groupname": "Group 1"
     }
 }}
-<div data-region="summary-modal-container" data-event-id="{{id}}" data-event-title="{{name}}">
+<div data-region="summary-modal-container" data-event-id="{{id}}" data-event-title="{{name}}"
+     data-action-event="{{isactionevent}}" data-edit-url="{{editurl}}">
     <h4>{{#str}} when, core_calendar {{/str}}</h4>
     {{#userdate}} {{timestart}}, {{#str}} strftimerecentfull {{/str}} {{/userdate}}
     <br>
@@ -36,7 +39,14 @@
     {{/description}}
     <h4>{{#str}} eventtype, core_calendar {{/str}}</h4>
     {{eventtype}}
+    {{#iscourseevent}}
+        <div><a href="{{url}}">{{course.fullname}}</a></div>
+    {{/iscourseevent}}
     {{#source}}
         <div>{{{source}}}</div>
     {{/source}}
+    {{#groupname}}
+        <div><a href="{{url}}">{{{course.fullname}}}</a></div>
+        <div>{{{groupname}}}</div>
+    {{/groupname}}
 </div>

@@ -148,12 +148,12 @@ class mod_assign_mod_form extends moodleform_mod {
             'preventsubmissionnotingroup',
             'assign');
         $mform->setType('preventsubmissionnotingroup', PARAM_BOOL);
-        $mform->disabledIf('preventsubmissionnotingroup', 'teamsubmission', 'eq', 0);
+        $mform->hideIf('preventsubmissionnotingroup', 'teamsubmission', 'eq', 0);
 
         $name = get_string('requireallteammemberssubmit', 'assign');
         $mform->addElement('selectyesno', 'requireallteammemberssubmit', $name);
         $mform->addHelpButton('requireallteammemberssubmit', 'requireallteammemberssubmit', 'assign');
-        $mform->disabledIf('requireallteammemberssubmit', 'teamsubmission', 'eq', 0);
+        $mform->hideIf('requireallteammemberssubmit', 'teamsubmission', 'eq', 0);
         $mform->disabledIf('requireallteammemberssubmit', 'submissiondrafts', 'eq', 0);
 
         $groupings = groups_get_all_groupings($assignment->get_course()->id);
@@ -166,7 +166,7 @@ class mod_assign_mod_form extends moodleform_mod {
         $name = get_string('teamsubmissiongroupingid', 'assign');
         $mform->addElement('select', 'teamsubmissiongroupingid', $name, $options);
         $mform->addHelpButton('teamsubmissiongroupingid', 'teamsubmissiongroupingid', 'assign');
-        $mform->disabledIf('teamsubmissiongroupingid', 'teamsubmission', 'eq', 0);
+        $mform->hideIf('teamsubmissiongroupingid', 'teamsubmission', 'eq', 0);
         if ($assignment->has_submissions_or_grades()) {
             $mform->freeze('teamsubmissiongroupingid');
         }
@@ -236,6 +236,14 @@ class mod_assign_mod_form extends moodleform_mod {
         if ($data['allowsubmissionsfromdate'] && $data['cutoffdate']) {
             if ($data['allowsubmissionsfromdate'] > $data['cutoffdate']) {
                 $errors['cutoffdate'] = get_string('cutoffdatefromdatevalidation', 'assign');
+            }
+        }
+        if ($data['gradingduedate']) {
+            if ($data['allowsubmissionsfromdate'] && $data['allowsubmissionsfromdate'] > $data['gradingduedate']) {
+                $errors['gradingduedate'] = get_string('gradingduefromdatevalidation', 'assign');
+            }
+            if ($data['duedate'] && $data['duedate'] > $data['gradingduedate']) {
+                $errors['gradingduedate'] = get_string('gradingdueduedatevalidation', 'assign');
             }
         }
         if ($data['blindmarking'] && $data['attemptreopenmethod'] == ASSIGN_ATTEMPT_REOPEN_METHOD_UNTILPASS) {

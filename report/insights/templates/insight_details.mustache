@@ -30,17 +30,40 @@
 
     Example context (json):
     {
-        "samplelink": "<a href=\"#\">Link</a>",
+        "insightname": "Best insight ever",
+        "sampleimage": "<a href=\"#\">Link</a>",
         "sampledescription": "Sample description",
-        "predictionstyle": "alert alert-success",
-        "predictiondisplayvalue": "This dev will success",
+        "style": "success",
+        "outcomeicon": {
+            "attributes": [
+                {"name": "src", "value": "https://moodle.org/logo/moodle-logo.svg" }
+            ]
+        },
+        "predictiondisplayvalue": "This dev will understand it",
         "calculations": [
             {
-                "style": "alert alert-success",
+                "style": "success",
+                "outcomeicon": {
+                    "attributes": [
+                        {"name": "src", "value": "https://moodle.org/logo/moodle-logo.svg" }
+                    ]
+                },
                 "name": "Indicator 1",
                 "displayvalue": "yes"
             }, {
-                "style": "alert alert-warning",
+                "style": "info",
+                "name": "Indicator 2",
+                "displayvalue": "20%"
+            }, {
+                "style": "",
+                "name": "Indicator 2",
+                "displayvalue": "20%"
+            }, {
+                "style": "warning",
+                "name": "Indicator 2",
+                "displayvalue": "20%"
+            }, {
+                "style": "danger",
                 "name": "Indicator 2",
                 "displayvalue": "20%"
             }
@@ -48,12 +71,38 @@
     }
 }}
 
-<h2>{{#str}}prediction, report_insights{{/str}}</h2>
-{{> report_insights/insight}}
+<h2 class="m-b-2">{{#str}}insightprediction, report_insights, {{insightname}} {{/str}}</h2>
+<table class="generaltable insights-list">
+    <caption>{{#str}}insight, report_insights{{/str}}</caption>
+    <thead>
+        <tr>
+            <th scope="col" class="col-sm-6">{{#str}}name{{/str}}</th>
+            <th scope="col" class="col-sm-4">{{#str}}prediction, report_insights{{/str}}</th>
+            <th scope="col" class="col-sm-2">{{#str}}actions{{/str}}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{> report_insights/insight}}
+    </tbody>
+</table>
 
-<h3>{{#str}} predictiondetails, report_insights {{/str}}</h3>
-<div class="container prediction-calculations m-t-2">
+<table class="generaltable prediction-calculations">
+    <caption>{{#str}}predictiondetails, report_insights{{/str}}</caption>
+    <thead>
+        <tr>
+            <th scope="col" class="col-sm-8">{{#str}}indicator, report_insights{{/str}}</th>
+            <th scope="col" class="col-sm-4">{{#str}}calculatedvalue, report_insights{{/str}}</th>
+        </tr>
+    </thead>
+    <tbody>
     {{#calculations}}
-        <div class="{{style}}">{{name}} - {{displayvalue}}</div>
+        <tr>
+            <td class="{{#style}}table-{{style}}{{/style}} col-sm-8">{{name}}</td>
+            <td class="{{#style}}table-{{style}}{{/style}} col-sm-4">{{#outcomeicon}}{{> core/pix_icon}}{{/outcomeicon}} {{displayvalue}}</td>
+        </td>
     {{/calculations}}
-</div>
+    </tbody>
+</table>
+{{#nocalculations}}
+    {{> core/notification_info}}
+{{/nocalculations}}

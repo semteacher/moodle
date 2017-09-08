@@ -22,8 +22,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 define(['jquery', 'core/str', 'core/notification', 'core/custom_interaction_events', 'core/modal',
-    'core/modal_registry', 'core/modal_factory', 'core/modal_events', 'core_calendar/calendar_repository',
-    'core_calendar/calendar_events'],
+    'core/modal_registry', 'core/modal_factory', 'core/modal_events', 'core_calendar/repository',
+    'core_calendar/events'],
     function($, Str, Notification, CustomEvents, Modal, ModalRegistry, ModalFactory, ModalEvents, CalendarRepository,
              CalendarEvents) {
 
@@ -32,7 +32,6 @@ define(['jquery', 'core/str', 'core/notification', 'core/custom_interaction_even
         ROOT: "[data-region='summary-modal-container']",
         EDIT_BUTTON: '[data-action="edit"]',
         DELETE_BUTTON: '[data-action="delete"]',
-        EVENT_LINK: '[data-action="event-link"]'
     };
 
     /**
@@ -42,19 +41,73 @@ define(['jquery', 'core/str', 'core/notification', 'core/custom_interaction_even
      */
     var ModalEventSummary = function(root) {
         Modal.call(this, root);
-
-        if (!this.getFooter().find(SELECTORS.EDIT_BUTTON).length) {
-            Notification.exception({message: 'No edit button found'});
-        }
-
-        if (!this.getFooter().find(SELECTORS.DELETE_BUTTON).length) {
-            Notification.exception({message: 'No delete button found'});
-        }
     };
 
     ModalEventSummary.TYPE = 'core_calendar-event_summary';
     ModalEventSummary.prototype = Object.create(Modal.prototype);
     ModalEventSummary.prototype.constructor = ModalEventSummary;
+
+    /**
+     * Get the edit button element from the footer. The button is cached
+     * as it's not expected to change.
+     *
+     * @method getEditButton
+     * @return {object} button element
+     */
+    ModalEventSummary.prototype.getEditButton = function() {
+        if (typeof this.editButton == 'undefined') {
+            this.editButton = this.getFooter().find(SELECTORS.EDIT_BUTTON);
+        }
+
+        return this.editButton;
+    };
+
+    /**
+     * Get the delete button element from the footer. The button is cached
+     * as it's not expected to change.
+     *
+     * @method getDeleteButton
+     * @return {object} button element
+     */
+    ModalEventSummary.prototype.getDeleteButton = function() {
+        if (typeof this.deleteButton == 'undefined') {
+            this.deleteButton = this.getFooter().find(SELECTORS.DELETE_BUTTON);
+        }
+
+        return this.deleteButton;
+    };
+
+    /**
+     * Get the id for the event being shown in this modal. This value is
+     * not cached because it will change depending on which event is
+     * being displayed.
+     *
+     * @method getEventId
+     * @return {int}
+     */
+    ModalEventSummary.prototype.getEventId = function() {
+        return this.getBody().find(SELECTORS.ROOT).attr('data-event-id');
+    };
+
+    /**
+     * Get the url for the event being shown in this modal.
+     *
+     * @method getEventUrl
+     * @return {String}
+     */
+    ModalEventSummary.prototype.getEditUrl = function() {
+        return this.getBody().find(SELECTORS.ROOT).attr('data-edit-url');
+    };
+
+    /**
+     * Is this an action event.
+     *
+     * @method getEventUrl
+     * @return {String}
+     */
+    ModalEventSummary.prototype.isActionEvent = function() {
+        return (this.getBody().find(SELECTORS.ROOT).attr('data-action-event') == 'true');
+    };
 
     /**
      * Set up all of the event handling for the modal.
@@ -64,29 +117,81 @@ define(['jquery', 'core/str', 'core/notification', 'core/custom_interaction_even
     ModalEventSummary.prototype.registerEventListeners = function() {
         // Apply parent event listeners.
         Modal.prototype.registerEventListeners.call(this);
-        var confirmPromise = ModalFactory.create({
-            type: ModalFactory.types.CONFIRM,
-        }, this.getFooter().find(SELECTORS.DELETE_BUTTON)).then(function(modal) {
-            Str.get_string('confirm').then(function(languagestring) {
-                modal.setTitle(languagestring);
-            }.bind(this)).catch(Notification.exception);
-            modal.getRoot().on(ModalEvents.yes, function() {
-                var eventId = this.getBody().find(SELECTORS.ROOT).attr('data-event-id');
-                CalendarRepository.deleteEvent(eventId).done(function() {
-                    modal.getRoot().trigger(CalendarEvents.deleted, eventId);
-                    window.location.reload();
-                }).fail(Notification.exception);
-            }.bind(this));
-            return modal;
-        }.bind(this));
 
+        // We have to wait for the modal to finish rendering in order to ensure that
+        // the data-event-title property is available to use as the modal title.
         this.getRoot().on(ModalEvents.bodyRendered, function() {
             var eventTitle = this.getBody().find(SELECTORS.ROOT).attr('data-event-title');
-            confirmPromise.then(function(modal) {
-                modal.setBody(Str.get_string('confirmeventdelete', 'core_calendar', eventTitle));
-            });
+            prepareDeleteAction(this, eventTitle);
+        }.bind(this));
+
+        CustomEvents.define(this.getEditButton(), [
+            CustomEvents.events.activate
+        ]);
+
+        this.getEditButton().on(CustomEvents.events.activate, function(e, data) {
+
+            if (this.isActionEvent()) {
+                // Action events cannot be edited on the event form and must be redirected to the module UI.
+                $('body').trigger(CalendarEvents.editActionEvent, [this.getEditUrl()]);
+            } else {
+                // When the edit button is clicked we fire an event for the calendar UI to handle.
+                // We don't care how the UI chooses to handle it.
+                $('body').trigger(CalendarEvents.editEvent, [this.getEventId()]);
+            }
+
+            // There is nothing else for us to do so let's hide.
+            this.hide();
+
+            // We've handled this event so no need to propagate it.
+            e.preventDefault();
+            e.stopPropagation();
+            data.originalEvent.preventDefault();
+            data.originalEvent.stopPropagation();
         }.bind(this));
     };
+
+    /**
+     * Prepares the action for the summary modal's delete action.
+     *
+     * @param {ModalEventSummary} summaryModal The summary modal instance.
+     * @param {string} eventTitle The event title.
+     */
+    function prepareDeleteAction(summaryModal, eventTitle) {
+        var deleteStrings = [
+            {
+                key: 'deleteevent',
+                component: 'calendar'
+            },
+            {
+                key: 'confirmeventdelete',
+                component: 'calendar',
+                param: eventTitle
+            }
+        ];
+        var eventId = summaryModal.getEventId();
+        var stringsPromise = Str.get_strings(deleteStrings);
+        var deletePromise = ModalFactory.create(
+            {
+                type: ModalFactory.types.SAVE_CANCEL
+            },
+            summaryModal.getDeleteButton()
+        );
+
+        $.when(stringsPromise, deletePromise).then(function(strings, deleteModal) {
+            deleteModal.setTitle(strings[0]);
+            deleteModal.setBody(strings[1]);
+            deleteModal.setSaveButtonText(strings[0]);
+            deleteModal.getRoot().on(ModalEvents.save, function() {
+                CalendarRepository.deleteEvent(eventId).then(function() {
+                    $('body').trigger(CalendarEvents.deleted, [eventId]);
+                    summaryModal.hide();
+                    return;
+                }).catch(Notification.exception);
+            });
+            return deleteModal;
+        }).fail(Notification.exception);
+    }
 
     // Automatically register with the modal registry the first time this module is imported so that you can create modals
     // of this type using the modal factory.

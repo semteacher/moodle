@@ -45,12 +45,14 @@ class no_teaching extends \core_analytics\local\target\binary {
     }
 
     /**
-     * get_name
+     * Returns the name.
      *
-     * @return string
+     * If there is a corresponding '_help' string this will be shown as well.
+     *
+     * @return \lang_string
      */
-    public static function get_name() {
-        return get_string('target:noteachingactivity');
+    public static function get_name() : \lang_string {
+        return new \lang_string('target:noteachingactivity');
     }
 
     /**
@@ -73,14 +75,7 @@ class no_teaching extends \core_analytics\local\target\binary {
         $actions['viewcourse'] = new \core_analytics\prediction_action('viewcourse', $prediction,
             $url, $pix, get_string('view'));
 
-        if (has_capability('moodle/course:enrolreview', $sampledata['context'])) {
-            $url = new \moodle_url('/enrol/users.php', array('id' => $course->id));
-            $pix = new \pix_icon('i/enrolusers', get_string('enrolledusers', 'enrol'));
-            $actions['enrolusers'] = new \core_analytics\prediction_action('enrolusers', $prediction,
-                $url, $pix, get_string('enrolledusers', 'enrol'));
-        }
-
-        if (has_capability('moodle/course:viewparticipants', $sampledata['context'])) {
+        if (has_any_capability(['moodle/course:viewparticipants', 'moodle/course:enrolreview'], $sampledata['context'])) {
             $url = new \moodle_url('/user/index.php', array('id' => $course->id));
             $pix = new \pix_icon('i/cohort', get_string('participants'));
             $actions['viewparticipants'] = new \core_analytics\prediction_action('viewparticipants', $prediction,
@@ -139,7 +134,7 @@ class no_teaching extends \core_analytics\local\target\binary {
      * @param int $sampleid
      * @param \core_analytics\analysable $analysable
      * @param bool $fortraining
-     * @return true|string
+     * @return bool
      */
     public function is_valid_sample($sampleid, \core_analytics\analysable $analysable, $fortraining = true) {
 

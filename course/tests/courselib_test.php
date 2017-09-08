@@ -1901,6 +1901,52 @@ class core_course_courselib_testcase extends advanced_testcase {
     }
 
     /**
+     * Test that triggering a course_backup_created event works as expected.
+     */
+    public function test_course_backup_created_event() {
+        global $CFG;
+
+        // Get the necessary files to perform backup and restore.
+        require_once($CFG->dirroot . '/backup/util/includes/backup_includes.php');
+        require_once($CFG->dirroot . '/backup/util/includes/restore_includes.php');
+
+        $this->resetAfterTest();
+
+        // Set to admin user.
+        $this->setAdminUser();
+
+        // The user id is going to be 2 since we are the admin user.
+        $userid = 2;
+
+        // Create a course.
+        $course = $this->getDataGenerator()->create_course();
+
+        // Create backup file and save it to the backup location.
+        $bc = new backup_controller(backup::TYPE_1COURSE, $course->id, backup::FORMAT_MOODLE,
+            backup::INTERACTIVE_NO, backup::MODE_GENERAL, $userid);
+        $sink = $this->redirectEvents();
+        $bc->execute_plan();
+
+        // Capture the event.
+        $events = $sink->get_events();
+        $sink->close();
+
+        // Validate the event.
+        $event = array_pop($events);
+        $this->assertInstanceOf('\core\event\course_backup_created', $event);
+        $this->assertEquals('course', $event->objecttable);
+        $this->assertEquals($bc->get_courseid(), $event->objectid);
+        $this->assertEquals(context_course::instance($bc->get_courseid())->id, $event->contextid);
+
+        $url = new moodle_url('/course/view.php', array('id' => $event->objectid));
+        $this->assertEquals($url, $event->get_url());
+        $this->assertEventContextNotUsed($event);
+
+        // Destroy the resource controller since we are done using it.
+        $bc->destroy();
+    }
+
+    /**
      * Test that triggering a course_restored event works as expected.
      */
     public function test_course_restored_event() {
@@ -2974,23 +3020,6 @@ class core_course_courselib_testcase extends advanced_testcase {
         $this->assertTrue($navoptions->blogs);
         $this->assertFalse($navoptions->notes);
         $this->assertFalse($navoptions->participants);
-        $this->assertTrue($navoptions->badges);
-        $this->assertTrue($navoptions->tags);
-        $this->assertTrue($navoptions->search);
-        $this->assertTrue($navoptions->calendar);
-
-        // Standar using viewing frontpage settings from a course where is enrolled.
-        $course = self::getDataGenerator()->create_course();
-        // Create a viewer user.
-        $viewer = self::getDataGenerator()->create_user();
-        $studentrole = $DB->get_record('role', array('shortname' => 'student'));
-        $this->getDataGenerator()->enrol_user($viewer->id, $course->id, $studentrole->id);
-        $this->setUser($viewer);
-
-        $navoptions = course_get_user_navigation_options($context, $course);
-        $this->assertTrue($navoptions->blogs);
-        $this->assertFalse($navoptions->notes);
-        $this->assertTrue($navoptions->participants);
         $this->assertTrue($navoptions->badges);
         $this->assertTrue($navoptions->tags);
         $this->assertTrue($navoptions->search);

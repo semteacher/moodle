@@ -488,13 +488,14 @@ define('HOMEPAGE_USER', 2);
 /**
  * Hub directory url (should be moodle.org)
  */
-define('HUB_HUBDIRECTORYURL', "http://hubdirectory.moodle.org");
+define('HUB_HUBDIRECTORYURL', "https://hubdirectory.moodle.org");
 
 
 /**
- * Moodle.org url (should be moodle.org)
+ * Moodle.net url (should be moodle.net)
  */
-define('HUB_MOODLEORGHUBURL', "http://hub.moodle.org");
+define('HUB_MOODLEORGHUBURL', "https://moodle.net");
+define('HUB_OLDMOODLEORGHUBURL', "http://hub.moodle.org");
 
 /**
  * Moodle mobile app service name
@@ -9988,5 +9989,23 @@ class lang_string {
         $this->get_string();
         $this->forcedstring = true;
         return array('forcedstring', 'string', 'lang');
+    }
+
+    /**
+     * Returns the identifier.
+     *
+     * @return string
+     */
+    public function get_identifier() {
+        return $this->identifier;
+    }
+
+    /**
+     * Returns the component.
+     *
+     * @return string
+     */
+    public function get_component() {
+        return $this->component;
     }
 }
