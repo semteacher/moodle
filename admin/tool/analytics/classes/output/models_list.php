@@ -62,12 +62,68 @@ class models_list implements \renderable, \templatable {
 
         $data = new \stdClass();
 
+        $onlycli = get_config('analytics', 'onlycli');
+        if ($onlycli === false) {
+            // Default applied if no config found.
+            $onlycli = 1;
+        }
+
         $data->models = array();
         foreach ($this->models as $model) {
             $modeldata = $model->export();
 
+            // Check if there is a help icon for the target to show.
+            $identifier = $modeldata->target->get_identifier();
+            $component = $modeldata->target->get_component();
+            if (get_string_manager()->string_exists($identifier . '_help', $component)) {
+                $helpicon = new \help_icon($identifier, $component);
+                $modeldata->targethelp = $helpicon->export_for_template($output);
+            } else {
+                // We really want to encourage developers to add help to their targets.
+                debugging("The target '{$modeldata->target}' should include a '{$identifier}_help' string to
+                    describe its purpose.", DEBUG_DEVELOPER);
+            }
+
+            // Check if there is a help icon for the indicators to show.
+            if (!empty($modeldata->indicators)) {
+                $indicators = array();
+                foreach ($modeldata->indicators as $ind) {
+                    // Create the indicator with the details we want for the context.
+                    $indicator = new \stdClass();
+                    $indicator->name = $ind->out();
+                    $identifier = $ind->get_identifier();
+                    $component = $ind->get_component();
+                    if (get_string_manager()->string_exists($identifier . '_help', $component)) {
+                        $helpicon = new \help_icon($identifier, $component);
+                        $indicator->help = $helpicon->export_for_template($output);
+                    } else {
+                        // We really want to encourage developers to add help to their indicators.
+                        debugging("The indicator '{$ind}' should include a '{$identifier}_help' string to
+                            describe its purpose.", DEBUG_DEVELOPER);
+                    }
+                    $indicators[] = $indicator;
+                }
+                $modeldata->indicators = $indicators;
+            }
+
+            // Check if there is a help icon for the time splitting method.
+            if (!empty($modeldata->timesplitting)) {
+                $identifier = $modeldata->timesplitting->get_identifier();
+                $component = $modeldata->timesplitting->get_component();
+                if (get_string_manager()->string_exists($identifier . '_help', $component)) {
+                    $helpicon = new \help_icon($identifier, $component);
+                    $modeldata->timesplittinghelp = $helpicon->export_for_template($output);
+                } else {
+                    // We really want to encourage developers to add help to their time splitting methods.
+                    debugging("The time splitting method '{$modeldata->timesplitting}' should include a '{$identifier}_help'
+                        string to describe its purpose.", DEBUG_DEVELOPER);
+                }
+            }
+
             // Model predictions list.
-            if ($model->uses_insights()) {
+            if (!$model->is_enabled()) {
+                $modeldata->noinsights = get_string('disabledmodel', 'analytics');
+            } else if ($model->uses_insights()) {
                 $predictioncontexts = $model->get_predictions_contexts();
                 if ($predictioncontexts) {
 
@@ -117,15 +173,30 @@ class models_list implements \renderable, \templatable {
                 $actionsmenu->add($icon);
             }
 
+            // Enable / disable.
+            if ($model->is_enabled()) {
+                $action = 'disable';
+                $text = get_string('disable');
+                $icontype = 't/block';
+            } else {
+                $action = 'enable';
+                $text = get_string('enable');
+                $icontype = 'i/checked';
+            }
+            $url = new \moodle_url('model.php', array('action' => $action, 'id' => $model->get_id()));
+            $icon = new \action_menu_link_secondary($url, new \pix_icon($icontype, $text), $text);
+            $actionsmenu->add($icon);
+
             // Evaluate machine-learning-based models.
-            if ($model->get_indicators() && !$model->is_static()) {
+            if (!$onlycli && $model->get_indicators() && !$model->is_static()) {
                 $url = new \moodle_url('model.php', array('action' => 'evaluate', 'id' => $model->get_id()));
                 $icon = new \action_menu_link_secondary($url, new \pix_icon('i/calc', get_string('evaluate', 'tool_analytics')),
                     get_string('evaluate', 'tool_analytics'));
                 $actionsmenu->add($icon);
             }
 
-            if ($modeldata->enabled && !empty($modeldata->timesplitting)) {
+            // Get predictions.
+            if (!$onlycli && $modeldata->enabled && !empty($modeldata->timesplitting)) {
                 $url = new \moodle_url('model.php', array('action' => 'getpredictions', 'id' => $model->get_id()));
                 $icon = new \action_menu_link_secondary($url, new \pix_icon('i/notifications',
                     get_string('getpredictions', 'tool_analytics')), get_string('getpredictions', 'tool_analytics'));
@@ -140,14 +211,31 @@ class models_list implements \renderable, \templatable {
                 $actionsmenu->add($icon);
             }
 
+            // Export training data.
+            if (!$model->is_static() && $model->is_trained()) {
+                $url = new \moodle_url('model.php', array('action' => 'export', 'id' => $model->get_id()));
+                $icon = new \action_menu_link_secondary($url, new \pix_icon('i/export',
+                    get_string('exporttrainingdata', 'tool_analytics')), get_string('export', 'tool_analytics'));
+                $actionsmenu->add($icon);
+            }
+
             $modeldata->actions = $actionsmenu->export_for_template($output);
 
             $data->models[] = $modeldata;
         }
 
-        $data->warnings = array(
-            (object)array('message' => get_string('bettercli', 'tool_analytics'), 'closebutton' => true)
-        );
+        if (!$onlycli) {
+            $data->warnings = array(
+                (object)array('message' => get_string('bettercli', 'tool_analytics'), 'closebutton' => true)
+            );
+        } else {
+            $url = new \moodle_url('/admin/settings.php', array('section' => 'analyticssettings'),
+                'id_s_analytics_onlycli');
+            $data->infos = array(
+                (object)array('message' => get_string('clievaluationandpredictions', 'tool_analytics', $url->out()),
+                    'closebutton' => true)
+            );
+        }
 
         return $data;
     }

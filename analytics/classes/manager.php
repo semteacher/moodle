@@ -84,15 +84,9 @@ class manager {
 
         $params = array();
 
-        $fields = 'am.id, am.enabled, am.trained, am.target, ' . $DB->sql_compare_text('am.indicators') .
-            ', am.timesplitting, am.version, am.timecreated, am.timemodified, am.usermodified';
-        $sql = "SELECT DISTINCT $fields FROM {analytics_models} am";
-        if ($predictioncontext) {
-            $sql .= " JOIN {analytics_predictions} ap ON ap.modelid = am.id AND ap.contextid = :contextid";
-            $params['contextid'] = $predictioncontext->id;
-        }
+        $sql = "SELECT am.* FROM {analytics_models} am";
 
-        if ($enabled || $trained) {
+        if ($enabled || $trained || $predictioncontext) {
             $conditions = [];
             if ($enabled) {
                 $conditions[] = 'am.enabled = :enabled';
@@ -101,6 +95,10 @@ class manager {
             if ($trained) {
                 $conditions[] = 'am.trained = :trained';
                 $params['trained'] = 1;
+            }
+            if ($predictioncontext) {
+                $conditions[] = "EXISTS (SELECT 'x' FROM {analytics_predictions} ap WHERE ap.modelid = am.id AND ap.contextid = :contextid)";
+                $params['contextid'] = $predictioncontext->id;
             }
             $sql .= ' WHERE ' . implode(' AND ', $conditions);
         }
@@ -337,6 +335,32 @@ class manager {
         }
 
         return $logstore;
+    }
+
+    /**
+     * Returns this analysable calculations during the provided period.
+     *
+     * @param \core_analytics\analysable $analysable
+     * @param int $starttime
+     * @param int $endtime
+     * @param string $samplesorigin The samples origin as sampleid is not unique across models.
+     * @return array
+     */
+    public static function get_indicator_calculations($analysable, $starttime, $endtime, $samplesorigin) {
+        global $DB;
+
+        $params = array('starttime' => $starttime, 'endtime' => $endtime, 'contextid' => $analysable->get_context()->id,
+            'sampleorigin' => $samplesorigin);
+        $calculations = $DB->get_recordset('analytics_indicator_calc', $params, '', 'indicator, sampleid, value');
+
+        $existingcalculations = array();
+        foreach ($calculations as $calculation) {
+            if (empty($existingcalculations[$calculation->indicator])) {
+                $existingcalculations[$calculation->indicator] = array();
+            }
+            $existingcalculations[$calculation->indicator][$calculation->sampleid] = $calculation->value;
+        }
+        return $existingcalculations;
     }
 
     /**

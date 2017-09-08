@@ -11,7 +11,7 @@ $calendarEventUserColor: #dce7ec !default; // Pale blue.
     background-color: $calendarEventCourseColor;
 }
 
-.calendar_event_global {
+.calendar_event_site {
     background-color: $calendarEventGlobalColor;
 }
 
@@ -48,6 +48,7 @@ $calendarEventUserColor: #dce7ec !default; // Pale blue.
 
         .previous {
             text-align: left;
+            border: 1px solid transparent;
         }
 
         .current {
@@ -57,6 +58,12 @@ $calendarEventUserColor: #dce7ec !default; // Pale blue.
 
         .next {
             text-align: right;
+            border: 1px solid transparent;
+        }
+
+        .drop-target {
+            box-sizing: border-box;
+            border: 1px dashed $brand-primary;
         }
     }
 
@@ -100,6 +107,10 @@ $calendarEventUserColor: #dce7ec !default; // Pale blue.
             td {
                 height: 5em;
             }
+
+            .clickable:hover {
+                box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .14), 0 3px 1px -2px rgba(0, 0, 0, .2), 0 1px 5px 0 rgba(0, 0, 0, .12);
+            }
         }
 
         .calendar-controls {
@@ -119,18 +130,22 @@ $calendarEventUserColor: #dce7ec !default; // Pale blue.
         }
 
         .calendar_event_course,
-        .calendar_event_global,
+        .calendar_event_site,
         .calendar_event_group,
         .calendar_event_user {
-            border-width: 1px 1px 1px 12px;
-            border-style: solid;
+            &:hover {
+                a {
+                    color: $link-hover-color;
+                    text-decoration: $link-hover-decoration;
+                }
+            }
         }
 
         .calendar_event_course {
             border-color: $calendarEventCourseColor;
         }
 
-        .calendar_event_global {
+        .calendar_event_site {
             border-color: $calendarEventGlobalColor;
         }
 

@@ -26,9 +26,10 @@ namespace core_calendar\external;
 
 defined('MOODLE_INTERNAL') || die();
 
-use \core\external\exporter;
-use \core_calendar\local\event\entities\event_interface;
+require_once($CFG->dirroot . "/calendar/lib.php");
+
 use \core_calendar\local\event\entities\action_event_interface;
+use \core_calendar\local\event\container;
 use \core_course\external\course_summary_exporter;
 use \renderer_base;
 
@@ -39,112 +40,7 @@ use \renderer_base;
  * @copyright 2017 Ryan Wyllie <ryan@moodle.com>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class event_exporter extends exporter {
-
-    /**
-     * @var event_interface $event
-     */
-    protected $event;
-
-    /**
-     * Constructor.
-     *
-     * @param event_interface $event
-     * @param array $related The related data.
-     */
-    public function __construct(event_interface $event, $related = []) {
-        $this->event = $event;
-
-        $starttimestamp = $event->get_times()->get_start_time()->getTimestamp();
-        $endtimestamp = $event->get_times()->get_end_time()->getTimestamp();
-        $groupid = $event->get_group() ? $event->get_group()->get('id') : null;
-        $userid = $event->get_user() ? $event->get_user()->get('id') : null;
-
-        $data = new \stdClass();
-        $data->id = $event->get_id();
-        $data->name = $event->get_name();
-        $data->description = $event->get_description()->get_value();
-        $data->descriptionformat = $event->get_description()->get_format();
-        $data->groupid = $groupid;
-        $data->userid = $userid;
-        $data->eventtype = $event->get_type();
-        $data->timestart = $starttimestamp;
-        $data->timeduration = $endtimestamp - $starttimestamp;
-        $data->timesort = $event->get_times()->get_sort_time()->getTimestamp();
-        $data->visible = $event->is_visible();
-        $data->timemodified = $event->get_times()->get_modified_time()->getTimestamp();
-
-        if ($repeats = $event->get_repeats()) {
-            $data->repeatid = $repeats->get_id();
-        }
-
-        if ($cm = $event->get_course_module()) {
-            $data->modulename = $cm->get('modname');
-            $data->instance = $cm->get('id');
-        }
-
-        parent::__construct($data, $related);
-    }
-
-    /**
-     * Return the list of properties.
-     *
-     * @return array
-     */
-    protected static function define_properties() {
-        return [
-            'id' => ['type' => PARAM_INT],
-            'name' => ['type' => PARAM_TEXT],
-            'description' => [
-                'type' => PARAM_RAW,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'descriptionformat' => [
-                'type' => PARAM_INT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'groupid' => [
-                'type' => PARAM_INT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'userid' => [
-                'type' => PARAM_INT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'repeatid' => [
-                'type' => PARAM_INT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'modulename' => [
-                'type' => PARAM_TEXT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'instance' => [
-                'type' => PARAM_INT,
-                'optional' => true,
-                'default' => null,
-                'null' => NULL_ALLOWED
-            ],
-            'eventtype' => ['type' => PARAM_TEXT],
-            'timestart' => ['type' => PARAM_INT],
-            'timeduration' => ['type' => PARAM_INT],
-            'timesort' => ['type' => PARAM_INT],
-            'visible' => ['type' => PARAM_INT],
-            'timemodified' => ['type' => PARAM_INT],
-        ];
-    }
+class event_exporter extends event_exporter_base {
 
     /**
      * Return the list of additional properties.
@@ -152,20 +48,36 @@ class event_exporter extends exporter {
      * @return array
      */
     protected static function define_other_properties() {
-        return [
-            'url' => ['type' => PARAM_URL],
-            'icon' => [
-                'type' => event_icon_exporter::read_properties_definition(),
-            ],
-            'action' => [
-                'type' => event_action_exporter::read_properties_definition(),
-                'optional' => true,
-            ],
-            'course' => [
-                'type' => course_summary_exporter::read_properties_definition(),
-                'optional' => true,
-            ]
+
+        $values = parent::define_other_properties();
+
+        $values['displayeventsource'] = ['type' => PARAM_BOOL];
+        $values['subscription'] = [
+            'type' => PARAM_RAW,
+            'optional' => true,
+            'default' => null,
+            'null' => NULL_ALLOWED
         ];
+        $values['isactionevent'] = ['type' => PARAM_BOOL];
+        $values['iscourseevent'] = ['type' => PARAM_BOOL];
+        $values['candelete'] = ['type' => PARAM_BOOL];
+        $values['url'] = ['type' => PARAM_URL];
+        $values['action'] = [
+            'type' => event_action_exporter::read_properties_definition(),
+            'optional' => true,
+        ];
+        $values['editurl'] = [
+            'type' => PARAM_URL,
+            'optional' => true,
+        ];
+        $values['groupname'] = [
+            'type' => PARAM_RAW,
+            'optional' => true,
+            'default' => null,
+            'null' => NULL_ALLOWED
+        ];
+
+        return $values;
     }
 
     /**
@@ -175,24 +87,34 @@ class event_exporter extends exporter {
      * @return array Keys are the property names, values are their values.
      */
     protected function get_other_values(renderer_base $output) {
-        $values = [];
+        $values = parent::get_other_values($output);
+
+        global $CFG;
+        require_once($CFG->dirroot.'/course/lib.php');
+
         $event = $this->event;
         $context = $this->related['context'];
+        $values['isactionevent'] = false;
+        $values['iscourseevent'] = false;
         if ($moduleproxy = $event->get_course_module()) {
             $modulename = $moduleproxy->get('modname');
             $moduleid = $moduleproxy->get('id');
             $url = new \moodle_url(sprintf('/mod/%s/view.php', $modulename), ['id' => $moduleid]);
+
+            $values['isactionevent'] = true;
+
+            // Build edit event url for action events.
+            $params = array('update' => $moduleid, 'return' => true, 'sesskey' => sesskey());
+            $editurl = new \moodle_url('/course/mod.php', $params);
+            $values['editurl'] = $editurl->out(false);
+        } else if ($event->get_type() == 'course') {
+            $values['iscourseevent'] = true;
+            $url = \course_get_url($this->related['course'] ?: SITEID);
         } else {
             // TODO MDL-58866 We do not have any way to find urls for events outside of course modules.
-            global $CFG;
-            require_once($CFG->dirroot.'/course/lib.php');
             $url = \course_get_url($this->related['course'] ?: SITEID);
         }
-        $timesort = $event->get_times()->get_sort_time()->getTimestamp();
-        $iconexporter = new event_icon_exporter($event, ['context' => $context]);
-
         $values['url'] = $url->out(false);
-        $values['icon'] = $iconexporter->export($output);
 
         if ($event instanceof action_event_interface) {
             $actionrelated = [
@@ -208,18 +130,27 @@ class event_exporter extends exporter {
             $values['course'] = $coursesummaryexporter->export($output);
         }
 
-        return $values;
-    }
+        // Handle event subscription.
+        $values['subscription'] = null;
+        $values['displayeventsource'] = false;
+        if ($event->get_subscription()) {
+            $subscription = calendar_get_subscription($event->get_subscription()->get('id'));
+            if (!empty($subscription) && $CFG->calendar_showicalsource) {
+                $values['displayeventsource'] = true;
+                $subscriptiondata = new \stdClass();
+                if (!empty($subscription->url)) {
+                    $subscriptiondata->url = $subscription->url;
+                }
+                $subscriptiondata->name = $subscription->name;
+                $values['subscription'] = json_encode($subscriptiondata);
+            }
+        }
 
-    /**
-     * Returns a list of objects that are related.
-     *
-     * @return array
-     */
-    protected static function define_related() {
-        return [
-            'context' => 'context',
-            'course' => 'stdClass?',
-        ];
+        if ($group = $event->get_group()) {
+            $values['groupname'] = format_string($group->get('name'), true,
+                ['context' => \context_course::instance($event->get_course()->get('id'))]);
+        }
+
+        return $values;
     }
 }

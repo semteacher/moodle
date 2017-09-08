@@ -403,6 +403,29 @@ class webservice {
     }
 
     /**
+     * Return a token of an arbitrary user by tokenid, including details of the associated user and the service name.
+     * If no tokens exist an exception is thrown
+     *
+     * The returned value is a stdClass:
+     * ->id token id
+     * ->token
+     * ->firstname user firstname
+     * ->lastname
+     * ->name service name
+     *
+     * @param int $tokenid token id
+     * @return stdClass
+     */
+    public function get_token_by_id_with_details($tokenid) {
+        global $DB;
+        $sql = "SELECT t.id, t.token, u.id AS userid, u.firstname, u.lastname, s.name, t.creatorid
+                FROM {external_tokens} t, {user} u, {external_services} s
+                WHERE t.id=? AND t.tokentype = ? AND s.id = t.externalserviceid AND t.userid = u.id";
+        $token = $DB->get_record_sql($sql, array($tokenid, EXTERNAL_TOKEN_PERMANENT), MUST_EXIST);
+        return $token;
+    }
+
+    /**
      * Return a database token record for a token id
      *
      * @param int $tokenid token id
@@ -890,7 +913,6 @@ abstract class webservice_server implements webservice_server_interface {
         }
 
         $loginfaileddefaultparams = array(
-            'context' => context_system::instance(),
             'other' => array(
                 'method' => $this->authmethod,
                 'reason' => null
@@ -1039,7 +1061,6 @@ abstract class webservice_server implements webservice_server_interface {
         global $DB;
 
         $loginfaileddefaultparams = array(
-            'context' => context_system::instance(),
             'other' => array(
                 'method' => $this->authmethod,
                 'reason' => null

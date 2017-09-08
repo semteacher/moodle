@@ -1267,4 +1267,932 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         $this->assertCount(1, $groupedbycourse[$course2->id]);
         $this->assertEquals('Event 3', $groupedbycourse[$course2->id][0]['name']);
     }
+
+    /**
+     * Test for deleting module events.
+     */
+    public function test_delete_calendar_events_for_modules() {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $nexttime = time() + DAYSECS;
+        $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'duedate' => $nexttime]);
+        $events = calendar_get_events(time(), $nexttime, true, true, true);
+        $this->assertCount(1, $events);
+        $params = [];
+        foreach ($events as $event) {
+            $params[] = [
+                'eventid' => $event->id,
+                'repeat' => false
+            ];
+        }
+
+        $this->expectException('moodle_exception');
+        core_calendar_external::delete_calendar_events($params);
+    }
+
+    /**
+     * Updating the event start day should change the date value but leave
+     * the time of day unchanged.
+     */
+    public function test_update_event_start_day() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_ALLOW, $roleid, $context, true);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'courseid' => 0,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
+
+        $this->assertEquals($expected->getTimestamp(), $result['event']['timestart']);
+    }
+
+    /**
+     * A user should not be able to edit an event that they don't have
+     * capabilities for.
+     */
+    public function test_update_event_start_day_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_ALLOW, $roleid, $context, true);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'courseid' => 0,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        assign_capability('moodle/calendar:manageownentries', CAP_PROHIBIT, $roleid, $context, true);
+        $this->expectException('moodle_exception');
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
+    }
+
+    /**
+     * A user should not be able to update a module event.
+     */
+    public function test_update_event_start_day_module_event() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $plugingenerator = $generator->get_plugin_generator('mod_assign');
+        $moduleinstance = $plugingenerator->create_instance(['course' => $course->id]);
+        $roleid = $generator->create_role();
+        $context = \context_course::instance($course->id);
+        $originalstarttime = new DateTimeImmutable('2017-01-1T15:00:00+08:00');
+        $newstartdate = new DateTimeImmutable('2018-02-2T10:00:00+08:00');
+        $expected = new DateTimeImmutable('2018-02-2T15:00:00+08:00');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        $generator->enrol_user($user->id, $course->id);
+
+        $this->setUser($user);
+        $this->resetAfterTest(true);
+
+        $event = $this->create_calendar_event(
+            'Test event',
+            $user->id,
+            'user',
+            0,
+            null,
+            [
+                'modulename' => 'assign',
+                'instance' => $moduleinstance->id,
+                'courseid' => $course->id,
+                'timestart' => $originalstarttime->getTimestamp()
+            ]
+        );
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+        $this->expectException('moodle_exception');
+        $result = core_calendar_external::update_event_start_day($event->id, $newstartdate->getTimestamp());
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::update_event_start_day_returns(),
+            $result
+        );
+    }
+
+    /**
+     * Submit a request where the time duration until is earlier than the time
+     * start in order to get a validation error from the server.
+     */
+    public function test_submit_create_update_form_validation_error() {
+        $user = $this->getDataGenerator()->create_user();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->sub($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'user',
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+
+        $querystring = http_build_query($formdata, '', '&amp;');
+
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $this->assertTrue($result['validationerror']);
+    }
+
+    /**
+     * A user with the moodle/calendar:manageownentries capability at the
+     * system context should be able to create a user event.
+     */
+    public function test_submit_create_update_form_create_user_event() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'user',
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+    }
+
+    /**
+     * A user without the moodle/calendar:manageownentries capability at the
+     * system context should not be able to create a user event.
+     */
+    public function test_submit_create_update_form_create_user_event_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $roleid = $generator->create_role();
+        $context = \context_system::instance();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'user',
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+        assign_capability('moodle/calendar:manageownentries', CAP_PROHIBIT, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $this->expectException('moodle_exception');
+
+        external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+    }
+
+    /**
+     * A user with the moodle/calendar:manageentries capability at the
+     * site course context should be able to create a site event.
+     */
+    public function test_submit_create_update_form_create_site_event() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $context = context_course::instance(SITEID);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'site',
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+    }
+
+    /**
+     * A user without the moodle/calendar:manageentries capability at the
+     * site course context should not be able to create a site event.
+     */
+    public function test_submit_create_update_form_create_site_event_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $context = context_course::instance(SITEID);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'site',
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_PROHIBIT, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $this->assertTrue($result['validationerror']);
+    }
+
+    /**
+     * A user that has the moodle/calendar:manageentries in a course that they
+     * are enrolled in should be able to create a course event in that course.
+     */
+    public function test_submit_create_update_form_create_course_event() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'course',
+            'courseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+        $this->assertEquals($formdata['courseid'], $event['course']['id']);
+    }
+
+    /**
+     * A user without the moodle/calendar:manageentries capability in a course
+     * that they are enrolled in should not be able to create a course event in that course.
+     */
+    public function test_submit_create_update_form_create_course_event_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'course',
+            'courseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_PROHIBIT, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $this->assertTrue($result['validationerror']);
+    }
+
+    /**
+     * A user should not be able to create an event for a course that they are
+     * not enrolled in.
+     */
+    public function test_submit_create_update_form_create_course_event_not_enrolled() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $course2 = $generator->create_course();
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'course',
+            'courseid' => $course2->id, // Not enrolled.
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $this->expectException('moodle_exception');
+
+        external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+    }
+
+    /**
+     * A user should be able to create an event for a group that they are a member of in
+     * a course in which they are enrolled and have the moodle/calendar:manageentries capability.
+     */
+    public function test_submit_create_update_form_create_group_event_group_member_manage_course() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $group = $generator->create_group(array('courseid' => $course->id));
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'group',
+            'groupid' => "{$course->id}-{$group->id}", // The form format.
+            'groupcourseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+        $generator->create_group_member(['groupid' => $group->id, 'userid' => $user->id]);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+        $this->assertEquals($group->id, $event['groupid']);
+    }
+
+    /**
+     * A user should be able to create an event for a group that they are a member of in
+     * a course in which they are enrolled and have the moodle/calendar:managegroupentries capability.
+     */
+    public function test_submit_create_update_form_create_group_event_group_member_manage_group_entries() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $group = $generator->create_group(array('courseid' => $course->id));
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'group',
+            'groupid' => "{$course->id}-{$group->id}", // The form format.
+            'groupcourseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+        $generator->create_group_member(['groupid' => $group->id, 'userid' => $user->id]);
+
+        assign_capability('moodle/calendar:manageentries', CAP_PROHIBIT, $roleid, $context, true);
+        assign_capability('moodle/calendar:managegroupentries', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+        $this->assertEquals($group->id, $event['groupid']);
+    }
+
+    /**
+     * A user should be able to create an event for any group in a course in which
+     * they are enrolled and have the moodle/site:accessallgroups capability.
+     */
+    public function test_submit_create_update_form_create_group_event_access_all_groups() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $group = $generator->create_group(array('courseid' => $course->id));
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'group',
+            'groupid' => "{$course->id}-{$group->id}", // The form format.
+            'groupcourseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+        assign_capability('moodle/site:accessallgroups', CAP_ALLOW, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $event = $result['event'];
+        $this->assertEquals($user->id, $event['userid']);
+        $this->assertEquals($formdata['eventtype'], $event['eventtype']);
+        $this->assertEquals($formdata['name'], $event['name']);
+        $this->assertEquals($group->id, $event['groupid']);
+    }
+
+    /**
+     * A user should not be able to create an event for any group that they are not a
+     * member of in a course in which they are enrolled but don't have the
+     * moodle/site:accessallgroups capability.
+     */
+    public function test_submit_create_update_form_create_group_event_non_member_no_permission() {
+        $generator = $this->getDataGenerator();
+        $user = $generator->create_user();
+        $course = $generator->create_course();
+        $group = $generator->create_group(array('courseid' => $course->id));
+        $context = context_course::instance($course->id);
+        $roleid = $generator->create_role();
+        $timestart = new DateTime();
+        $interval = new DateInterval("P1D"); // One day.
+        $timedurationuntil = new DateTime();
+        $timedurationuntil->add($interval);
+        $formdata = [
+            'id' => 0,
+            'userid' => $user->id,
+            'modulename' => '',
+            'instance' => 0,
+            'visible' => 1,
+            'name' => 'Test',
+            'timestart' => [
+                'day' => $timestart->format('j'),
+                'month' => $timestart->format('n'),
+                'year' => $timestart->format('Y'),
+                'hour' => $timestart->format('G'),
+                'minute' => 0,
+            ],
+            'eventtype' => 'group',
+            'groupid' => "{$course->id}-{$group->id}", // The form format.
+            'groupcourseid' => $course->id,
+            'description' => [
+                'text' => '',
+                'format' => 1,
+            ],
+            'duration' => 1,
+            'timedurationuntil' => [
+                'day' => $timedurationuntil->format('j'),
+                'month' => $timedurationuntil->format('n'),
+                'year' => $timedurationuntil->format('Y'),
+                'hour' => $timedurationuntil->format('G'),
+                'minute' => 0,
+            ]
+        ];
+
+        $formdata = \core_calendar\local\event\forms\create::mock_generate_submit_keys($formdata);
+        $querystring = http_build_query($formdata, '', '&');
+
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $generator->role_assign($roleid, $user->id, $context->id);
+
+        assign_capability('moodle/calendar:manageentries', CAP_ALLOW, $roleid, $context, true);
+        assign_capability('moodle/site:accessallgroups', CAP_PROHIBIT, $roleid, $context, true);
+
+        $user->ignoresesskey = true;
+        $this->resetAfterTest(true);
+        $this->setUser($user);
+
+        $result = external_api::clean_returnvalue(
+            core_calendar_external::submit_create_update_form_returns(),
+            core_calendar_external::submit_create_update_form($querystring)
+        );
+
+        $this->assertTrue($result['validationerror']);
+    }
 }

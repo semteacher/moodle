@@ -41,9 +41,8 @@ Feature: Enrolments are synchronised with meta courses
     And I add "Course meta link" enrolment method with:
       | Link course  | C1C1 |
     And I navigate to "Enrolled users" node in "Course administration > Users"
-    Then I should see "Student 1"
-    And I should see "Student 4"
-    And I should not see "Groupcourse" in the "table.userenrolment" "css_element"
+    Then I should see "No groups" in the "Student 1" "table_row"
+    And I should see "No groups" in the "Student 4" "table_row"
 
   Scenario: Add meta enrolment instance with groups
     When I am on "Course 3" course homepage
@@ -92,12 +91,11 @@ Feature: Enrolments are synchronised with meta courses
     And I set the field "targetid" to "1"
     And I click on "Continue" "button" in the ".bcs-new-course" "css_element"
     And I press "Next"
-    And I set the field "Course name" to "Course 4"
+    And I set the field "Course name" to "Course 5"
     And I press "Next"
     And I press "Perform restore"
     And I trigger cron
-    And I am on course index
-    And I follow "Course 4"
+    And I am on "Course 5 copy 1" course homepage
     And I navigate to "Enrolment methods" node in "Course administration > Users"
     Then I should see "Course meta link (Course 1)"
     And I should see "Course meta link (Course 2)"
@@ -106,8 +104,8 @@ Feature: Enrolments are synchronised with meta courses
     And I should see "Groupcourse 1" in the "Student 2" "table_row"
     And I should see "Groupcourse 1" in the "Student 3" "table_row"
     And I should see "Groupcourse 1" in the "Student 4" "table_row"
-    And I should see "Course 2" in the "Student 1" "table_row"
-    And I should not see "Course 2" in the "Student 3" "table_row"
+    And I click on "[data-enrolinstancename='Course meta link (Course 2)'] a[data-action=showdetails]" "css_element" in the "Student 1" "table_row"
+    And I should see "Course meta link (Course 2)" in the "Enrolment method" "table_row"
 
   Scenario: Unenrol a user from the course participants page that was enrolled via course meta link.
     Given I am on "Course 3" course homepage
@@ -116,5 +114,5 @@ Feature: Enrolments are synchronised with meta courses
     And I navigate to course participants
     # Suspended users can be unenrolled.
     When I click on "//a[@data-action='unenrol']" "xpath_element" in the "student2" "table_row"
-    And I click on "Yes" "button"
+    And I click on "Unenrol" "button" in the "[data-region='modal']" "css_element"
     Then I should not see "Student 2" in the "participants" "table"

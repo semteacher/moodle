@@ -117,7 +117,7 @@ $string['licence'] = 'Licence';
 $string['licence_help'] = 'Select the licence you want to distribute your course under.';
 $string['licence_link'] = 'licenses';
 $string['logourl'] = 'Logo URL';
-$string['mobilenotificacionsenabled'] = 'Mobile notifications enabled ({$a})';
+$string['mobilenotificationsenabled'] = 'Mobile notifications enabled ({$a})';
 $string['mobileservicesenabled'] = 'Mobile services enabled ({$a})';
 $string['modulenumberaverage'] = 'Average number of course modules ({$a})';
 $string['moodleorg'] = 'Moodle';
@@ -164,7 +164,6 @@ $string['registeredmoodleorg'] = 'Moodle ({$a})';
 $string['registeredon'] = 'Where your site is registered';
 $string['registereduserdevices'] = 'Number of users with registered mobile devices ({$a})';
 $string['registeredactiveuserdevices'] = 'Number of active users with registered mobile devices which are receiving notifications ({$a})';
-$string['registermoochtips'] = 'Register your site with Moodle to get security alerts and access to Moodle.net, our course sharing platform.';
 $string['registersite'] = 'Register with {$a}';
 $string['registerwith'] = 'Register with a hub';
 $string['registrationconfirmed'] = 'Site registration confirmed';
@@ -268,3 +267,6 @@ $string['wrongurlformat'] = 'Bad URL format';
 $string['xmlrpcdisabledcommunity'] = 'The XML-RPC extension is not enabled on the server. You can not search and download courses.';
 $string['xmlrpcdisabledpublish'] = 'The XML-RPC extension is not enabled on the server. You can not publish courses or manage published courses.';
 $string['xmlrpcdisabledregistration'] = 'The XML-RPC extension is not enabled on the server. You will not be able to unregister or update your registration until you enable it.';
+
+// Deprecated since Moodle 3.4.
+$string['registermoochtips'] = 'Register your site with Moodle to get security alerts and access to Moodle.net, our course sharing platform.';

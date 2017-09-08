@@ -51,6 +51,16 @@ switch ($action) {
     case 'log':
         $title = get_string('viewlog', 'tool_analytics');
         break;
+    case 'enable':
+        $title = get_string('enable');
+        break;
+    case 'disable':
+        $title = get_string('disable');
+        break;
+    case 'export':
+        $title = get_string('export', 'tool_analytics');
+        break;
+
     default:
         throw new moodle_exception('errorunknownaction', 'analytics');
 }
@@ -61,7 +71,21 @@ $PAGE->set_pagelayout('report');
 $PAGE->set_title($title);
 $PAGE->set_heading($title);
 
+$onlycli = get_config('analytics', 'onlycli');
+if ($onlycli === false) {
+    // Default applied if no config found.
+    $onlycli = 1;
+}
+
 switch ($action) {
+
+    case 'enable':
+        $model->enable();
+        redirect(new \moodle_url('/admin/tool/analytics/index.php'));
+
+    case 'disable':
+        $model->update(0, false, false);
+        redirect(new \moodle_url('/admin/tool/analytics/index.php'));
 
     case 'edit':
 
@@ -113,6 +137,10 @@ switch ($action) {
             throw new moodle_exception('errornostaticevaluate', 'tool_analytics');
         }
 
+        if ($onlycli) {
+            throw new moodle_exception('erroronlycli', 'tool_analytics');
+        }
+
         // Web interface is used by people who can not use CLI nor code stuff, always use
         // cached stuff as they will change the model through the web interface as well
         // which invalidates the previously analysed stuff.
@@ -124,13 +152,22 @@ switch ($action) {
     case 'getpredictions':
         echo $OUTPUT->header();
 
+        if ($onlycli) {
+            throw new moodle_exception('erroronlycli', 'tool_analytics');
+        }
+
         $trainresults = $model->train();
         $trainlogs = $model->get_analyser()->get_logs();
 
         // Looks dumb to get a new instance but better be conservative.
         $model = new \core_analytics\model($model->get_model_obj());
-        $predictresults = $model->predict();
-        $predictlogs = $model->get_analyser()->get_logs();
+        if ($model->is_trained()) {
+            $predictresults = $model->predict();
+            $predictlogs = $model->get_analyser()->get_logs();
+        } else {
+            $predictresults = false;
+            $predictlogs = array();
+        }
 
         $renderer = $PAGE->get_renderer('tool_analytics');
         echo $renderer->render_get_predictions_results($trainresults, $trainlogs, $predictresults, $predictlogs);
@@ -146,6 +183,22 @@ switch ($action) {
         $renderer = $PAGE->get_renderer('tool_analytics');
         $modellogstable = new \tool_analytics\output\model_logs('model-' . $model->get_id(), $model);
         echo $renderer->render_table($modellogstable);
+        break;
+
+    case 'export':
+
+        if ($model->is_static() || !$model->is_trained()) {
+            throw new moodle_exception('errornoexport', 'tool_analytics');
+        }
+
+        $file = $model->get_training_data();
+        if (!$file) {
+            redirect(new \moodle_url('/admin/tool/analytics/index.php'), get_string('errortrainingdataexport', 'tool_analytics'),
+                null, \core\output\notification::NOTIFY_ERROR);
+        }
+
+        $filename = 'training-data.' . $model->get_id() . '.' . time() . '.csv';
+        send_file($file, $filename, null, 0, false, true);
         break;
 }
 

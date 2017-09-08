@@ -65,6 +65,16 @@ class participants_table extends \table_sql {
     protected $roleid;
 
     /**
+     * @var int $enrolid The applied filter for the user enrolment ID.
+     */
+    protected $enrolid;
+
+    /**
+     * @var int $status The applied filter for the user's enrolment status.
+     */
+    protected $status;
+
+    /**
      * @var string $search The string being searched.
      */
     protected $search;
@@ -115,17 +125,24 @@ class participants_table extends \table_sql {
     protected $assignableroles;
 
     /**
+     * @var \stdClass[] Profile roles in this course.
+     */
+    protected $profileroles;
+
+    /**
      * Sets up the table.
      *
      * @param int $courseid
      * @param int|false $currentgroup False if groups not used, int if groups used, 0 for all groups.
      * @param int $accesssince The time the user last accessed the site
      * @param int $roleid The role we are including, 0 means all enrolled users
-     * @param string $search The string being searched
+     * @param int $enrolid The applied filter for the user enrolment ID.
+     * @param int $status The applied filter for the user's enrolment status.
+     * @param string|array $search The search string(s)
      * @param bool $bulkoperations Is the user allowed to perform bulk operations?
      * @param bool $selectall Has the user selected all users on the page?
      */
-    public function __construct($courseid, $currentgroup, $accesssince, $roleid, $search,
+    public function __construct($courseid, $currentgroup, $accesssince, $roleid, $enrolid, $status, $search,
             $bulkoperations, $selectall) {
         global $CFG;
 
@@ -157,15 +174,17 @@ class participants_table extends \table_sql {
         $headers[] = get_string('roles');
         $columns[] = 'roles';
 
-        // Load and cache the course groupinfo.
-        // Add column for groups.
-        $headers[] = get_string('groups');
-        $columns[] = 'groups';
-
         // Get the list of fields we have to hide.
         $hiddenfields = array();
         if (!has_capability('moodle/course:viewhiddenuserfields', $context)) {
             $hiddenfields = array_flip(explode(',', $CFG->hiddenuserfields));
+        }
+
+        // Add column for groups if the user can view them.
+        $canseegroups = !isset($hiddenfields['groups']);
+        if ($canseegroups) {
+            $headers[] = get_string('groups');
+            $columns[] = 'groups';
         }
 
         // Do not show the columns if it exists in the hiddenfields array.
@@ -179,7 +198,7 @@ class participants_table extends \table_sql {
         }
 
         $canreviewenrol = has_capability('moodle/course:enrolreview', $context);
-        if ($canreviewenrol) {
+        if ($canreviewenrol && $courseid != SITEID) {
             $columns[] = 'status';
             $headers[] = get_string('participationstatus', 'enrol');
             $this->no_sorting('status');
@@ -192,6 +211,10 @@ class participants_table extends \table_sql {
         $this->sortable(true, 'firstname');
 
         $this->no_sorting('select');
+        $this->no_sorting('roles');
+        if ($canseegroups) {
+            $this->no_sorting('groups');
+        }
 
         $this->set_attribute('id', 'participants');
 
@@ -200,14 +223,19 @@ class participants_table extends \table_sql {
         $this->accesssince = $accesssince;
         $this->roleid = $roleid;
         $this->search = $search;
+        $this->enrolid = $enrolid;
+        $this->status = $status;
         $this->selectall = $selectall;
         $this->countries = get_string_manager()->get_list_of_countries();
         $this->extrafields = $extrafields;
         $this->context = $context;
-        $this->groups = groups_get_all_groups($courseid, 0, 0, 'g.*', true);
+        if ($canseegroups) {
+            $this->groups = groups_get_all_groups($courseid, 0, 0, 'g.*', true);
+        }
         $this->allroles = role_fix_names(get_all_roles($this->context), $this->context);
         $this->allroleassignments = get_users_roles($this->context, [], true, 'c.contextlevel DESC, r.sortorder ASC');
         $this->assignableroles = get_assignable_roles($this->context, ROLENAME_ALIAS, false);
+        $this->profileroles = get_profile_roles($this->context);
     }
 
     /**
@@ -265,17 +293,13 @@ class participants_table extends \table_sql {
         global $OUTPUT;
 
         $roles = isset($this->allroleassignments[$data->id]) ? $this->allroleassignments[$data->id] : [];
-        $getrole = function($role) {
-            return $role->roleid;
-        };
-        $ids = array_values(array_unique(array_map($getrole, $roles)));
-
         $editable = new \core_user\output\user_roles_editable($this->course,
                                                               $this->context,
                                                               $data,
                                                               $this->allroles,
                                                               $this->assignableroles,
-                                                              $ids);
+                                                              $this->profileroles,
+                                                              $roles);
 
         return $OUTPUT->render_from_template('core/inplace_editable', $editable->export_for_template($OUTPUT));
     }
@@ -406,7 +430,7 @@ class participants_table extends \table_sql {
         list($twhere, $tparams) = $this->get_sql_where();
 
         $total = user_get_total_participants($this->course->id, $this->currentgroup, $this->accesssince,
-            $this->roleid, $this->search, $twhere, $tparams);
+            $this->roleid, $this->enrolid, $this->status, $this->search, $twhere, $tparams);
 
         $this->pagesize($pagesize, $total);
 
@@ -416,7 +440,7 @@ class participants_table extends \table_sql {
         }
 
         $this->rawdata = user_get_participants($this->course->id, $this->currentgroup, $this->accesssince,
-            $this->roleid, $this->search, $twhere, $tparams, $sort, $this->get_page_start(),
+            $this->roleid, $this->enrolid, $this->status, $this->search, $twhere, $tparams, $sort, $this->get_page_start(),
             $this->get_page_size());
 
         // Set initial bars.

@@ -10,7 +10,7 @@
 .calendar_event_course {
     background-color: @calendarEventCourseColor;
 }
-.calendar_event_global {
+.calendar_event_site {
     background-color: @calendarEventGlobalColor;
 }
 .calendar_event_group {
@@ -42,6 +42,8 @@
         }
         .previous {
             text-align: left;
+            border: 1px solid transparent;
+            box-sizing: border-box;
         }
         .current {
             text-align: center;
@@ -49,6 +51,12 @@
         }
         .next {
             text-align: right;
+            border: 1px solid transparent;
+            box-sizing: border-box;
+        }
+        .drop-target {
+            box-sizing: border-box;
+            border: 1px dashed @blue;
         }
     }
     .filters {
@@ -56,13 +64,6 @@
             border-collapse: separate;
             border-spacing: 2px;
             width: 100%;
-        }
-    }
-    .cal_courses_flt {
-        float: left;
-
-        label {
-            margin-right: .45em;
         }
     }
     .maincalendar {
@@ -91,6 +92,10 @@
             td {
                 height: 5em;
             }
+
+            .clickable:hover {
+                box-shadow: 0 2px 2px 0 rgba(0, 0, 0, .14), 0 3px 1px -2px rgba(0, 0, 0, .2), 0 1px 5px 0 rgba(0, 0, 0, .12);
+            }
         }
         .calendar-controls {
             .previous,
@@ -106,16 +111,20 @@
             margin: 10px auto;
         }
         .calendar_event_course,
-        .calendar_event_global,
+        .calendar_event_site,
         .calendar_event_group,
         .calendar_event_user {
-            border-width: 1px 1px 1px 12px;
-            border-style: solid;
+            &:hover {
+                a {
+                    color: @linkColorHover;
+                    text-decoration: underline;
+                }
+            }
         }
         .calendar_event_course {
             border-color: @calendarEventCourseColor;
         }
-        .calendar_event_global {
+        .calendar_event_site {
             border-color: @calendarEventGlobalColor;
         }
         .calendar_event_group {
@@ -172,14 +181,14 @@
                     margin-right: 0.5rem;
                 }
                 .name,
-                .course {
+                .action {
                     margin-bottom: 5px;
                 }
                 .date {
                     float: right;
                 }
-                .course,
-                .subscription {
+                .subscription,
+                .action {
                     float: left;
                     clear: left;
                 }
@@ -188,7 +197,6 @@
                 }
                 .description {
                     background-color: @white;
-                    padding: 5px;
                     clear: both;
                 }
                 .commands {

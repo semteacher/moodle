@@ -1108,10 +1108,15 @@ function user_mygrades_url($userid = null, $courseid = SITEID) {
 }
 
 /**
- * Check if a user has the permission to viewdetails in a shared course's context.
+ * Check if the current user has permission to view details of the supplied user.
+ *
+ * This function supports two modes:
+ * If the optional $course param is omitted, then this function finds all shared courses and checks whether the current user has
+ * permission in any of them, returning true if so.
+ * If the $course param is provided, then this function checks permissions in ONLY that course.
  *
  * @param object $user The other user's details.
- * @param object $course Use this course to see if we have permission to see this user's profile.
+ * @param object $course if provided, only check permissions in this course.
  * @param context $usercontext The user context if available.
  * @return bool true for ability to view this user, else false.
  */
@@ -1122,9 +1127,7 @@ function user_can_view_profile($user, $course = null, $usercontext = null) {
         return false;
     }
 
-    // Perform some quick checks and eventually return early.
-
-    // Number 1.
+    // Do we need to be logged in?
     if (empty($CFG->forceloginforprofiles)) {
         return true;
     } else {
@@ -1134,38 +1137,44 @@ function user_can_view_profile($user, $course = null, $usercontext = null) {
         }
     }
 
-    // Number 2.
+    // Current user can always view their profile.
     if ($USER->id == $user->id) {
         return true;
     }
 
-    if (empty($usercontext)) {
-        $usercontext = context_user::instance($user->id);
-    }
-    // Number 3.
-    if (has_capability('moodle/user:viewdetails', $usercontext)) {
-        return true;
-    }
-
-    // Number 4.
+    // Course contacts have visible profiles always.
     if (has_coursecontact_role($user->id)) {
         return true;
     }
 
+    // If we're only checking the capabilities in the single provided course.
     if (isset($course)) {
-        $sharedcourses = array($course);
+        // Confirm that $user is enrolled in the $course we're checking.
+        if (is_enrolled(context_course::instance($course->id), $user)) {
+            $userscourses = array($course);
+        }
     } else {
-        $sharedcourses = enrol_get_shared_courses($USER->id, $user->id, true);
+        // Else we're checking whether the current user can view $user's profile anywhere, so check user context first.
+        if (empty($usercontext)) {
+            $usercontext = context_user::instance($user->id);
+        }
+        if (has_capability('moodle/user:viewdetails', $usercontext) || has_capability('moodle/user:viewalldetails', $usercontext)) {
+            return true;
+        }
+        // This returns context information, so we can preload below.
+        $userscourses = enrol_get_all_users_courses($user->id);
     }
 
-    if (empty($sharedcourses)) {
+    if (empty($userscourses)) {
         return false;
     }
 
-    foreach ($sharedcourses as $sharedcourse) {
-        $coursecontext = context_course::instance($sharedcourse->id);
-        if (has_capability('moodle/user:viewdetails', $coursecontext)) {
-            if (!groups_user_groups_visible($sharedcourse, $user->id)) {
+    foreach ($userscourses as $userscourse) {
+        context_helper::preload_from_record($userscourse);
+        $coursecontext = context_course::instance($userscourse->id);
+        if (has_capability('moodle/user:viewdetails', $coursecontext) ||
+            has_capability('moodle/user:viewalldetails', $coursecontext)) {
+            if (!groups_user_groups_visible($userscourse, $user->id)) {
                 // Not a member of the same group.
                 continue;
             }
@@ -1220,13 +1229,15 @@ function user_get_tagged_users($tag, $exclusivemode = false, $fromctx = 0, $ctx 
  * @param int $groupid The groupid, 0 means all groups
  * @param int $accesssince The time since last access, 0 means any time
  * @param int $roleid The role id, 0 means all roles
- * @param string $search The search that was performed, empty means perform no search
+ * @param int $enrolid The enrolment id, 0 means all enrolment methods will be returned.
+ * @param int $statusid The user enrolment status, -1 means all enrolments regardless of the status will be returned, if allowed.
+ * @param string|array $search The search that was performed, empty means perform no search
  * @param string $additionalwhere Any additional SQL to add to where
  * @param array $additionalparams The additional params
  * @return array
  */
-function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $roleid = 0, $search = '', $additionalwhere = '',
-        $additionalparams = array()) {
+function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $roleid = 0, $enrolid = 0, $statusid = -1,
+                                   $search = '', $additionalwhere = '', $additionalparams = array()) {
     global $DB;
 
     // Get the context.
@@ -1234,9 +1245,26 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
 
     $isfrontpage = ($courseid == SITEID);
 
-    // Show active users only if the user doesn't have the 'moodle/course:enrolreview' capability.
-    $onlyactive = !has_capability('moodle/course:enrolreview', $context);
-    list($esql, $params) = get_enrolled_sql($context, null, $groupid, $onlyactive);
+    // Default filter settings. We only show active by default, especially if the user has no capability to review enrolments.
+    $onlyactive = true;
+    $onlysuspended = false;
+    if (has_capability('moodle/course:enrolreview', $context)) {
+        switch ($statusid) {
+            case ENROL_USER_ACTIVE:
+                // Nothing to do here.
+                break;
+            case ENROL_USER_SUSPENDED:
+                $onlyactive = false;
+                $onlysuspended = true;
+                break;
+            default:
+                // If the user has capability to review user enrolments, but statusid is set to -1, set $onlyactive to false.
+                $onlyactive = false;
+                break;
+        }
+    }
+
+    list($esql, $params) = get_enrolled_sql($context, null, $groupid, $onlyactive, $onlysuspended, $enrolid);
 
     $joins = array('FROM {user} u');
     $wheres = array();
@@ -1279,13 +1307,21 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
     }
 
     if (!empty($search)) {
-        $fullname = $DB->sql_fullname('u.firstname', 'u.lastname');
-        $wheres[] = '(' . $DB->sql_like($fullname, ':search1', false, false) .
-            ' OR ' . $DB->sql_like('email', ':search2', false, false) .
-            ' OR ' . $DB->sql_like('idnumber', ':search3', false, false) . ') ';
-        $params['search1'] = "%$search%";
-        $params['search2'] = "%$search%";
-        $params['search3'] = "%$search%";
+        if (!is_array($search)) {
+            $search = [$search];
+        }
+        foreach ($search as $index => $keyword) {
+            $searchkey1 = 'search' . $index . '1';
+            $searchkey2 = 'search' . $index . '2';
+            $searchkey3 = 'search' . $index . '3';
+            $fullname = $DB->sql_fullname('u.firstname', 'u.lastname');
+            $wheres[] = '(' . $DB->sql_like($fullname, ':' . $searchkey1, false, false) .
+                ' OR ' . $DB->sql_like('email', ':' . $searchkey2, false, false) .
+                ' OR ' . $DB->sql_like('idnumber', ':' . $searchkey3, false, false) . ') ';
+            $params[$searchkey1] = "%$keyword%";
+            $params[$searchkey2] = "%$keyword%";
+            $params[$searchkey3] = "%$keyword%";
+        }
     }
 
     if (!empty($additionalwhere)) {
@@ -1310,17 +1346,19 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
  * @param int $groupid The groupid, 0 means all groups
  * @param int $accesssince The time since last access, 0 means any time
  * @param int $roleid The role id, 0 means all roles
- * @param string $search The search that was performed, empty means perform no search
+ * @param int $enrolid The applied filter for the user enrolment ID.
+ * @param int $status The applied filter for the user's enrolment status.
+ * @param string|array $search The search that was performed, empty means perform no search
  * @param string $additionalwhere Any additional SQL to add to where
  * @param array $additionalparams The additional params
  * @return int
  */
-function user_get_total_participants($courseid, $groupid = 0, $accesssince = 0, $roleid = 0, $search = '', $additionalwhere = '',
-        $additionalparams = array()) {
+function user_get_total_participants($courseid, $groupid = 0, $accesssince = 0, $roleid = 0, $enrolid = 0, $statusid = -1,
+                                     $search = '', $additionalwhere = '', $additionalparams = array()) {
     global $DB;
 
-    list($select, $from, $where, $params) = user_get_participants_sql($courseid, $groupid, $accesssince, $roleid,
-        $search, $additionalwhere, $additionalparams);
+    list($select, $from, $where, $params) = user_get_participants_sql($courseid, $groupid, $accesssince, $roleid, $enrolid,
+        $statusid, $search, $additionalwhere, $additionalparams);
 
     return $DB->count_records_sql("SELECT COUNT(u.id) $from $where", $params);
 }
@@ -1332,6 +1370,8 @@ function user_get_total_participants($courseid, $groupid = 0, $accesssince = 0, 
  * @param int $groupid The group id
  * @param int $accesssince The time since last access
  * @param int $roleid The role id
+ * @param int $enrolid The applied filter for the user enrolment ID.
+ * @param int $status The applied filter for the user's enrolment status.
  * @param string $search The search that was performed
  * @param string $additionalwhere Any additional SQL to add to where
  * @param array $additionalparams The additional params
@@ -1340,12 +1380,12 @@ function user_get_total_participants($courseid, $groupid = 0, $accesssince = 0, 
  * @param int $limitnum return a subset comprising this many records (optional, required if $limitfrom is set).
  * @return moodle_recordset
  */
-function user_get_participants($courseid, $groupid = 0, $accesssince, $roleid, $search, $additionalwhere = '',
-        $additionalparams = array(), $sort = '', $limitfrom = 0, $limitnum = 0) {
+function user_get_participants($courseid, $groupid = 0, $accesssince, $roleid, $enrolid = 0, $statusid, $search,
+                               $additionalwhere = '', $additionalparams = array(), $sort = '', $limitfrom = 0, $limitnum = 0) {
     global $DB;
 
-    list($select, $from, $where, $params) = user_get_participants_sql($courseid, $groupid, $accesssince, $roleid,
-        $search, $additionalwhere, $additionalparams);
+    list($select, $from, $where, $params) = user_get_participants_sql($courseid, $groupid, $accesssince, $roleid, $enrolid,
+        $statusid, $search, $additionalwhere, $additionalparams);
 
     return $DB->get_recordset_sql("$select $from $where $sort", $params, $limitfrom, $limitnum);
 }

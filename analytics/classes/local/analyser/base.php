@@ -48,6 +48,13 @@ abstract class base {
     protected $target;
 
     /**
+     * A $this->$target copy loaded with the ongoing analysis analysable.
+     *
+     * @var \core_analytics\local\target\base
+     */
+    protected $analysabletarget;
+
+    /**
      * The model indicators.
      *
      * @var \core_analytics\local\indicator\base[]
@@ -255,11 +262,11 @@ abstract class base {
 
         // Target instances scope is per-analysable (it can't be lower as calculations run once per
         // analysable, not time splitting method nor time range).
-        $target = call_user_func(array($this->target, 'instance'));
+        $this->analysabletarget = call_user_func(array($this->target, 'instance'));
 
         // We need to check that the analysable is valid for the target even if we don't include targets
         // as we still need to discard invalid analysables for the target.
-        $result = $target->is_valid_analysable($analysable, $includetarget);
+        $result = $this->analysabletarget->is_valid_analysable($analysable, $includetarget);
         if ($result !== true) {
             $a = new \stdClass();
             $a->analysableid = $analysable->get_id();
@@ -291,11 +298,7 @@ abstract class base {
                 }
             }
 
-            if ($includetarget) {
-                $result = $this->process_time_splitting($timesplitting, $analysable, $target);
-            } else {
-                $result = $this->process_time_splitting($timesplitting, $analysable);
-            }
+            $result = $this->process_time_splitting($timesplitting, $analysable, $includetarget);
 
             if (!empty($result->file)) {
                 $files[$timesplitting->get_id()] = $result->file;
@@ -342,10 +345,10 @@ abstract class base {
      *
      * @param \core_analytics\local\time_splitting\base $timesplitting
      * @param \core_analytics\analysable $analysable
-     * @param \core_analytics\local\target\base|false $target
+     * @param bool $includetarget
      * @return \stdClass Results object.
      */
-    protected function process_time_splitting($timesplitting, $analysable, $target = false) {
+    protected function process_time_splitting($timesplitting, $analysable, $includetarget = false) {
 
         $result = new \stdClass();
 
@@ -372,12 +375,12 @@ abstract class base {
             return $result;
         }
 
-        if ($target) {
+        if ($includetarget) {
             // All ranges are used when we are calculating data for training.
             $ranges = $timesplitting->get_all_ranges();
         } else {
-            // Only some ranges can be used for prediction (it depends on the time range where we are right now).
-            $ranges = $this->get_prediction_ranges($timesplitting);
+            // The latest range that has not yet been used for prediction (it depends on the time range where we are right now).
+            $ranges = $this->get_most_recent_prediction_range($timesplitting);
         }
 
         // There is no need to keep track of the evaluated samples and ranges as we always evaluate the whole dataset.
@@ -385,12 +388,12 @@ abstract class base {
 
             if (empty($ranges)) {
                 $result->status = \core_analytics\model::ANALYSABLE_REJECTED_TIME_SPLITTING_METHOD;
-                $result->message = get_string('nonewdata', 'analytics');
+                $result->message = get_string('noranges', 'analytics');
                 return $result;
             }
 
-            // We skip all samples that are already part of a training dataset, even if they have noe been used for training yet.
-            $sampleids = $this->filter_out_train_samples($sampleids, $timesplitting);
+            // We skip all samples that are already part of a training dataset, even if they have not been used for prediction.
+            $this->filter_out_train_samples($sampleids, $timesplitting);
 
             if (count($sampleids) === 0) {
                 $result->status = \core_analytics\model::ANALYSABLE_REJECTED_TIME_SPLITTING_METHOD;
@@ -399,20 +402,31 @@ abstract class base {
             }
 
             // Only when processing data for predictions.
-            if ($target === false) {
-                // We also filter out ranges that have already been used for predictions.
-                $ranges = $this->filter_out_prediction_ranges($ranges, $timesplitting);
+            if (!$includetarget) {
+                // We also filter out samples and ranges that have already been used for predictions.
+                $this->filter_out_prediction_samples_and_ranges($sampleids, $ranges, $timesplitting);
+            }
+
+            if (count($sampleids) === 0) {
+                $result->status = \core_analytics\model::ANALYSABLE_REJECTED_TIME_SPLITTING_METHOD;
+                $result->message = get_string('nonewdata', 'analytics');
+                return $result;
             }
 
             if (count($ranges) === 0) {
                 $result->status = \core_analytics\model::ANALYSABLE_REJECTED_TIME_SPLITTING_METHOD;
-                $result->message = get_string('nonewtimeranges', 'analytics');
+                $result->message = get_string('nonewranges', 'analytics');
                 return $result;
             }
         }
 
+        if (!empty($target)) {
+            $filearea = \core_analytics\dataset_manager::LABELLED_FILEAREA;
+        } else {
+            $filearea = \core_analytics\dataset_manager::UNLABELLED_FILEAREA;
+        }
         $dataset = new \core_analytics\dataset_manager($this->modelid, $analysable->get_id(), $timesplitting->get_id(),
-            $this->options['evaluation'], !empty($target));
+            $filearea, $this->options['evaluation']);
 
         // Flag the model + analysable + timesplitting as being analysed (prevent concurrent executions).
         if (!$dataset->init_process()) {
@@ -422,10 +436,9 @@ abstract class base {
             return $result;
         }
 
-        // Remove samples the target consider invalid. Note that we use $this->target, $target will be false
-        // during prediction, but we still need to discard samples the target considers invalid.
-        $this->target->add_sample_data($samplesdata);
-        $this->target->filter_out_invalid_samples($sampleids, $analysable, $target);
+        // Remove samples the target consider invalid.
+        $this->analysabletarget->add_sample_data($samplesdata);
+        $this->analysabletarget->filter_out_invalid_samples($sampleids, $analysable, $includetarget);
 
         if (!$sampleids) {
             $result->status = \core_analytics\model::NO_DATASET;
@@ -439,15 +452,15 @@ abstract class base {
             // indicator to calculate the sample.
             $this->indicators[$key]->add_sample_data($samplesdata);
         }
-        // Provide samples to the target instance (different than $this->target) $target is the new instance we get
-        // for each analysis in progress.
-        if ($target) {
-            $target->add_sample_data($samplesdata);
-        }
 
         // Here we start the memory intensive process that will last until $data var is
         // unset (until the method is finished basically).
-        $data = $timesplitting->calculate($sampleids, $this->get_samples_origin(), $this->indicators, $ranges, $target);
+        if ($includetarget) {
+            $data = $timesplitting->calculate($sampleids, $this->get_samples_origin(), $this->indicators, $ranges,
+                $this->analysabletarget);
+        } else {
+            $data = $timesplitting->calculate($sampleids, $this->get_samples_origin(), $this->indicators, $ranges);
+        }
 
         if (!$data) {
             $result->status = \core_analytics\model::ANALYSABLE_REJECTED_TIME_SPLITTING_METHOD;
@@ -455,6 +468,9 @@ abstract class base {
             $dataset->close_process();
             return $result;
         }
+
+        // Add extra metadata.
+        $this->add_model_metadata($data);
 
         // Write all calculated data to a file.
         $file = $dataset->store($data);
@@ -466,10 +482,10 @@ abstract class base {
         if ($this->options['evaluation'] === false) {
             // Save the samples that have been already analysed so they are not analysed again in future.
 
-            if ($target) {
+            if ($includetarget) {
                 $this->save_train_samples($sampleids, $timesplitting, $file);
             } else {
-                $this->save_prediction_ranges($ranges, $timesplitting);
+                $this->save_prediction_samples($sampleids, $ranges, $timesplitting);
             }
         }
 
@@ -480,25 +496,28 @@ abstract class base {
     }
 
     /**
-     * Returns the ranges of a time splitting that can be used to predict.
+     * Returns the most recent range that can be used to predict.
      *
      * @param \core_analytics\local\time_splitting\base $timesplitting
      * @return array
      */
-    protected function get_prediction_ranges($timesplitting) {
+    protected function get_most_recent_prediction_range($timesplitting) {
 
         $now = time();
+        $ranges = $timesplitting->get_all_ranges();
+
+        // Opposite order as we are interested in the last range that can be used for prediction.
+        krsort($ranges);
 
         // We already provided the analysable to the time splitting method, there is no need to feed it back.
-        $predictionranges = array();
-        foreach ($timesplitting->get_all_ranges() as $rangeindex => $range) {
+        foreach ($ranges as $rangeindex => $range) {
             if ($timesplitting->ready_to_predict($range)) {
                 // We need to maintain the same indexes.
-                $predictionranges[$rangeindex] = $range;
+                return array($rangeindex => $range);
             }
         }
 
-        return $predictionranges;
+        return array();
     }
 
     /**
@@ -506,9 +525,8 @@ abstract class base {
      *
      * @param int[] $sampleids
      * @param \core_analytics\local\time_splitting\base $timesplitting
-     * @return int[]
      */
-    protected function filter_out_train_samples($sampleids, $timesplitting) {
+    protected function filter_out_train_samples(&$sampleids, $timesplitting) {
         global $DB;
 
         $params = array('modelid' => $this->modelid, 'analysableid' => $timesplitting->get_analysable()->get_id(),
@@ -526,32 +544,43 @@ abstract class base {
                 $sampleids = array_diff_key($sampleids, $usedsamples);
             }
         }
-
-        return $sampleids;
     }
 
     /**
      * Filters out samples that have already been used for prediction.
      *
+     * @param int[] $sampleids
      * @param array $ranges
      * @param \core_analytics\local\time_splitting\base $timesplitting
-     * @return int[]
      */
-    protected function filter_out_prediction_ranges($ranges, $timesplitting) {
+    protected function filter_out_prediction_samples_and_ranges(&$sampleids, &$ranges, $timesplitting) {
         global $DB;
 
-        $params = array('modelid' => $this->modelid, 'analysableid' => $timesplitting->get_analysable()->get_id(),
-            'timesplitting' => $timesplitting->get_id());
-
-        $predictedranges = $DB->get_records('analytics_predict_ranges', $params);
-        foreach ($predictedranges as $predictedrange) {
-            if (!empty($ranges[$predictedrange->rangeindex])) {
-                unset($ranges[$predictedrange->rangeindex]);
-            }
+        if (count($ranges) > 1) {
+            throw new \coding_exception('$ranges argument should only contain one range');
         }
 
-        return $ranges;
+        $rangeindex = key($ranges);
 
+        $params = array('modelid' => $this->modelid, 'analysableid' => $timesplitting->get_analysable()->get_id(),
+            'timesplitting' => $timesplitting->get_id(), 'rangeindex' => $rangeindex);
+        $predictedrange = $DB->get_record('analytics_predict_samples', $params);
+
+        if (!$predictedrange) {
+            // Nothing to filter out.
+            return;
+        }
+
+        $predictedrange->sampleids = json_decode($predictedrange->sampleids, true);
+        $missingsamples = array_diff_key($sampleids, $predictedrange->sampleids);
+        if (count($missingsamples) === 0) {
+            // All samples already calculated.
+            unset($ranges[$rangeindex]);
+            return;
+        }
+
+        // Replace the list of samples by the one excluding samples that already got predictions at this range.
+        $sampleids = $missingsamples;
     }
 
     /**
@@ -560,7 +589,7 @@ abstract class base {
      * @param int[] $sampleids
      * @param \core_analytics\local\time_splitting\base $timesplitting
      * @param \stored_file $file
-     * @return bool
+     * @return void
      */
     protected function save_train_samples($sampleids, $timesplitting, $file) {
         global $DB;
@@ -574,28 +603,68 @@ abstract class base {
         $trainingsamples->sampleids = json_encode($sampleids);
         $trainingsamples->timecreated = time();
 
-        return $DB->insert_record('analytics_train_samples', $trainingsamples);
+        $DB->insert_record('analytics_train_samples', $trainingsamples);
     }
 
     /**
      * Saves samples that have just been used for prediction.
      *
+     * @param int[] $sampleids
      * @param array $ranges
      * @param \core_analytics\local\time_splitting\base $timesplitting
      * @return void
      */
-    protected function save_prediction_ranges($ranges, $timesplitting) {
+    protected function save_prediction_samples($sampleids, $ranges, $timesplitting) {
         global $DB;
 
-        $predictionrange = new \stdClass();
-        $predictionrange->modelid = $this->modelid;
-        $predictionrange->analysableid = $timesplitting->get_analysable()->get_id();
-        $predictionrange->timesplitting = $timesplitting->get_id();
-        $predictionrange->timecreated = time();
+        if (count($ranges) > 1) {
+            throw new \coding_exception('$ranges argument should only contain one range');
+        }
 
-        foreach ($ranges as $rangeindex => $unused) {
-            $predictionrange->rangeindex = $rangeindex;
-            $DB->insert_record('analytics_predict_ranges', $predictionrange);
+        $rangeindex = key($ranges);
+
+        $params = array('modelid' => $this->modelid, 'analysableid' => $timesplitting->get_analysable()->get_id(),
+            'timesplitting' => $timesplitting->get_id(), 'rangeindex' => $rangeindex);
+        if ($predictionrange = $DB->get_record('analytics_predict_samples', $params)) {
+            // Append the new samples used for prediction.
+            $prevsamples = json_decode($predictionrange->sampleids, true);
+            $predictionrange->sampleids = json_encode($prevsamples + $sampleids);
+            $predictionrange->timemodified = time();
+            $DB->update_record('analytics_predict_samples', $predictionrange);
+        } else {
+            $predictionrange = (object)$params;
+            $predictionrange->sampleids = json_encode($sampleids);
+            $predictionrange->timecreated = time();
+            $predictionrange->timemodified = $predictionrange->timecreated;
+            $DB->insert_record('analytics_predict_samples', $predictionrange);
+        }
+    }
+
+    /**
+     * Adds target metadata to the dataset.
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function add_model_metadata(&$data) {
+        global $CFG;
+
+        $metadata = array(
+            'moodleversion' => $CFG->version,
+            'targetcolumn' => $this->analysabletarget->get_id()
+        );
+        if ($this->analysabletarget->is_linear()) {
+            $metadata['targettype'] = 'linear';
+            $metadata['targetmin'] = $this->analysabletarget::get_min_value();
+            $metadata['targetmax'] = $this->analysabletarget::get_max_value();
+        } else {
+            $metadata['targettype'] = 'discrete';
+            $metadata['targetclasses'] = json_encode($this->analysabletarget::get_classes());
+        }
+
+        foreach ($metadata as $varname => $value) {
+            $data[0][] = $varname;
+            $data[1][] = $value;
         }
     }
 }

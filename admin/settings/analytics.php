@@ -79,12 +79,12 @@ if ($hassiteconfig) {
 
         $timesplittingoptions = array();
         $timesplittingdefaults = array('\core\analytics\time_splitting\quarters_accum',
-            '\core\analytics\time_splitting\quarters', '\core\analytics\time_splitting\no_splitting');
+            '\core\analytics\time_splitting\quarters', '\core\analytics\time_splitting\single_range');
         foreach ($alltimesplittings as $key => $timesplitting) {
             $timesplittingoptions[$key] = $timesplitting->get_name();
         }
         $settings->add(new admin_setting_configmultiselect('analytics/timesplittings',
-            new lang_string('enabledtimesplittings', 'analytics'), new lang_string('enabledtimesplittings_help', 'analytics'),
+            new lang_string('enabledtimesplittings', 'analytics'), new lang_string('timesplittingmethod_help', 'analytics'),
             $timesplittingdefaults, $timesplittingoptions)
         );
 
@@ -97,5 +97,9 @@ if ($hassiteconfig) {
         }
         $settings->add(new admin_setting_configdirectory('analytics/modeloutputdir', new lang_string('modeloutputdir', 'analytics'),
             new lang_string('modeloutputdirinfo', 'analytics'), $defaultmodeloutputdir));
+
+        // Disable web interface evaluation and get predictions.
+        $settings->add(new admin_setting_configcheckbox('analytics/onlycli', new lang_string('onlycli', 'analytics'),
+            new lang_string('onlycliinfo', 'analytics'), 1));
     }
 }
