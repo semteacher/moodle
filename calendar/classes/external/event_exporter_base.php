@@ -27,13 +27,16 @@ namespace core_calendar\external;
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . "/calendar/lib.php");
+require_once($CFG->libdir . "/filelib.php");
 
 use \core\external\exporter;
 use \core_calendar\local\event\container;
 use \core_calendar\local\event\entities\event_interface;
 use \core_calendar\local\event\entities\action_event_interface;
 use \core_course\external\course_summary_exporter;
+use \core\external\coursecat_summary_exporter;
 use \renderer_base;
+use moodle_url;
 
 /**
  * Class for displaying a calendar event.
@@ -62,14 +65,23 @@ class event_exporter_base extends exporter {
         $endtimestamp = $event->get_times()->get_end_time()->getTimestamp();
         $groupid = $event->get_group() ? $event->get_group()->get('id') : null;
         $userid = $event->get_user() ? $event->get_user()->get('id') : null;
+        $categoryid = $event->get_category() ? $event->get_category()->get('id') : null;
 
         $data = new \stdClass();
         $data->id = $event->get_id();
         $data->name = $event->get_name();
-        $data->description = $event->get_description()->get_value();
+        $data->description = file_rewrite_pluginfile_urls(
+            $event->get_description()->get_value(),
+            'pluginfile.php',
+            $related['context']->id,
+            'calendar',
+            'event_description',
+            $event->get_id()
+        );
         $data->descriptionformat = $event->get_description()->get_format();
         $data->groupid = $groupid;
         $data->userid = $userid;
+        $data->categoryid = $categoryid;
         $data->eventtype = $event->get_type();
         $data->timestart = $starttimestamp;
         $data->timeduration = $endtimestamp - $starttimestamp;
@@ -79,6 +91,7 @@ class event_exporter_base extends exporter {
 
         if ($repeats = $event->get_repeats()) {
             $data->repeatid = $repeats->get_id();
+            $data->eventcount = $repeats->get_num() + 1;
         }
 
         if ($cm = $event->get_course_module()) {
@@ -110,6 +123,12 @@ class event_exporter_base extends exporter {
                 'default' => null,
                 'null' => NULL_ALLOWED
             ],
+            'categoryid' => [
+                'type' => PARAM_INT,
+                'optional' => true,
+                'default' => null,
+                'null' => NULL_ALLOWED
+            ],
             'groupid' => [
                 'type' => PARAM_INT,
                 'optional' => true,
@@ -123,6 +142,12 @@ class event_exporter_base extends exporter {
                 'null' => NULL_ALLOWED
             ],
             'repeatid' => [
+                'type' => PARAM_INT,
+                'optional' => true,
+                'default' => null,
+                'null' => NULL_ALLOWED
+            ],
+            'eventcount' => [
                 'type' => PARAM_INT,
                 'optional' => true,
                 'default' => null,
@@ -159,8 +184,16 @@ class event_exporter_base extends exporter {
             'icon' => [
                 'type' => event_icon_exporter::read_properties_definition(),
             ],
+            'category' => [
+                'type' => coursecat_summary_exporter::read_properties_definition(),
+                'optional' => true,
+            ],
             'course' => [
                 'type' => course_summary_exporter::read_properties_definition(),
+                'optional' => true,
+            ],
+            'subscription' => [
+                'type' => event_subscription_exporter::read_properties_definition(),
                 'optional' => true,
             ],
             'canedit' => [
@@ -168,6 +201,30 @@ class event_exporter_base extends exporter {
             ],
             'candelete' => [
                 'type' => PARAM_BOOL
+            ],
+            'deleteurl' => [
+                'type' => PARAM_URL
+            ],
+            'editurl' => [
+                'type' => PARAM_URL
+            ],
+            'formattedtime' => [
+                'type' => PARAM_RAW,
+            ],
+            'isactionevent' => [
+                'type' => PARAM_BOOL
+            ],
+            'iscourseevent' => [
+                'type' => PARAM_BOOL
+            ],
+            'iscategoryevent' => [
+                'type' => PARAM_BOOL
+            ],
+            'groupname' => [
+                'type' => PARAM_RAW,
+                'optional' => true,
+                'default' => null,
+                'null' => NULL_ALLOWED
             ],
         ];
     }
@@ -183,19 +240,58 @@ class event_exporter_base extends exporter {
         $event = $this->event;
         $legacyevent = container::get_event_mapper()->from_event_to_legacy_event($event);
         $context = $this->related['context'];
+        $values['isactionevent'] = false;
+        $values['iscourseevent'] = false;
+        $values['iscategoryevent'] = false;
+        if ($moduleproxy = $event->get_course_module()) {
+            $values['isactionevent'] = true;
+        } else if ($event->get_type() == 'course') {
+            $values['iscourseevent'] = true;
+        } else if ($event->get_type() == 'category') {
+            $values['iscategoryevent'] = true;
+        }
         $timesort = $event->get_times()->get_sort_time()->getTimestamp();
         $iconexporter = new event_icon_exporter($event, ['context' => $context]);
 
         $values['icon'] = $iconexporter->export($output);
+
+        $subscriptionexporter = new event_subscription_exporter($event);
+        $values['subscription'] = $subscriptionexporter->export($output);
+
+        $proxy = $this->event->get_category();
+        if ($proxy && $proxy->get('id')) {
+            $category = $proxy->get_proxied_instance();
+            $categorysummaryexporter = new coursecat_summary_exporter($category, ['context' => $context]);
+            $values['category'] = $categorysummaryexporter->export($output);
+        }
+
+        if ($course = $this->related['course']) {
+            $coursesummaryexporter = new course_summary_exporter($course, ['context' => $context]);
+            $values['course'] = $coursesummaryexporter->export($output);
+        }
+        $courseid = (!$course) ? SITEID : $course->id;
+
+        $values['canedit'] = calendar_edit_event_allowed($legacyevent, true);
+        $values['candelete'] = calendar_delete_event_allowed($legacyevent);
+
+        $deleteurl = new moodle_url('/calendar/delete.php', ['id' => $event->get_id(), 'course' => $courseid]);
+        $values['deleteurl'] = $deleteurl->out(false);
+
+        $editurl = new moodle_url('/calendar/event.php', ['action' => 'edit', 'id' => $event->get_id(),
+                'course' => $courseid]);
+        $values['editurl'] = $editurl->out(false);
+        $values['formattedtime'] = calendar_format_event_time($legacyevent, time(), null, false,
+                $timesort);
 
         if ($course = $this->related['course']) {
             $coursesummaryexporter = new course_summary_exporter($course, ['context' => $context]);
             $values['course'] = $coursesummaryexporter->export($output);
         }
 
-        $values['canedit'] = calendar_edit_event_allowed($legacyevent, true);
-        $values['candelete'] = calendar_delete_event_allowed($legacyevent);
-
+        if ($group = $event->get_group()) {
+            $values['groupname'] = format_string($group->get('name'), true,
+                ['context' => \context_course::instance($event->get_course()->get('id'))]);
+        }
         return $values;
     }
 

@@ -2245,7 +2245,12 @@ function xmldb_main_upgrade($oldversion) {
             ['hub', '%' . $DB->sql_like_escape('_' . $cleanoldhuburl)]);
         foreach ($entries as $entry) {
             $newname = substr($entry->name, 0, -strlen($cleanoldhuburl)) . $cleannewhuburl;
-            $DB->update_record('config_plugins', ['id' => $entry->id, 'name' => $newname]);
+            try {
+                $DB->update_record('config_plugins', ['id' => $entry->id, 'name' => $newname]);
+            } catch (dml_exception $e) {
+                // Entry with new name already exists, remove the one with an old name.
+                $DB->delete_records('config_plugins', ['id' => $entry->id]);
+            }
         }
 
         // Update published courses.
@@ -2434,6 +2439,166 @@ function xmldb_main_upgrade($oldversion) {
 
         // Main savepoint reached.
         upgrade_main_savepoint(true, 2017082800.00);
+    }
+
+    if ($oldversion < 2017090700.01) {
+
+        // Define table analytics_prediction_actions to be created.
+        $table = new xmldb_table('analytics_prediction_actions');
+
+        // Adding fields to table analytics_prediction_actions.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('predictionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('actionname', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table analytics_prediction_actions.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('predictionid', XMLDB_KEY_FOREIGN, array('predictionid'), 'analytics_predictions', array('id'));
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+
+        // Adding indexes to table analytics_prediction_actions.
+        $table->add_index('predictionidanduseridandactionname', XMLDB_INDEX_NOTUNIQUE,
+            array('predictionid', 'userid', 'actionname'));
+
+        // Conditionally launch create table for analytics_prediction_actions.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017090700.01);
+    }
+
+    if ($oldversion < 2017091200.00) {
+        // Force all messages to be reindexed.
+        set_config('core_message_message_sent_lastindexrun', '0', 'core_search');
+        set_config('core_message_message_received_lastindexrun', '0', 'core_search');
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017091200.00);
+    }
+
+    if ($oldversion < 2017091201.00) {
+        // Define field userid to be added to task_adhoc.
+        $table = new xmldb_table('task_adhoc');
+        $field = new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'customdata');
+
+        // Conditionally launch add field userid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $key = new xmldb_key('useriduser', XMLDB_KEY_FOREIGN, array('userid'), 'user', array('id'));
+
+        // Launch add key userid_user.
+        $dbman->add_key($table, $key);
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017091201.00);
+    }
+
+    if ($oldversion < 2017092201.00) {
+
+        // Remove duplicate registrations.
+        $newhuburl = "https://moodle.net";
+        $registrations = $DB->get_records('registration_hubs', ['huburl' => $newhuburl], 'confirmed DESC, id ASC');
+        if (count($registrations) > 1) {
+            $reg = array_shift($registrations);
+            $DB->delete_records_select('registration_hubs', 'huburl = ? AND id <> ?', [$newhuburl, $reg->id]);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017092201.00);
+    }
+
+    if ($oldversion < 2017092202.00) {
+
+        if (!file_exists($CFG->dirroot . '/blocks/messages/block_messages.php')) {
+
+            // Delete instances.
+            $instances = $DB->get_records_list('block_instances', 'blockname', ['messages']);
+            $instanceids = array_keys($instances);
+
+            if (!empty($instanceids)) {
+                $DB->delete_records_list('block_positions', 'blockinstanceid', $instanceids);
+                $DB->delete_records_list('block_instances', 'id', $instanceids);
+                list($sql, $params) = $DB->get_in_or_equal($instanceids, SQL_PARAMS_NAMED);
+                $params['contextlevel'] = CONTEXT_BLOCK;
+                $DB->delete_records_select('context', "contextlevel=:contextlevel AND instanceid " . $sql, $params);
+
+                $preferences = array();
+                foreach ($instances as $instanceid => $instance) {
+                    $preferences[] = 'block' . $instanceid . 'hidden';
+                    $preferences[] = 'docked_block_instance_' . $instanceid;
+                }
+                $DB->delete_records_list('user_preferences', 'name', $preferences);
+            }
+
+            // Delete the block from the block table.
+            $DB->delete_records('block', array('name' => 'messages'));
+
+            // Remove capabilities.
+            capabilities_cleanup('block_messages');
+
+            // Clean config.
+            unset_all_config_for_plugin('block_messages');
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017092202.00);
+    }
+
+    if ($oldversion < 2017092700.00) {
+
+        // Rename several fields in registration data to match the names of the properties that are sent to moodle.net.
+        $renames = [
+            'site_address_httpsmoodlenet' => 'site_street_httpsmoodlenet',
+            'site_region_httpsmoodlenet' => 'site_regioncode_httpsmoodlenet',
+            'site_country_httpsmoodlenet' => 'site_countrycode_httpsmoodlenet'];
+        foreach ($renames as $oldparamname => $newparamname) {
+            try {
+                $DB->execute("UPDATE {config_plugins} SET name = ? WHERE name = ? AND plugin = ?",
+                    [$newparamname, $oldparamname, 'hub']);
+            } catch (dml_exception $e) {
+                // Exception can happen if the config value with the new name already exists, ignore it and move on.
+            }
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017092700.00);
+    }
+
+    if ($oldversion < 2017092900.00) {
+        // Define field categoryid to be added to event.
+        $table = new xmldb_table('event');
+        $field = new xmldb_field('categoryid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'format');
+
+        // Conditionally launch add field categoryid.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Add the categoryid key.
+        $key = new xmldb_key('categoryid', XMLDB_KEY_FOREIGN, array('categoryid'), 'course_categories', array('id'));
+        $dbman->add_key($table, $key);
+
+        // Add a new index for groupid/courseid/categoryid/visible/userid.
+        // Do this before we remove the old index.
+        $index = new xmldb_index('groupid-courseid-categoryid-visible-userid', XMLDB_INDEX_NOTUNIQUE, array('groupid', 'courseid', 'categoryid', 'visible', 'userid'));
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        // Drop the old index.
+        $index = new xmldb_index('groupid-courseid-visible-userid', XMLDB_INDEX_NOTUNIQUE, array('groupid', 'courseid', 'visible', 'userid'));
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2017092900.00);
     }
 
     return true;

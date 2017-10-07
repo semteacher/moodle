@@ -55,6 +55,11 @@ class month_exporter extends exporter {
     protected $url;
 
     /**
+     * @var bool $includenavigation Whether navigation should be included on the output.
+     */
+    protected $includenavigation = true;
+
+    /**
      * Constructor for month_exporter.
      *
      * @param \calendar_information $calendar The calendar being represented
@@ -70,13 +75,27 @@ class month_exporter extends exporter {
                 'time' => $calendar->time,
             ]);
 
-        if ($this->calendar->courseid) {
-            $this->url->param('course', $this->calendar->courseid);
+        if ($this->calendar->course && SITEID !== $this->calendar->course->id) {
+            $this->url->param('course', $this->calendar->course->id);
+        } else if ($this->calendar->categoryid) {
+            $this->url->param('category', $this->calendar->categoryid);
         }
 
         $related['type'] = $type;
 
-        parent::__construct([], $related);
+        $data = [
+            'url' => $this->url->out(false),
+        ];
+
+        parent::__construct($data, $related);
+    }
+
+    protected static function define_properties() {
+        return [
+            'url' => [
+                'type' => PARAM_URL,
+            ],
+        ];
     }
 
     /**
@@ -89,10 +108,12 @@ class month_exporter extends exporter {
             'courseid' => [
                 'type' => PARAM_INT,
             ],
-            'filter_selector' => [
-                'type' => PARAM_RAW,
+            'categoryid' => [
+                'type' => PARAM_INT,
+                'optional' => true,
+                'default' => 0,
             ],
-            'navigation' => [
+            'filter_selector' => [
                 'type' => PARAM_RAW,
             ],
             'weeks' => [
@@ -106,15 +127,52 @@ class month_exporter extends exporter {
             'view' => [
                 'type' => PARAM_ALPHA,
             ],
+            'date' => [
+                'type' => date_exporter::read_properties_definition(),
+            ],
+            'periodname' => [
+                // Note: We must use RAW here because the calendar type returns the formatted month name based on a
+                // calendar format.
+                'type' => PARAM_RAW,
+            ],
+            'includenavigation' => [
+                'type' => PARAM_BOOL,
+                'default' => true,
+            ],
             'previousperiod' => [
-                'type' => PARAM_INT,
+                'type' => date_exporter::read_properties_definition(),
+            ],
+            'previousperiodlink' => [
+                'type' => PARAM_URL,
+            ],
+            'previousperiodname' => [
+                // Note: We must use RAW here because the calendar type returns the formatted month name based on a
+                // calendar format.
+                'type' => PARAM_RAW,
             ],
             'nextperiod' => [
-                'type' => PARAM_INT,
+                'type' => date_exporter::read_properties_definition(),
             ],
-            'time' => [
+            'nextperiodname' => [
+                // Note: We must use RAW here because the calendar type returns the formatted month name based on a
+                // calendar format.
+                'type' => PARAM_RAW,
+            ],
+            'nextperiodlink' => [
+                'type' => PARAM_URL,
+            ],
+            'larrow' => [
+                // The left arrow defined by the theme.
+                'type' => PARAM_RAW,
+            ],
+            'rarrow' => [
+                // The right arrow defined by the theme.
+                'type' => PARAM_RAW,
+            ],
+            'defaulteventcontext' => [
                 'type' => PARAM_INT,
-            ]
+                'default' => null,
+            ],
         ];
     }
 
@@ -125,17 +183,44 @@ class month_exporter extends exporter {
      * @return array Keys are the property names, values are their values.
      */
     protected function get_other_values(renderer_base $output) {
-        return [
+        $previousperiod = $this->get_previous_month_data();
+        $nextperiod = $this->get_next_month_data();
+        $date = $this->related['type']->timestamp_to_date_array($this->calendar->time);
+
+        $nextperiodlink = new moodle_url($this->url);
+        $nextperiodlink->param('time', $nextperiod[0]);
+
+        $previousperiodlink = new moodle_url($this->url);
+        $previousperiodlink->param('time', $previousperiod[0]);
+
+        $return = [
             'courseid' => $this->calendar->courseid,
-            'view' => 'month',
-            'previousperiod' => $this->get_previous_month_timestamp(),
-            'nextperiod' => $this->get_next_month_timestamp(),
             'filter_selector' => $this->get_course_filter_selector($output),
-            'navigation' => $this->get_navigation($output),
             'weeks' => $this->get_weeks($output),
             'daynames' => $this->get_day_names($output),
-            'time' => $this->calendar->time
+            'view' => 'month',
+            'date' => (new date_exporter($date))->export($output),
+            'periodname' => userdate($this->calendar->time, get_string('strftimemonthyear')),
+            'previousperiod' => (new date_exporter($previousperiod))->export($output),
+            'previousperiodname' => userdate($previousperiod[0], get_string('strftimemonthyear')),
+            'previousperiodlink' => $previousperiodlink->out(false),
+            'nextperiod' => (new date_exporter($nextperiod))->export($output),
+            'nextperiodname' => userdate($nextperiod[0], get_string('strftimemonthyear')),
+            'nextperiodlink' => $nextperiodlink->out(false),
+            'larrow' => $output->larrow(),
+            'rarrow' => $output->rarrow(),
+            'includenavigation' => $this->includenavigation,
         ];
+
+        if ($context = $this->get_default_add_context()) {
+            $return['defaulteventcontext'] = $context->id;
+        }
+
+        if ($this->calendar->categoryid) {
+            $return['categoryid'] = $this->calendar->categoryid;
+        }
+
+        return $return;
     }
 
     /**
@@ -147,24 +232,8 @@ class month_exporter extends exporter {
     protected function get_course_filter_selector(renderer_base $output) {
         $content = '';
         $content .= $output->course_filter_selector($this->url, get_string('detailedmonthviewfor', 'calendar'));
-        if (calendar_user_can_add_event($this->calendar->course)) {
-            $content .= $output->add_event_button($this->calendar->courseid, 0, 0, 0, $this->calendar->time);
-        }
 
         return $content;
-    }
-
-    /**
-     * Get the calendar navigation controls.
-     *
-     * @param renderer_base $output
-     * @return string The html code to the calendar top navigation.
-     */
-    protected function get_navigation(renderer_base $output) {
-        return calendar_top_controls('month', [
-            'id' => $this->calendar->courseid,
-            'time' => $this->calendar->time,
-        ]);
     }
 
     /**
@@ -213,13 +282,13 @@ class month_exporter extends exporter {
         $prepadding = ($firstdayno + $daysinweek - 1) % $daysinweek;
         $daysinfirstweek = $daysinweek - $prepadding;
         $days = array_slice($alldays, 0, $daysinfirstweek);
-        $week = new week_exporter($days, $prepadding, ($daysinweek - count($days) - $prepadding), $this->related);
+        $week = new week_exporter($this->calendar, $days, $prepadding, ($daysinweek - count($days) - $prepadding), $this->related);
         $weeks[] = $week->export($output);
 
         // Now chunk up the remaining day. and turn them into weeks.
         $daychunks = array_chunk(array_slice($alldays, $daysinfirstweek), $daysinweek);
         foreach ($daychunks as $days) {
-            $week = new week_exporter($days, 0, ($daysinweek - count($days)), $this->related);
+            $week = new week_exporter($this->calendar, $days, 0, ($daysinweek - count($days)), $this->related);
             $weeks[] = $week->export($output);
         }
 
@@ -260,16 +329,29 @@ class month_exporter extends exporter {
     }
 
     /**
+     * Get the current month timestamp.
+     *
+     * @return int The month timestamp.
+     */
+    protected function get_month_data() {
+        $date = $this->related['type']->timestamp_to_date_array($this->calendar->time);
+        $monthtime = $this->related['type']->convert_to_gregorian($date['year'], $date['month'], 1);
+
+        return make_timestamp($monthtime['year'], $monthtime['month']);
+    }
+
+    /**
      * Get the previous month timestamp.
      *
      * @return int The previous month timestamp.
      */
-    protected function get_previous_month_timestamp() {
-        $date = $this->related['type']->timestamp_to_date_array($this->calendar->time);
-        $month = calendar_sub_month($date['mon'], $date['year']);
-        $monthtime = $this->related['type']->convert_to_gregorian($month[1], $month[0], 1);
+    protected function get_previous_month_data() {
+        $type = $this->related['type'];
+        $date = $type->timestamp_to_date_array($this->calendar->time);
+        list($date['mon'], $date['year']) = $type->get_prev_month($date['year'], $date['mon']);
+        $time = $type->convert_to_timestamp($date['year'], $date['mon'], 1);
 
-        return make_timestamp($monthtime['year'], $monthtime['month'], $monthtime['day'], $monthtime['hour'], $monthtime['minute']);
+        return $type->timestamp_to_date_array($time);
     }
 
     /**
@@ -277,11 +359,37 @@ class month_exporter extends exporter {
      *
      * @return int The next month timestamp.
      */
-    protected function get_next_month_timestamp() {
-        $date = $this->related['type']->timestamp_to_date_array($this->calendar->time);
-        $month = calendar_sub_month($date['mon'], $date['year']);
-        $monthtime = $this->related['type']->convert_to_gregorian($month[1], $month[0], 1);
+    protected function get_next_month_data() {
+        $type = $this->related['type'];
+        $date = $type->timestamp_to_date_array($this->calendar->time);
+        list($date['mon'], $date['year']) = $type->get_next_month($date['year'], $date['mon']);
+        $time = $type->convert_to_timestamp($date['year'], $date['mon'], 1);
 
-        return make_timestamp($monthtime['year'], $monthtime['month'], $monthtime['day'], $monthtime['hour'], $monthtime['minute']);
+        return $type->timestamp_to_date_array($time);
+    }
+
+    /**
+     * Set whether the navigation should be shown.
+     *
+     * @param   bool    $include
+     * @return  $this
+     */
+    public function set_includenavigation($include) {
+        $this->includenavigation = $include;
+
+        return $this;
+    }
+
+    /**
+     * Get the default context for use when adding a new event.
+     *
+     * @return null|\context
+     */
+    protected function get_default_add_context() {
+        if (calendar_user_can_add_event($this->calendar->course)) {
+            return \context_course::instance($this->calendar->course->id);
+        }
+
+        return null;
     }
 }

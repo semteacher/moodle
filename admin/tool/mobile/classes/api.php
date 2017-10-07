@@ -58,15 +58,26 @@ class api {
         global $CFG;
         require_once($CFG->libdir . '/adminlib.php');
 
+        $cachekey = 'mobileplugins';
+        if (!isloggedin()) {
+            $cachekey = 'authmobileplugins';    // Use a different cache for not logged users.
+        }
+
         // Check if we can return this from cache.
         $cache = \cache::make('tool_mobile', 'plugininfo');
-        $pluginsinfo = $cache->get('mobileplugins');
+        $pluginsinfo = $cache->get($cachekey);
         if ($pluginsinfo !== false) {
             return (array)$pluginsinfo;
         }
 
         $pluginsinfo = [];
-        $plugintypes = core_component::get_plugin_types();
+        // For not logged users return only auth plugins.
+        // This is to avoid anyone (not being a registered user) to obtain and download all the site remote add-ons.
+        if (!isloggedin()) {
+            $plugintypes = array('auth' => $CFG->dirroot.'/auth');
+        } else {
+            $plugintypes = core_component::get_plugin_types();
+        }
 
         foreach ($plugintypes as $plugintype => $unused) {
             // We need to include files here.
@@ -100,7 +111,7 @@ class api {
             }
         }
 
-        $cache->set('mobileplugins', $pluginsinfo);
+        $cache->set($cachekey, $pluginsinfo);
 
         return $pluginsinfo;
     }
@@ -152,10 +163,11 @@ class api {
         $url = new moodle_url("/$CFG->admin/tool/mobile/launch.php");
         $settings['launchurl'] = $url->out(false);
 
-        if ($logourl = $OUTPUT->get_logo_url()) {
+        // Check that we are receiving a moodle_url object, themes can override get_logo_url and may return incorrect values.
+        if (($logourl = $OUTPUT->get_logo_url()) && $logourl instanceof moodle_url) {
             $settings['logourl'] = $logourl->out(false);
         }
-        if ($compactlogourl = $OUTPUT->get_compact_logo_url()) {
+        if (($compactlogourl = $OUTPUT->get_compact_logo_url()) && $compactlogourl instanceof moodle_url) {
             $settings['compactlogourl'] = $compactlogourl->out(false);
         }
 
@@ -210,12 +222,17 @@ class api {
         }
 
         if (empty($section) or $section == 'sitepolicies') {
+            $settings->sitepolicy = $CFG->sitepolicy;
             $settings->disableuserimages = $CFG->disableuserimages;
         }
 
         if (empty($section) or $section == 'gradessettings') {
             require_once($CFG->dirroot . '/user/lib.php');
-            $settings->mygradesurl = user_mygrades_url()->out(false);
+            $settings->mygradesurl = user_mygrades_url();
+            // The previous function may return moodle_url instances or plain string URLs.
+            if ($settings->mygradesurl instanceof moodle_url) {
+                $settings->mygradesurl = $settings->mygradesurl->out(false);
+            }
         }
 
         if (empty($section) or $section == 'mobileapp') {
