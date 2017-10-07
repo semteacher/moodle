@@ -41,14 +41,37 @@ class processor implements  \core_analytics\classifier, \core_analytics\regresso
     const REQUIRED_PIP_PACKAGE_VERSION = '0.0.2';
 
     /**
+     * The path to the Python bin.
+     *
+     * @var string
+     */
+    protected $pathtopython;
+
+    /**
+     * The constructor.
+     */
+    public function __construct() {
+        global $CFG;
+
+        // Set the python location if there is a value.
+        if (!empty($CFG->pathtopython)) {
+            $this->pathtopython = $CFG->pathtopython;
+        }
+    }
+
+    /**
      * Is the plugin ready to be used?.
      *
-     * @return bool
+     * @return bool|string Returns true on success, a string detailing the error otherwise
      */
     public function is_ready() {
+        if (empty($this->pathtopython)) {
+            $settingurl = new \moodle_url('/admin/settings.php', array('section' => 'systempaths'));
+            return get_string('pythonpathnotdefined', 'mlbackend_python', $settingurl->out());
+        }
 
         // Check the installed pip package version.
-        $cmd = 'python -m moodlemlbackend.version';
+        $cmd = "{$this->pathtopython} -m moodlemlbackend.version";
 
         $output = null;
         $exitcode = null;
@@ -72,6 +95,27 @@ class processor implements  \core_analytics\classifier, \core_analytics\regresso
     }
 
     /**
+     * Delete the model version output directory.
+     *
+     * @param string $uniqueid
+     * @param string $modelversionoutputdir
+     * @return null
+     */
+    public function clear_model($uniqueid, $modelversionoutputdir) {
+        remove_dir($modelversionoutputdir);
+    }
+
+    /**
+     * Delete the model output directory.
+     *
+     * @param string $modeloutputdir
+     * @return null
+     */
+    public function delete_output_dir($modeloutputdir) {
+        remove_dir($modeloutputdir);
+    }
+
+    /**
      * Trains a machine learning algorithm with the provided dataset.
      *
      * @param string $uniqueid
@@ -84,7 +128,7 @@ class processor implements  \core_analytics\classifier, \core_analytics\regresso
         // Obtain the physical route to the file.
         $datasetpath = $this->get_file_path($dataset);
 
-        $cmd = 'python -m moodlemlbackend.training ' .
+        $cmd = "{$this->pathtopython} -m moodlemlbackend.training " .
             escapeshellarg($uniqueid) . ' ' .
             escapeshellarg($outputdir) . ' ' .
             escapeshellarg($datasetpath);
@@ -125,7 +169,7 @@ class processor implements  \core_analytics\classifier, \core_analytics\regresso
         // Obtain the physical route to the file.
         $datasetpath = $this->get_file_path($dataset);
 
-        $cmd = 'python -m moodlemlbackend.prediction ' .
+        $cmd = "{$this->pathtopython} -m moodlemlbackend.prediction " .
             escapeshellarg($uniqueid) . ' ' .
             escapeshellarg($outputdir) . ' ' .
             escapeshellarg($datasetpath);
@@ -168,7 +212,7 @@ class processor implements  \core_analytics\classifier, \core_analytics\regresso
         // Obtain the physical route to the file.
         $datasetpath = $this->get_file_path($dataset);
 
-        $cmd = 'python -m moodlemlbackend.evaluation ' .
+        $cmd = "{$this->pathtopython} -m moodlemlbackend.evaluation " .
             escapeshellarg($uniqueid) . ' ' .
             escapeshellarg($outputdir) . ' ' .
             escapeshellarg($datasetpath) . ' ' .

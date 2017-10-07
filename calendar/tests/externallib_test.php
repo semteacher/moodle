@@ -1500,6 +1500,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0
             ],
             'duration' => 1,
             'timedurationuntil' => [
@@ -1599,7 +1600,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
     public function test_submit_create_update_form_create_site_event() {
         $generator = $this->getDataGenerator();
         $user = $generator->create_user();
-        $context = context_course::instance(SITEID);
+        $context = context_system::instance();
         $roleid = $generator->create_role();
         $timestart = new DateTime();
         $interval = new DateInterval("P1D"); // One day.
@@ -1623,6 +1624,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0
             ],
             'duration' => 1,
             'timedurationuntil' => [
@@ -1750,6 +1752,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0,
             ],
             'duration' => 1,
             'timedurationuntil' => [
@@ -1949,6 +1952,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0
             ],
             'duration' => 1,
             'timedurationuntil' => [
@@ -2020,6 +2024,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0
             ],
             'duration' => 1,
             'timedurationuntil' => [
@@ -2092,6 +2097,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             'description' => [
                 'text' => '',
                 'format' => 1,
+                'itemid' => 0
             ],
             'duration' => 1,
             'timedurationuntil' => [

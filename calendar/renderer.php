@@ -51,24 +51,6 @@ class core_calendar_renderer extends plugin_renderer_base {
     }
 
     /**
-     * Produces the content for the filters block (pretend block)
-     *
-     * @param int $courseid
-     * @param int $day
-     * @param int $month
-     * @param int $year
-     * @param int $view
-     * @param int $courses
-     * @return string
-     */
-    public function fake_block_filters($courseid, $day, $month, $year, $view, $courses) {
-        $returnurl = $this->page->url;
-        $returnurl->param('course', $courseid);
-        return html_writer::tag('div', calendar_filter_controls($returnurl),
-            array('class' => 'calendar_filters filters'));
-    }
-
-    /**
      * Produces the content for the three months block (pretend block)
      *
      * This includes the previous month, the current month, and the next month
@@ -79,31 +61,45 @@ class core_calendar_renderer extends plugin_renderer_base {
     public function fake_block_threemonths(calendar_information $calendar) {
         // Get the calendar type we are using.
         $calendartype = \core_calendar\type_factory::get_calendar_instance();
+        $time = $calendartype->timestamp_to_date_array($calendar->time);
 
-        $date = $calendartype->timestamp_to_date_array($calendar->time);
+        $current = $calendar->time;
+        $prev = $calendartype->convert_to_timestamp(
+                $time['year'],
+                $time['mon'] - 1,
+                $time['mday']
+            );
+        $next = $calendartype->convert_to_timestamp(
+                $time['year'],
+                $time['mon'] + 1,
+                $time['mday']
+            );
 
-        $prevmonth = calendar_sub_month($date['mon'], $date['year']);
-        $prevmonthtime = $calendartype->convert_to_gregorian($prevmonth[1], $prevmonth[0], 1);
-        $prevmonthtime = make_timestamp($prevmonthtime['year'], $prevmonthtime['month'], $prevmonthtime['day'],
-            $prevmonthtime['hour'], $prevmonthtime['minute']);
+        $content = '';
 
-        $nextmonth = calendar_add_month($date['mon'], $date['year']);
-        $nextmonthtime = $calendartype->convert_to_gregorian($nextmonth[1], $nextmonth[0], 1);
-        $nextmonthtime = make_timestamp($nextmonthtime['year'], $nextmonthtime['month'], $nextmonthtime['day'],
-            $nextmonthtime['hour'], $nextmonthtime['minute']);
+        // Previous.
+        $calendar->set_time($prev);
+        list($previousmonth, ) = calendar_get_view($calendar, 'minithree', false);
 
-        $content  = html_writer::start_tag('div', array('class' => 'minicalendarblock'));
-        $content .= calendar_get_mini($calendar->courses, $calendar->groups, $calendar->users,
-            false, false, 'display', $calendar->courseid, $prevmonthtime);
-        $content .= html_writer::end_tag('div');
-        $content .= html_writer::start_tag('div', array('class' => 'minicalendarblock'));
-        $content .= calendar_get_mini($calendar->courses, $calendar->groups, $calendar->users,
-            false, false, 'display', $calendar->courseid, $calendar->time);
-        $content .= html_writer::end_tag('div');
-        $content .= html_writer::start_tag('div', array('class' => 'minicalendarblock'));
-        $content .= calendar_get_mini($calendar->courses, $calendar->groups, $calendar->users,
-            false, false, 'display', $calendar->courseid, $nextmonthtime);
-        $content .= html_writer::end_tag('div');
+        // Current month.
+        $calendar->set_time($current);
+        list($currentmonth, ) = calendar_get_view($calendar, 'minithree', false);
+
+        // Next month.
+        $calendar->set_time($next);
+        list($nextmonth, ) = calendar_get_view($calendar, 'minithree', false);
+
+        // Reset the time back.
+        $calendar->set_time($current);
+
+        $data = (object) [
+            'previousmonth' => $previousmonth,
+            'currentmonth' => $currentmonth,
+            'nextmonth' => $nextmonth,
+        ];
+
+        $template = 'core_calendar/calendar_threemonth';
+        $content .= $this->render_from_template($template, $data);
         return $content;
     }
 
@@ -118,98 +114,20 @@ class core_calendar_renderer extends plugin_renderer_base {
     }
 
     /**
-     * Creates a button to add a new event
+     * Creates a button to add a new event.
      *
      * @param int $courseid
-     * @param int $day
-     * @param int $month
-     * @param int $year
-     * @param int $time the unixtime, used for multiple calendar support. The values $day,
-     *     $month and $year are kept for backwards compatibility.
+     * @param int $unused1
+     * @param int $unused2
+     * @param int $unused3
+     * @param int $unused4
      * @return string
      */
-    public function add_event_button($courseid, $day = null, $month = null, $year = null, $time = null) {
-        // If a day, month and year were passed then convert it to a timestamp. If these were passed
-        // then we can assume the day, month and year are passed as Gregorian, as no where in core
-        // should we be passing these values rather than the time. This is done for BC.
-        if (!empty($day) && !empty($month) && !empty($year)) {
-            if (checkdate($month, $day, $year)) {
-                $time = make_timestamp($year, $month, $day);
-            } else {
-                $time = time();
-            }
-        } else if (empty($time)) {
-            $time = time();
-        }
-
-        $coursecontext = \context_course::instance($courseid);
-        $attributes = [
-            'class' => 'btn btn-secondary pull-xs-right pull-right',
-            'data-context-id' => $coursecontext->id,
-            'data-action' => 'new-event-button'
+    public function add_event_button($courseid, $unused1 = null, $unused2 = null, $unused3 = null, $unused4 = null) {
+        $data = [
+            'contextid' => (\context_course::instance($courseid))->id,
         ];
-        return html_writer::tag('button', get_string('newevent', 'calendar'), $attributes);
-    }
-
-    /**
-     * Displays the calendar for a single day
-     *
-     * @param calendar_information $calendar
-     * @return string
-     */
-    public function show_day(calendar_information $calendar, moodle_url $returnurl = null) {
-
-        if ($returnurl === null) {
-            $returnurl = $this->page->url;
-        }
-
-        $events = calendar_get_upcoming($calendar->courses, $calendar->groups, $calendar->users,
-            1, 100, $calendar->timestamp_today());
-
-        $output  = html_writer::start_tag('div', array('class'=>'header'));
-        $output .= $this->course_filter_selector($returnurl, get_string('dayviewfor', 'calendar'));
-        if (calendar_user_can_add_event($calendar->course)) {
-            $output .= $this->add_event_button($calendar->course->id, 0, 0, 0, $calendar->time);
-        }
-        $output .= html_writer::end_tag('div');
-        // Controls
-        $output .= html_writer::tag('div', calendar_top_controls('day', array('id' => $calendar->courseid,
-            'time' => $calendar->time)), array('class' => 'controls'));
-
-        if (empty($events)) {
-            // There is nothing to display today.
-            $output .= html_writer::span(get_string('daywithnoevents', 'calendar'), 'calendar-information calendar-no-results');
-        } else {
-            $output .= html_writer::start_tag('div', array('class' => 'eventlist'));
-            $underway = array();
-            // First, print details about events that start today
-            foreach ($events as $event) {
-                $event = new calendar_event($event);
-                $event->calendarcourseid = $calendar->courseid;
-                if ($event->timestart >= $calendar->timestamp_today() && $event->timestart <= $calendar->timestamp_tomorrow()-1) {  // Print it now
-                    $event->time = calendar_format_event_time($event, time(), null, false,
-                        $calendar->timestamp_today());
-                    $output .= $this->event($event);
-                } else {                                                                 // Save this for later
-                    $underway[] = $event;
-                }
-            }
-
-            // Then, show a list of all events that just span this day
-            if (!empty($underway)) {
-                $output .= html_writer::span(get_string('spanningevents', 'calendar'),
-                    'calendar-information calendar-span-multiple-days');
-                foreach ($underway as $event) {
-                    $event->time = calendar_format_event_time($event, time(), null, false,
-                        $calendar->timestamp_today());
-                    $output .= $this->event($event);
-                }
-            }
-
-            $output .= html_writer::end_tag('div');
-        }
-
-        return $output;
+        return $this->render_from_template('core_calendar/add_event_button', $data);
     }
 
     /**
@@ -273,10 +191,11 @@ class core_calendar_renderer extends plugin_renderer_base {
         // Show subscription source if needed.
         if (!empty($event->subscription) && $CFG->calendar_showicalsource) {
             if (!empty($event->subscription->url)) {
-                $source = html_writer::link($event->subscription->url, get_string('subsource', 'calendar', $event->subscription));
+                $source = html_writer::link($event->subscription->url,
+                        get_string('subscriptionsource', 'calendar', $event->subscription->name));
             } else {
                 // File based ical.
-                $source = get_string('subsource', 'calendar', $event->subscription);
+                $source = get_string('subscriptionsource', 'calendar', $event->subscription->name);
             }
             $output .= html_writer::tag('div', $source, array('class' => 'subscription'));
         }
@@ -311,46 +230,6 @@ class core_calendar_renderer extends plugin_renderer_base {
 
         $eventhtml = html_writer::tag('div', $output, array('class' => 'card'));
         return html_writer::tag('div', $eventhtml, array('class' => 'event', 'id' => 'event_' . $event->id));
-    }
-
-    /**
-     * Displays upcoming events
-     *
-     * @param calendar_information $calendar
-     * @param int $futuredays
-     * @param int $maxevents
-     * @return string
-     */
-    public function show_upcoming_events(calendar_information $calendar, $futuredays, $maxevents, moodle_url $returnurl = null) {
-
-        if ($returnurl === null) {
-            $returnurl = $this->page->url;
-        }
-
-        $events = calendar_get_upcoming($calendar->courses, $calendar->groups, $calendar->users,
-            $futuredays, $maxevents);
-
-        $output  = html_writer::start_tag('div', array('class'=>'header'));
-        $output .= $this->course_filter_selector($returnurl, get_string('upcomingeventsfor', 'calendar'));
-        if (calendar_user_can_add_event($calendar->course)) {
-            $output .= $this->add_event_button($calendar->course->id);
-        }
-        $output .= html_writer::end_tag('div');
-
-        if ($events) {
-            $output .= html_writer::start_tag('div', array('class' => 'eventlist'));
-            foreach ($events as $event) {
-                // Convert to calendar_event object so that we transform description accordingly.
-                $event = new calendar_event($event);
-                $event->calendarcourseid = $calendar->courseid;
-                $output .= $this->event($event);
-            }
-            $output .= html_writer::end_tag('div');
-        } else {
-            $output .= html_writer::span(get_string('noupcomingevents', 'calendar'), 'calendar-information calendar-no-results');
-        }
-
-        return $output;
     }
 
     /**
@@ -501,5 +380,17 @@ class core_calendar_renderer extends plugin_renderer_base {
         $html .= html_writer::end_tag('div');
         $html .= html_writer::end_tag('form');
         return $html;
+    }
+
+    /**
+     * Render the event filter region.
+     *
+     * @return  string
+     */
+    public function event_filter() {
+        $data = [
+            'eventtypes' => calendar_get_filter_types(),
+        ];
+        return $this->render_from_template('core_calendar/event_filter', $data);
     }
 }

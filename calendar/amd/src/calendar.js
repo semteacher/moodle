@@ -38,7 +38,9 @@ define([
             'core_calendar/summary_modal',
             'core_calendar/repository',
             'core_calendar/events',
-            'core_calendar/view_manager'
+            'core_calendar/view_manager',
+            'core_calendar/crud',
+            'core_calendar/selectors',
         ],
         function(
             $,
@@ -53,7 +55,9 @@ define([
             SummaryModal,
             CalendarRepository,
             CalendarEvents,
-            CalendarViewManager
+            CalendarViewManager,
+            CalendarCrud,
+            CalendarSelectors
         ) {
 
     var SELECTORS = {
@@ -66,7 +70,8 @@ define([
         LOADING_ICON: '.loading-icon',
         VIEW_DAY_LINK: "[data-action='view-day-link']",
         CALENDAR_MONTH_WRAPPER: ".calendarwrapper",
-        COURSE_SELECTOR: 'select[name="course"]'
+        COURSE_SELECTOR: 'select[name="course"]',
+        TODAY: '.today',
     };
 
     /**
@@ -83,21 +88,6 @@ define([
     };
 
     /**
-     * Get the event source.
-     *
-     * @param {Object} subscription The event subscription object.
-     * @return {promise} The lang string promise.
-     */
-    var getEventSource = function(subscription) {
-        return Str.get_string('subsource', 'core_calendar', subscription).then(function(langStr) {
-            if (subscription.url) {
-                return '<a href="' + subscription.url + '">' + langStr + '</a>';
-            }
-            return langStr;
-        });
-    };
-
-    /**
      * Render the event summary modal.
      *
      * @param {Number} eventId The calendar event id.
@@ -109,31 +99,11 @@ define([
                 throw new Error('Error encountered while trying to fetch calendar event with ID: ' + eventId);
             }
             var eventData = getEventResponse.event;
-            var eventTypePromise = getEventType(eventData.eventtype);
 
-            // If the calendar event has event source, get the source's language string/link.
-            if (eventData.displayeventsource) {
-                eventData.subscription = JSON.parse(eventData.subscription);
-                var eventSourceParams = {
-                    url: eventData.subscription.url,
-                    name: eventData.subscription.name
-                };
-                var eventSourcePromise = getEventSource(eventSourceParams);
-
-                // Return event data with event type and event source info.
-                return $.when(eventTypePromise, eventSourcePromise).then(function(eventType, eventSource) {
-                    eventData.eventtype = eventType;
-                    eventData.source = eventSource;
-                    return eventData;
-                });
-            }
-
-            // Return event data with event type info.
-            return eventTypePromise.then(function(eventType) {
+            return getEventType(eventData.eventtype).then(function(eventType) {
                 eventData.eventtype = eventType;
                 return eventData;
             });
-
         }).then(function(eventData) {
             // Build the modal parameters from the event data.
             var modalParams = {
@@ -227,30 +197,6 @@ define([
     };
 
     /**
-     * Create the event form modal for creating new events and
-     * editing existing events.
-     *
-     * @method registerEventFormModal
-     * @param {object} root The calendar root element
-     * @return {object} The create modal promise
-     */
-    var registerEventFormModal = function(root) {
-        var newEventButton = root.find(SELECTORS.NEW_EVENT_BUTTON);
-        var contextId = newEventButton.attr('data-context-id');
-
-        return ModalFactory.create(
-            {
-                type: ModalEventForm.TYPE,
-                large: true,
-                templateContext: {
-                    contextid: contextId
-                }
-            },
-            [root, SELECTORS.NEW_EVENT_BUTTON]
-        );
-    };
-
-    /**
      * Listen to and handle any calendar events fired by the calendar UI.
      *
      * @method registerCalendarEventListeners
@@ -258,8 +204,7 @@ define([
      * @param {object} eventFormModalPromise A promise reolved with the event form modal
      */
     var registerCalendarEventListeners = function(root, eventFormModalPromise) {
-        var body = $('body'),
-            courseId = $(root).find(SELECTORS.CALENDAR_MONTH_WRAPPER).data('courseid');
+        var body = $('body');
 
         body.on(CalendarEvents.created, function() {
             CalendarViewManager.reloadCurrentMonth(root);
@@ -281,24 +226,27 @@ define([
             CalendarViewManager.reloadCurrentMonth(root);
         });
 
-        eventFormModalPromise.then(function(modal) {
+        eventFormModalPromise
+        .then(function(modal) {
             // When something within the calendar tells us the user wants
             // to edit an event then show the event form modal.
             body.on(CalendarEvents.editEvent, function(e, eventId) {
+                var calendarWrapper = root.find(CalendarSelectors.wrapper);
                 modal.setEventId(eventId);
+                modal.setContextId(calendarWrapper.data('contextId'));
                 modal.show();
             });
-            modal.setCourseId(courseId);
             return;
-        });
+        })
+        .fail(Notification.exception);
     };
 
     /**
      * Register event listeners for the module.
+     *
+     * @param {object} root The calendar root element
      */
-    var registerEventListeners = function() {
-        var root = $(SELECTORS.ROOT);
-
+    var registerEventListeners = function(root) {
         // Bind click events to event links.
         root.on('click', SELECTORS.EVENT_ITEM, function(e) {
             e.preventDefault();
@@ -321,7 +269,7 @@ define([
         root.on('change', SELECTORS.COURSE_SELECTOR, function() {
             var selectElement = $(this);
             var courseId = selectElement.val();
-            CalendarViewManager.reloadCurrentMonth(root, courseId)
+            CalendarViewManager.reloadCurrentMonth(root, courseId, null)
                 .then(function() {
                     // We need to get the selector again because the content has changed.
                     return root.find(SELECTORS.COURSE_SELECTOR).val(courseId);
@@ -329,20 +277,31 @@ define([
                 .fail(Notification.exception);
         });
 
-        var eventFormPromise = registerEventFormModal(root);
+        var eventFormPromise = CalendarCrud.registerEventFormModal(root);
         registerCalendarEventListeners(root, eventFormPromise);
 
         // Bind click events to calendar days.
         root.on('click', SELECTORS.DAY, function(e) {
+
             var target = $(e.target);
 
             if (!target.is(SELECTORS.VIEW_DAY_LINK)) {
                 var startTime = $(this).attr('data-new-event-timestamp');
                 eventFormPromise.then(function(modal) {
+                    var wrapper = target.closest(CalendarSelectors.wrapper);
+                    modal.setCourseId(wrapper.data('courseid'));
+
+                    var categoryId = wrapper.data('categoryid');
+                    if (typeof categoryId !== 'undefined') {
+                        modal.setCategoryId(categoryId);
+                    }
+
+                    modal.setContextId(wrapper.data('contextId'));
                     modal.setStartTime(startTime);
                     modal.show();
                     return;
-                });
+                })
+                .fail(Notification.exception);
 
                 e.preventDefault();
             }
@@ -350,9 +309,10 @@ define([
     };
 
     return {
-        init: function() {
-            CalendarViewManager.init();
-            registerEventListeners();
+        init: function(root) {
+            root = $(root);
+            CalendarViewManager.init(root);
+            registerEventListeners(root);
         }
     };
 });

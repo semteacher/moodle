@@ -28,8 +28,15 @@
         "groupname": "Group 1"
     }
 }}
-<div data-region="summary-modal-container" data-event-id="{{id}}" data-event-title="{{name}}"
-     data-action-event="{{isactionevent}}" data-edit-url="{{editurl}}">
+<div{{!
+    }} data-region="summary-modal-container"{{!
+    }} data-event-id="{{id}}"{{!
+    }} data-event-title="{{name}}"{{!
+    }} data-event-count="{{eventcount}}"{{!
+    }} data-event-="{{repeatid}}"{{!
+    }} data-action-event="{{isactionevent}}"{{!
+    }} data-edit-url="{{editurl}}"{{!
+    }}>
     <h4>{{#str}} when, core_calendar {{/str}}</h4>
     {{#userdate}} {{timestart}}, {{#str}} strftimerecentfull {{/str}} {{/userdate}}
     <br>
@@ -39,12 +46,13 @@
     {{/description}}
     <h4>{{#str}} eventtype, core_calendar {{/str}}</h4>
     {{eventtype}}
+    {{#iscategoryevent}}
+        <div>{{{category.nestedname}}}</div>
+    {{/iscategoryevent}}
     {{#iscourseevent}}
         <div><a href="{{url}}">{{course.fullname}}</a></div>
     {{/iscourseevent}}
-    {{#source}}
-        <div>{{{source}}}</div>
-    {{/source}}
+    {{> core_calendar/event_subscription}}
     {{#groupname}}
         <div><a href="{{url}}">{{{course.fullname}}}</a></div>
         <div>{{{groupname}}}</div>
