@@ -117,12 +117,21 @@ function tool_analytics_calculate_course_dates($course, $options) {
 
     $notification = $course->shortname . ' (id = ' . $course->id . '): ';
 
+    $originalenddate = null;
+    $guessedstartdate = null;
+    $guessedenddate = null;
+    $samestartdate = null;
+    $lowerenddate = null;
+
     if ($options['guessstart'] || $options['guessall']) {
 
         $originalstartdate = $course->startdate;
 
         $guessedstartdate = $courseman->guess_start();
-        if ($guessedstartdate == $originalstartdate) {
+        $samestartdate = ($guessedstartdate == $originalstartdate);
+        $lowerenddate = ($course->enddate && ($course->enddate < $guessedstartdate));
+
+        if ($samestartdate) {
             if (!$guessedstartdate) {
                 $notification .= PHP_EOL . '  ' . get_string('cantguessstartdate', 'tool_analytics');
             } else {
@@ -131,6 +140,9 @@ function tool_analytics_calculate_course_dates($course, $options) {
             }
         } else if (!$guessedstartdate) {
             $notification .= PHP_EOL . '  ' . get_string('cantguessstartdate', 'tool_analytics');
+        } else if ($lowerenddate) {
+            $notification .= PHP_EOL . '  ' . get_string('cantguessstartdate', 'tool_analytics') . ': ' .
+                get_string('enddatebeforestartdate', 'error') . ' - ' . userdate($guessedstartdate);
         } else {
             // Update it to something we guess.
 
@@ -151,16 +163,21 @@ function tool_analytics_calculate_course_dates($course, $options) {
 
     if ($options['guessend'] || $options['guessall']) {
 
+        if (!empty($lowerenddate) && !empty($guessedstartdate)) {
+            $course->startdate = $guessedstartdate;
+        }
+
         $originalenddate = $course->enddate;
 
         $format = course_get_format($course);
         $formatoptions = $format->get_format_options();
 
-        if ($course->format === 'weeks' && $formatoptions['automaticenddate']) {
-            // Special treatment for weeks with automatic end date.
+        // Change this for a course formats API level call in MDL-60702.
+        if (method_exists($format, 'update_end_date') && $formatoptions['automaticenddate']) {
+            // Special treatment for weeks-based formats with automatic end date.
 
             if ($options['update']) {
-                format_weeks::update_end_date($course->id);
+                $format::update_end_date($course->id);
                 $course->enddate = $DB->get_field('course', 'enddate', array('id' => $course->id));
                 $notification .= PHP_EOL . '  ' . get_string('weeksenddateautomaticallyset', 'tool_analytics') . ': ' .
                     userdate($course->enddate);
@@ -195,10 +212,8 @@ function tool_analytics_calculate_course_dates($course, $options) {
                     $updateit = true;
                 }
 
-                if ($options['update']) {
-                    if ($course->enddate > $course->startdate) {
-                        update_course($course);
-                    }
+                if ($options['update'] && $updateit) {
+                    update_course($course);
                 }
             }
         }

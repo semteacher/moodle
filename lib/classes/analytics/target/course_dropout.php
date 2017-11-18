@@ -72,14 +72,14 @@ class course_dropout extends \core_analytics\local\target\binary {
         $url = new \moodle_url('/message/index.php', array('user' => $USER->id, 'id' => $studentid));
         $pix = new \pix_icon('t/message', get_string('sendmessage', 'message'));
         $actions[] = new \core_analytics\prediction_action('studentmessage', $prediction, $url, $pix,
-            get_string('sendmessage', 'message'), $attrs);
+            get_string('sendmessage', 'message'), false, $attrs);
 
         // View outline report.
         $url = new \moodle_url('/report/outline/user.php', array('id' => $studentid, 'course' => $sampledata['course']->id,
             'mode' => 'outline'));
         $pix = new \pix_icon('i/report', get_string('outlinereport'));
         $actions[] = new \core_analytics\prediction_action('viewoutlinereport', $prediction, $url, $pix,
-            get_string('outlinereport'), $attrs);
+            get_string('outlinereport'), false, $attrs);
 
         return array_merge($actions, parent::prediction_actions($prediction, $includedetailsaction));
     }
@@ -156,6 +156,11 @@ class course_dropout extends \core_analytics\local\target\binary {
         // A course that lasts longer than 1 year probably have wrong start or end dates.
         if ($course->get_end() - $course->get_start() > (YEARSECS + (WEEKSECS * 4))) {
             return get_string('coursetoolong', 'analytics');
+        }
+
+        // Finished courses can not be used to get predictions.
+        if (!$fortraining && $course->is_finished()) {
+            return get_string('coursealreadyfinished');
         }
 
         // Ongoing courses data can not be used to train.

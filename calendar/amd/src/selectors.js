@@ -46,10 +46,21 @@ define([], function() {
             create: '[data-action="new-event-button"]',
             edit: '[data-action="edit"]',
             remove: '[data-action="delete"]',
+            viewEvent: '[data-action="view-event"]',
+        },
+        elements: {
+            courseSelector: 'select[name="course"]',
         },
         today: '.today',
         day: '[data-region="day"]',
         wrapper: '.calendarwrapper',
         eventItem: '[data-type="event"]',
+        links: {
+            navLink: '.calendarwrapper .arrow_link',
+            eventLink: "[data-region='event-item']",
+        },
+        containers: {
+            loadingIcon: '[data-region="overlay-icon-container"]',
+        },
     };
 });

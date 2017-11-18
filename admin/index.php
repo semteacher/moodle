@@ -699,6 +699,7 @@ if (!$cache and moodle_needs_upgrading()) {
 if (during_initial_install()) {
     set_config('rolesactive', 1); // after this, during_initial_install will return false.
     set_config('adminsetuppending', 1);
+    set_config('registrationpending', 1); // Remind to register site after all other setup is finished.
     // we need this redirect to setup proper session
     upgrade_finished("index.php?sessionstarted=1&amp;lang=$CFG->lang");
 }
@@ -814,6 +815,9 @@ if (isset($SESSION->pluginuninstallreturn)) {
     }
 }
 
+// If site registration needs updating, redirect.
+\core\hub\registration::registration_reminder('/admin/index.php');
+
 // Everything should now be set up, and the user is an admin
 
 // Print default admin page with notifications.
@@ -863,6 +867,8 @@ $cachewarnings = cache_helper::warnings();
 // Check if there are events 1 API handlers.
 $eventshandlers = $DB->get_records_sql('SELECT DISTINCT component FROM {events_handlers}');
 $themedesignermode = !empty($CFG->themedesignermode);
+$mobileconfigured = !empty($CFG->enablemobilewebservice);
+$invalidforgottenpasswordurl = !empty($CFG->forgottenpasswordurl) && empty(clean_param($CFG->forgottenpasswordurl, PARAM_URL));
 
 // Check if a directory with development libraries exists.
 if (empty($CFG->disabledevlibdirscheck) && (is_dir($CFG->dirroot.'/vendor') || is_dir($CFG->dirroot.'/node_modules'))) {
@@ -870,6 +876,8 @@ if (empty($CFG->disabledevlibdirscheck) && (is_dir($CFG->dirroot.'/vendor') || i
 } else {
     $devlibdir = false;
 }
+// Check if the site is being foced onto ssl.
+$overridetossl = !empty($CFG->overridetossl);
 
 admin_externalpage_setup('adminnotifications');
 
@@ -877,4 +885,5 @@ $output = $PAGE->get_renderer('core', 'admin');
 
 echo $output->admin_notifications_page($maturity, $insecuredataroot, $errorsdisplayed, $cronoverdue, $dbproblems,
                                        $maintenancemode, $availableupdates, $availableupdatesfetch, $buggyiconvnomb,
-                                       $registered, $cachewarnings, $eventshandlers, $themedesignermode, $devlibdir);
+                                       $registered, $cachewarnings, $eventshandlers, $themedesignermode, $devlibdir,
+                                       $mobileconfigured, $overridetossl, $invalidforgottenpasswordurl);
