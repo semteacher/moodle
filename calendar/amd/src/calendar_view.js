@@ -51,7 +51,6 @@ define([
         var registerEventListeners = function(root, type) {
             var body = $('body');
 
-            CalendarCrud.registerEventFormModal(root);
             CalendarCrud.registerRemove(root);
 
             var reloadFunction = 'reloadCurrent' + type.charAt(0).toUpperCase() + type.slice(1);
@@ -69,10 +68,15 @@ define([
             root.on('change', CalendarSelectors.courseSelector, function() {
                 var selectElement = $(this);
                 var courseId = selectElement.val();
-                CalendarViewManager[reloadFunction](root, courseId)
+                CalendarViewManager[reloadFunction](root, courseId, null)
                     .then(function() {
                         // We need to get the selector again because the content has changed.
                         return root.find(CalendarSelectors.courseSelector).val(courseId);
+                    })
+                    .then(function() {
+                        window.history.pushState({}, '', '?view=upcoming&course=' + courseId);
+
+                        return;
                     })
                     .fail(Notification.exception);
             });
@@ -85,6 +89,9 @@ define([
                     daysWithEvent.removeClass('hidden');
                 }
             });
+
+            var eventFormPromise = CalendarCrud.registerEventFormModal(root);
+            CalendarCrud.registerEditListeners(root, eventFormPromise);
         };
 
         return {

@@ -22,6 +22,13 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+define('USER_FILTER_ENROLMENT', 1);
+define('USER_FILTER_GROUP', 2);
+define('USER_FILTER_LAST_ACCESS', 3);
+define('USER_FILTER_ROLE', 4);
+define('USER_FILTER_STATUS', 5);
+define('USER_FILTER_STRING', 6);
+
 /**
  * Creates a user
  *
@@ -331,34 +338,28 @@ function user_get_user_details($user, $course = null, array $userfields = array(
     $userdetails['fullname'] = fullname($user);
 
     if (in_array('customfields', $userfields)) {
-        $fields = $DB->get_recordset_sql("SELECT f.*
-                                            FROM {user_info_field} f
-                                            JOIN {user_info_category} c
-                                                 ON f.categoryid=c.id
-                                        ORDER BY c.sortorder ASC, f.sortorder ASC");
+        $categories = profile_get_user_fields_with_data_by_category($user->id);
         $userdetails['customfields'] = array();
-        foreach ($fields as $field) {
-            require_once($CFG->dirroot.'/user/profile/field/'.$field->datatype.'/field.class.php');
-            $newfield = 'profile_field_'.$field->datatype;
-            $formfield = new $newfield($field->id, $user->id);
-            if ($formfield->is_visible() and !$formfield->is_empty()) {
+        foreach ($categories as $categoryid => $fields) {
+            foreach ($fields as $formfield) {
+                if ($formfield->is_visible() and !$formfield->is_empty()) {
 
-                // TODO: Part of MDL-50728, this conditional coding must be moved to
-                // proper profile fields API so they are self-contained.
-                // We only use display_data in fields that require text formatting.
-                if ($field->datatype == 'text' or $field->datatype == 'textarea') {
-                    $fieldvalue = $formfield->display_data();
-                } else {
-                    // Cases: datetime, checkbox and menu.
-                    $fieldvalue = $formfield->data;
+                    // TODO: Part of MDL-50728, this conditional coding must be moved to
+                    // proper profile fields API so they are self-contained.
+                    // We only use display_data in fields that require text formatting.
+                    if ($formfield->field->datatype == 'text' or $formfield->field->datatype == 'textarea') {
+                        $fieldvalue = $formfield->display_data();
+                    } else {
+                        // Cases: datetime, checkbox and menu.
+                        $fieldvalue = $formfield->data;
+                    }
+
+                    $userdetails['customfields'][] =
+                        array('name' => $formfield->field->name, 'value' => $fieldvalue,
+                            'type' => $formfield->field->datatype, 'shortname' => $formfield->field->shortname);
                 }
-
-                $userdetails['customfields'][] =
-                    array('name' => $formfield->field->name, 'value' => $fieldvalue,
-                        'type' => $field->datatype, 'shortname' => $formfield->field->shortname);
             }
         }
-        $fields->close();
         // Unset customfields if it's empty.
         if (empty($userdetails['customfields'])) {
             unset($userdetails['customfields']);
@@ -1238,7 +1239,7 @@ function user_get_tagged_users($tag, $exclusivemode = false, $fromctx = 0, $ctx 
  */
 function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $roleid = 0, $enrolid = 0, $statusid = -1,
                                    $search = '', $additionalwhere = '', $additionalparams = array()) {
-    global $DB;
+    global $DB, $USER;
 
     // Get the context.
     $context = \context_course::instance($courseid, MUST_EXIST);
@@ -1314,10 +1315,40 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
             $searchkey1 = 'search' . $index . '1';
             $searchkey2 = 'search' . $index . '2';
             $searchkey3 = 'search' . $index . '3';
+
+            $conditions = array();
+            // Search by fullname.
             $fullname = $DB->sql_fullname('u.firstname', 'u.lastname');
-            $wheres[] = '(' . $DB->sql_like($fullname, ':' . $searchkey1, false, false) .
-                ' OR ' . $DB->sql_like('email', ':' . $searchkey2, false, false) .
-                ' OR ' . $DB->sql_like('idnumber', ':' . $searchkey3, false, false) . ') ';
+            $conditions[] = $DB->sql_like($fullname, ':' . $searchkey1, false, false);
+
+            // Search by email.
+            $email = $DB->sql_like('email', ':' . $searchkey2, false, false);
+            if (!in_array('email', $userfields)) {
+                $maildisplay = 'maildisplay' . $index;
+                $userid1 = 'userid' . $index . '1';
+                // Prevent users who hide their email address from being found by others
+                // who aren't allowed to see hidden email addresses.
+                $email = "(". $email ." AND (" .
+                        "u.maildisplay <> :$maildisplay " .
+                        "OR u.id = :$userid1". // User can always find himself.
+                        "))";
+                $params[$maildisplay] = core_user::MAILDISPLAY_HIDE;
+                $params[$userid1] = $USER->id;
+            }
+            $conditions[] = $email;
+
+            // Search by idnumber.
+            $idnumber = $DB->sql_like('idnumber', ':' . $searchkey3, false, false);
+            if (!in_array('idnumber', $userfields)) {
+                $userid2 = 'userid' . $index . '2';
+                // Users who aren't allowed to see idnumbers should at most find themselves
+                // when searching for an idnumber.
+                $idnumber = "(". $idnumber . " AND u.id = :$userid2)";
+                $params[$userid2] = $USER->id;
+            }
+            $conditions[] = $idnumber;
+
+            $wheres[] = "(". implode(" OR ", $conditions) .") ";
             $params[$searchkey1] = "%$keyword%";
             $params[$searchkey2] = "%$keyword%";
             $params[$searchkey3] = "%$keyword%";

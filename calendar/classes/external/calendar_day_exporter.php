@@ -74,7 +74,7 @@ class calendar_day_exporter extends exporter {
             ],
             'defaulteventcontext' => [
                 'type' => PARAM_INT,
-                'default' => null,
+                'default' => 0,
             ],
             'filter_selector' => [
                 'type' => PARAM_RAW,
@@ -238,8 +238,8 @@ class calendar_day_exporter extends exporter {
      * @return string The html code for the course filter selector.
      */
     protected function get_course_filter_selector(renderer_base $output) {
-        $langstr = get_string('upcomingeventsfor', 'calendar');
-        return $output->course_filter_selector($this->url, $langstr);
+        $langstr = get_string('dayviewfor', 'calendar');
+        return $output->course_filter_selector($this->url, $langstr, $this->calendar->course->id);
     }
 
     /**

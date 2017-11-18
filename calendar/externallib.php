@@ -138,7 +138,12 @@ class core_calendar_external extends external_api {
                                             new external_value(PARAM_INT, 'group ids')
                                             , 'List of group ids for which events should be returned',
                                             VALUE_DEFAULT, array(), NULL_ALLOWED
-                                                )
+                                                ),
+                                    'categoryids' => new external_multiple_structure(
+                                            new external_value(PARAM_INT, 'Category ids'),
+                                            'List of category ids for which events will be returned',
+                                            VALUE_DEFAULT, array()
+                                ),
                             ), 'Event details', VALUE_DEFAULT, array()),
                     'options' => new external_single_structure(
                             array(
@@ -177,7 +182,7 @@ class core_calendar_external extends external_api {
 
         // Parameter validation.
         $params = self::validate_parameters(self::get_calendar_events_parameters(), array('events' => $events, 'options' => $options));
-        $funcparam = array('courses' => array(), 'groups' => array());
+        $funcparam = array('courses' => array(), 'groups' => array(), 'categories' => array());
         $hassystemcap = has_capability('moodle/calendar:manageentries', context_system::instance());
         $warnings = array();
 
@@ -220,6 +225,62 @@ class core_calendar_external extends external_api {
             $funcparam['groups'] = $groups;
         }
 
+        $categories = array();
+        if (empty($params['events']['categoryids']) && !empty($courses)) {
+            list($wheresql, $sqlparams) = $DB->get_in_or_equal($courses);
+            $wheresql = "id $wheresql";
+            $courseswithcategory = $DB->get_records_select('course', $wheresql, $sqlparams);
+
+            // Grab the list of course categories for the requested course list.
+            $coursecategories = array();
+            foreach ($courseswithcategory as $course) {
+                if (empty($course->visible)) {
+                    if (!has_capability('moodle/course:viewhidden', context_course::instance($course->id))) {
+                        continue;
+                    }
+                }
+                $category = \coursecat::get($course->category);
+                $coursecategories[] = $category;
+            }
+
+            foreach (\coursecat::get_all() as $category) {
+                if (has_capability('moodle/category:manage', $category->get_context(), $USER, false)) {
+                    // If a user can manage a category, then they can see all child categories. as well as all parent categories.
+                    $categories[] = $category->id;
+
+                    foreach (\coursecat::get_all() as $cat) {
+                        if (array_search($category->id, $cat->get_parents()) !== false) {
+                            $categories[] = $cat->id;
+                        }
+                    }
+                    $categories = array_merge($categories, $category->get_parents());
+                } else if (isset($coursecategories[$category->id])) {
+                    // The user has access to a course in this category.
+                    // Fetch all of the parents too.
+                    $categories = array_merge($categories, [$category->id], $category->get_parents());
+                    $categories[] = $category->id;
+                }
+            }
+        } else {
+            // Build the category list.
+            // This includes the current category.
+            foreach ($params['events']['categoryids'] as $categoryid) {
+                $category = \coursecat::get($categoryid);
+                $categories = [$category->id];
+                // All of its descendants.
+                foreach (\coursecat::get_all() as $cat) {
+                    if (array_search($categoryid, $cat->get_parents()) !== false) {
+                        $categories[] = $cat->id;
+                    }
+                }
+
+                // And all of its parents.
+                $categories = array_merge($categories, $category->get_parents());
+            }
+        }
+
+        $funcparam['categories'] = array_unique($categories);
+
         // Do we need user events?
         if (!empty($params['options']['userevents'])) {
             $funcparam['users'] = array($USER->id);
@@ -239,7 +300,8 @@ class core_calendar_external extends external_api {
 
         // Event list does not check visibility and permissions, we'll check that later.
         $eventlist = calendar_get_legacy_events($params['options']['timestart'], $params['options']['timeend'],
-            $funcparam['users'], $funcparam['groups'], $funcparam['courses'], true, $params['options']['ignorehidden']);
+                $funcparam['users'], $funcparam['groups'], $funcparam['courses'], true,
+                $params['options']['ignorehidden'], $funcparam['categories']);
 
         // WS expects arrays.
         $events = array();
@@ -248,7 +310,6 @@ class core_calendar_external extends external_api {
         if ($eventsbyid = calendar_get_events_by_id($params['events']['eventids'])) {
             $eventlist += $eventsbyid;
         }
-
         foreach ($eventlist as $eventid => $eventobj) {
             $event = (array) $eventobj;
             // Description formatting.
@@ -273,7 +334,8 @@ class core_calendar_external extends external_api {
             } else {
                 // Can the user actually see this event?
                 $eventobj = calendar_event::load($eventobj);
-                if (($eventobj->courseid == $SITE->id) ||
+                if ((($eventobj->courseid == $SITE->id) && (empty($eventobj->categoryid))) ||
+                            (!empty($eventobj->categoryid) && in_array($eventobj->categoryid, $categories)) ||
                             (!empty($eventobj->groupid) && in_array($eventobj->groupid, $groups)) ||
                             (!empty($eventobj->courseid) && in_array($eventobj->courseid, $courses)) ||
                             ($USER->id == $eventobj->userid) ||
@@ -716,14 +778,21 @@ class core_calendar_external extends external_api {
         global $CFG, $PAGE, $USER;
         require_once($CFG->dirroot."/calendar/lib.php");
 
-        $params = ['eventid' => $eventid];
-        self::validate_parameters(self::get_calendar_event_by_id_parameters(), $params);
+        $params = self::validate_parameters(self::get_calendar_event_by_id_parameters(), ['eventid' => $eventid]);
         $context = \context_user::instance($USER->id);
 
         self::validate_context($context);
         $warnings = array();
 
         $legacyevent = calendar_event::load($eventid);
+        // Must check we can see this event.
+        if (!calendar_view_event_allowed($legacyevent)) {
+            // We can't return a warning in this case because the event is not optional.
+            // We don't know the context for the event and it's not worth loading it.
+            $syscontext = context_system::instance();
+            throw new \required_capability_exception($syscontext, 'moodle/course:view', 'nopermission', '');
+        }
+
         $legacyevent->count_repeats();
 
         $eventmapper = event_container::get_event_mapper();
@@ -899,41 +968,15 @@ class core_calendar_external extends external_api {
             'includenavigation' => $includenavigation,
         ]);
 
-        // TODO: Copy what we do in calendar/view.php.
         $context = \context_user::instance($USER->id);
         self::validate_context($context);
         $PAGE->set_url('/calendar/');
 
-        if ($courseid != SITEID && !empty($courseid)) {
-            // Course ID must be valid and existing.
-            $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
-            $courses = [$course->id => $course];
-
-            $coursecat = \coursecat::get($course->category);
-            $category = $coursecat->get_db_record();
-        } else {
-            $course = get_site();
-            $courses = calendar_get_default_courses();
-            $category = null;
-
-            if ($categoryid) {
-                self::validate_context(context_coursecat::instance($categoryid));
-                $ids = [$categoryid];
-                $category = \coursecat::get($categoryid);
-                $ids += $category->get_parents();
-                $categories = \coursecat::get_many($ids);
-                $courses = array_filter($courses, function($course) use ($categories) {
-                    return array_search($course->category, $categories) !== false;
-                });
-                $category = $category->get_db_record();
-            }
-        }
-
         $type = \core_calendar\type_factory::get_calendar_instance();
 
-        $time = $type->convert_to_timestamp($year, $month, 1);
-        $calendar = new calendar_information(0, 0, 0, $time);
-        $calendar->set_sources($course, $courses, $category);
+        $time = $type->convert_to_timestamp($params['year'], $params['month'], 1);
+        $calendar = \calendar_information::create($time, $params['courseid'], $params['categoryid']);
+        self::validate_context($calendar->context);
 
         list($data, $template) = calendar_get_view($calendar, 'month', $params['includenavigation']);
 
@@ -994,42 +1037,16 @@ class core_calendar_external extends external_api {
             'categoryid' => $categoryid,
         ]);
 
-        if ($courseid != SITEID && !empty($courseid)) {
-            // Course ID must be valid and existing.
-            $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
-            $courses = [$course->id => $course];
-
-            $coursecat = \coursecat::get($course->category);
-            $category = $coursecat->get_db_record();
-        } else {
-            $course = get_site();
-            $courses = calendar_get_default_courses();
-            $category = null;
-
-            if ($categoryid) {
-                self::validate_context(context_coursecat::instance($categoryid));
-                $ids = [$categoryid];
-                $category = \coursecat::get($categoryid);
-                $ids += $category->get_parents();
-                $categories = \coursecat::get_many($ids);
-                $courses = array_filter($courses, function($course) use ($categories) {
-                    return array_search($course->category, $categories) !== false;
-                });
-                $category = $category->get_db_record();
-            }
-        }
-
-        // TODO: Copy what we do in calendar/view.php.
         $context = \context_user::instance($USER->id);
         self::validate_context($context);
 
         $type = \core_calendar\type_factory::get_calendar_instance();
 
-        $time = $type->convert_to_timestamp($year, $month, $day);
-        $calendar = new calendar_information(0, 0, 0, $time);
-        $calendar->set_sources($course, $courses, $category);
+        $time = $type->convert_to_timestamp($params['year'], $params['month'], $params['day']);
+        $calendar = \calendar_information::create($time, $params['courseid'], $params['categoryid']);
+        self::validate_context($calendar->context);
 
-        list($data, $template) = calendar_get_view($calendar, 'day', $params['includenavigation']);
+        list($data, $template) = calendar_get_view($calendar, 'day');
 
         return $data;
     }
@@ -1145,31 +1162,25 @@ class core_calendar_external extends external_api {
      * Get data for the monthly calendar view.
      *
      * @param   int     $courseid The course to be included
+     * @param   int     $categoryid The category to be included
      * @return  array
      */
-    public static function get_calendar_upcoming_view($courseid) {
+    public static function get_calendar_upcoming_view($courseid, $categoryid) {
         global $CFG, $DB, $USER, $PAGE;
         require_once($CFG->dirroot."/calendar/lib.php");
 
         // Parameter validation.
-        self::validate_parameters(self::get_calendar_upcoming_view_parameters(), [
+        $params = self::validate_parameters(self::get_calendar_upcoming_view_parameters(), [
             'courseid' => $courseid,
+            'categoryid' => $categoryid,
         ]);
-
-        if ($courseid != SITEID && !empty($courseid)) {
-            // Course ID must be valid and existing.
-            $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
-            $courses = [$course->id => $course];
-        } else {
-            $course = get_site();
-            $courses = calendar_get_default_courses();
-        }
 
         $context = \context_user::instance($USER->id);
         self::validate_context($context);
+        $PAGE->set_url('/calendar/');
 
-        $calendar = new calendar_information(0, 0, 0, time());
-        $calendar->set_sources($course, $courses);
+        $calendar = \calendar_information::create(time(), $params['courseid'], $params['categoryid']);
+        self::validate_context($calendar->context);
 
         list($data, $template) = calendar_get_view($calendar, 'upcoming');
 
@@ -1185,6 +1196,7 @@ class core_calendar_external extends external_api {
         return new external_function_parameters(
             [
                 'courseid' => new external_value(PARAM_INT, 'Course being viewed', VALUE_DEFAULT, SITEID, NULL_ALLOWED),
+                'categoryid' => new external_value(PARAM_INT, 'Category being viewed', VALUE_DEFAULT, null, NULL_ALLOWED),
             ]
         );
     }

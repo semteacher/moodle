@@ -1241,35 +1241,46 @@ function mod_choice_core_calendar_provide_event_action(calendar_event $event,
 }
 
 /**
- * This function will check that the given event is valid for it's
- * corresponding choice module.
+ * This function calculates the minimum and maximum cutoff values for the timestart of
+ * the given event.
  *
- * An exception is thrown if the event fails validation.
+ * It will return an array with two values, the first being the minimum cutoff value and
+ * the second being the maximum cutoff value. Either or both values can be null, which
+ * indicates there is no minimum or maximum, respectively.
  *
- * @throws \moodle_exception
- * @param \calendar_event $event
- * @return bool
+ * If a cutoff is required then the function must return an array containing the cutoff
+ * timestamp and error string to display to the user if the cutoff value is violated.
+ *
+ * A minimum and maximum cutoff return value will look like:
+ * [
+ *     [1505704373, 'The date must be after this date'],
+ *     [1506741172, 'The date must be before this date']
+ * ]
+ *
+ * @param calendar_event $event The calendar event to get the time range for
+ * @param stdClass $choice The module instance to get the range from
  */
-function mod_choice_core_calendar_validate_event_timestart(\calendar_event $event) {
-    global $DB;
-
-    $record = $DB->get_record('choice', ['id' => $event->instance], '*', MUST_EXIST);
+function mod_choice_core_calendar_get_valid_event_timestart_range(\calendar_event $event, \stdClass $choice) {
+    $mindate = null;
+    $maxdate = null;
 
     if ($event->eventtype == CHOICE_EVENT_TYPE_OPEN) {
-        // The start time of the open event can't be equal to or after the
-        // close time of the choice activity.
-        if (!empty($record->timeclose) && $event->timestart > $record->timeclose) {
-            throw new \moodle_exception('openafterclose', 'choice');
+        if (!empty($choice->timeclose)) {
+            $maxdate = [
+                $choice->timeclose,
+                get_string('openafterclose', 'choice')
+            ];
         }
     } else if ($event->eventtype == CHOICE_EVENT_TYPE_CLOSE) {
-        // The start time of the close event can't be equal to or earlier than the
-        // open time of the choice activity.
-        if (!empty($record->timeopen) && $event->timestart < $record->timeopen) {
-            throw new \moodle_exception('closebeforeopen', 'choice');
+        if (!empty($choice->timeopen)) {
+            $mindate = [
+                $choice->timeopen,
+                get_string('closebeforeopen', 'choice')
+            ];
         }
     }
 
-    return true;
+    return [$mindate, $maxdate];
 }
 
 /**
@@ -1281,32 +1292,62 @@ function mod_choice_core_calendar_validate_event_timestart(\calendar_event $even
  *
  * @throws \moodle_exception
  * @param \calendar_event $event
+ * @param stdClass $choice The module instance to get the range from
  */
-function mod_choice_core_calendar_event_timestart_updated(\calendar_event $event) {
+function mod_choice_core_calendar_event_timestart_updated(\calendar_event $event, \stdClass $choice) {
     global $DB;
+
+    if (!in_array($event->eventtype, [CHOICE_EVENT_TYPE_OPEN, CHOICE_EVENT_TYPE_CLOSE])) {
+        return;
+    }
+
+    $courseid = $event->courseid;
+    $modulename = $event->modulename;
+    $instanceid = $event->instance;
+    $modified = false;
+
+    // Something weird going on. The event is for a different module so
+    // we should ignore it.
+    if ($modulename != 'choice') {
+        return;
+    }
+
+    if ($choice->id != $instanceid) {
+        return;
+    }
+
+    $coursemodule = get_fast_modinfo($courseid)->instances[$modulename][$instanceid];
+    $context = context_module::instance($coursemodule->id);
+
+    // The user does not have the capability to modify this activity.
+    if (!has_capability('moodle/course:manageactivities', $context)) {
+        return;
+    }
 
     if ($event->eventtype == CHOICE_EVENT_TYPE_OPEN) {
         // If the event is for the choice activity opening then we should
         // set the start time of the choice activity to be the new start
         // time of the event.
-        $record = $DB->get_record('choice', ['id' => $event->instance], '*', MUST_EXIST);
-
-        if ($record->timeopen != $event->timestart) {
-            $record->timeopen = $event->timestart;
-            $record->timemodified = time();
-            $DB->update_record('choice', $record);
+        if ($choice->timeopen != $event->timestart) {
+            $choice->timeopen = $event->timestart;
+            $modified = true;
         }
     } else if ($event->eventtype == CHOICE_EVENT_TYPE_CLOSE) {
         // If the event is for the choice activity closing then we should
         // set the end time of the choice activity to be the new start
         // time of the event.
-        $record = $DB->get_record('choice', ['id' => $event->instance], '*', MUST_EXIST);
-
-        if ($record->timeclose != $event->timestart) {
-            $record->timeclose = $event->timestart;
-            $record->timemodified = time();
-            $DB->update_record('choice', $record);
+        if ($choice->timeclose != $event->timestart) {
+            $choice->timeclose = $event->timestart;
+            $modified = true;
         }
+    }
+
+    if ($modified) {
+        $choice->timemodified = time();
+        // Persist the instance changes.
+        $DB->update_record('choice', $choice);
+        $event = \core\event\course_module_updated::create_from_cm($coursemodule, $context);
+        $event->trigger();
     }
 }
 

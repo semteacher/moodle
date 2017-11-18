@@ -116,6 +116,7 @@ prioritise,core_hub
 private,core_hub
 privatehuburl,core_hub
 publichub,core_hub
+publish,core
 publishon,core_hub
 publishonspecifichub,core_hub
 registeredmoodleorg,core_hub
@@ -152,3 +153,13 @@ xmlrpcdisabledpublish,core_hub
 xmlrpcdisabledregistration,core_hub
 moodleorghubname,core_admin
 hubs,core_admin
+quickdownloadcalendar,core_calendar
+ical,core_calendar
+privacy,core_hub
+privacy_help,core_hub
+configloginhttps,core_admin
+loginhttps,core_admin
+groupaddnewnote,core_notes
+selectnotestate,core_notes
+extendenrol,core
+groupextendenrol,core
