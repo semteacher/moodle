@@ -31,6 +31,13 @@ define(['core/templates',
        ],
        function(Template, $, Str, Config, Notification, ModalFactory, ModalEvents, Fragment) {
 
+    /** @type {Object} The list of selectors for the quick enrolment modal. */
+    var SELECTORS = {
+        COHORTSELECT: "#id_cohortlist",
+        TRIGGERBUTTONS: ".enrolusersbutton.enrol_manual_plugin [type='submit']",
+        UNWANTEDHIDDENFIELDS: ":input[value='_qf__force_multiselect_submission']"
+    };
+
     /**
      * Constructor
      *
@@ -57,41 +64,46 @@ define(['core/templates',
      * @private
      */
     QuickEnrolment.prototype.initModal = function() {
-        var triggerButtons = $('.enrolusersbutton.enrol_manual_plugin [type="submit"]');
+        var triggerButtons = $(SELECTORS.TRIGGERBUTTONS);
 
-        var stringsPromise = Str.get_strings([
-            {key: 'enroluserscohorts', component: 'enrol_manual'},
-            {key: 'enrolusers', component: 'enrol_manual'},
-        ]);
-
-        var titlePromise = stringsPromise.then(function(strings) {
-            return strings[1];
-        });
-
-        var buttonPromise = stringsPromise.then(function(strings) {
-            return strings[0];
-        });
-
-        return ModalFactory.create({
-            type: ModalFactory.types.SAVE_CANCEL,
-            large: true,
-            title: titlePromise,
-            body: this.getBody()
-        }, triggerButtons)
-        .then(function(modal) {
+        $.when(
+            Str.get_strings([
+                {key: 'enroluserscohorts', component: 'enrol_manual'},
+                {key: 'enrolusers', component: 'enrol_manual'},
+            ]),
+            ModalFactory.create({
+                type: ModalFactory.types.SAVE_CANCEL,
+                large: true,
+            }, triggerButtons)
+        )
+        .then(function(strings, modal) {
             this.modal = modal;
 
-            this.modal.setSaveButtonText(buttonPromise);
+            modal.setTitle(strings[1]);
+            modal.setSaveButtonText(strings[1]);
+
+            modal.getRoot().on(ModalEvents.save, this.submitForm.bind(this));
+            modal.getRoot().on('submit', 'form', this.submitFormAjax.bind(this));
 
             // We want the reset the form every time it is opened.
-            this.modal.getRoot().on(ModalEvents.hidden, function() {
-                this.modal.setBody(this.getBody());
+            modal.getRoot().on(ModalEvents.hidden, function() {
+                modal.setBody('');
+            });
+
+            modal.getRoot().on(ModalEvents.shown, function() {
+                var bodyPromise = this.getBody();
+                bodyPromise.then(function(html) {
+                    var stringIndex = $(html).find(SELECTORS.COHORTSELECT).length ? 0 : 1;
+                    modal.setSaveButtonText(strings[stringIndex]);
+
+                    return;
+                })
+                .fail(Notification.exception);
+
+                modal.setBody(bodyPromise);
             }.bind(this));
 
-            this.modal.getRoot().on(ModalEvents.save, this.submitForm.bind(this));
-            this.modal.getRoot().on('submit', 'form', this.submitFormAjax.bind(this));
-
-            return modal;
+            return;
         }.bind(this))
         .fail(Notification.exception);
     };
@@ -119,7 +131,16 @@ define(['core/templates',
         // We don't want to do a real form submission.
         e.preventDefault();
 
-        var formData = this.modal.getRoot().find('form').serialize();
+        var form = this.modal.getRoot().find('form');
+
+        // Before send the data through AJAX, we need to parse and remove some unwanted hidden fields.
+        // This hidden fields are added automatically by mforms and when it reaches the AJAX we get an error.
+        var hidden = form.find(SELECTORS.UNWANTEDHIDDENFIELDS);
+        hidden.each(function() {
+            this.remove();
+        });
+
+        var formData = form.serialize();
 
         this.modal.hide();
 

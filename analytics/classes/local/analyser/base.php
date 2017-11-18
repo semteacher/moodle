@@ -118,7 +118,7 @@ abstract class base {
      * \core_analytics\local\analyser\by_course and \core_analytics\local\analyser\sitewide are implementing
      * this method returning site courses (by_course) and the whole system (sitewide) as analysables.
      *
-     * @return \core_analytics\analysable[]
+     * @return \core_analytics\analysable[] Array of analysable elements using the analysable id as array key.
      */
     abstract public function get_analysables();
 
@@ -180,22 +180,62 @@ abstract class base {
      * @return \stored_file[]
      */
     public function get_analysable_data($includetarget) {
+        global $DB;
+
+        // Time limit control.
+        $modeltimelimit = intval(get_config('analytics', 'modeltimelimit'));
 
         $filesbytimesplitting = array();
 
-        $analysables = $this->get_analysables();
-        foreach ($analysables as $analysable) {
+        list($analysables, $processedanalysables) = $this->get_sorted_analysables($includetarget);
+
+        $inittime = time();
+        foreach ($analysables as $key => $analysable) {
 
             $files = $this->process_analysable($analysable, $includetarget);
 
             // Later we will need to aggregate data by time splitting method.
             foreach ($files as $timesplittingid => $file) {
-                $filesbytimesplitting[$timesplittingid][$analysable->get_id()] = $file;
+                $filesbytimesplitting[$timesplittingid][] = $file;
+            }
+
+            $this->update_analysable_analysed_time($processedanalysables, $analysable->get_id(), $includetarget);
+
+            // Apply time limit.
+            if (!$this->options['evaluation']) {
+                $timespent = time() - $inittime;
+                if ($modeltimelimit <= $timespent) {
+                    break;
+                }
+            }
+
+            unset($analysables[$key]);
+        }
+
+        if ($this->options['evaluation'] === false) {
+            // Look for previous training and prediction files we generated and couldn't be used
+            // by machine learning backends because they weren't big enough.
+
+            $pendingfiles = \core_analytics\dataset_manager::get_pending_files($this->modelid, $includetarget,
+                array_keys($filesbytimesplitting));
+            foreach ($pendingfiles as $timesplittingid => $files) {
+                foreach ($files as $file) {
+                    $filesbytimesplitting[$timesplittingid][] = $file;
+                }
             }
         }
 
         // We join the datasets by time splitting method.
         $timesplittingfiles = $this->merge_analysable_files($filesbytimesplitting, $includetarget);
+
+        if (!empty($pendingfiles)) {
+            // We must remove them now as they are already part of another dataset.
+            foreach ($pendingfiles as $timesplittingid => $files) {
+                foreach ($files as $file) {
+                    $file->delete();
+                }
+            }
+        }
 
         return $timesplittingfiles;
     }
@@ -323,7 +363,7 @@ abstract class base {
         $result = $this->analysabletarget->is_valid_analysable($analysable, $includetarget);
         if ($result !== true) {
             $a = new \stdClass();
-            $a->analysableid = $analysable->get_id();
+            $a->analysableid = $analysable->get_name();
             $a->result = $result;
             $this->add_log(get_string('analysablenotvalidfortarget', 'analytics', $a));
             return array();
@@ -367,7 +407,7 @@ abstract class base {
             }
 
             $a = new \stdClass();
-            $a->analysableid = $analysable->get_id();
+            $a->analysableid = $analysable->get_name();
             $a->errors = implode(', ', $errors);
             $this->add_log(get_string('analysablenotused', 'analytics', $a));
         }
@@ -474,7 +514,7 @@ abstract class base {
             }
         }
 
-        if (!empty($target)) {
+        if (!empty($includetarget)) {
             $filearea = \core_analytics\dataset_manager::LABELLED_FILEAREA;
         } else {
             $filearea = \core_analytics\dataset_manager::UNLABELLED_FILEAREA;
@@ -719,6 +759,88 @@ abstract class base {
         foreach ($metadata as $varname => $value) {
             $data[0][] = $varname;
             $data[1][] = $value;
+        }
+    }
+
+    /**
+     * Returns the list of analysables sorted in processing priority order.
+     *
+     * It will first return analysables that have never been analysed before
+     * and it will continue with the ones we have already seen by timeanalysed DESC
+     * order.
+     *
+     * @param bool $includetarget
+     * @return array(0 => \core_analytics\analysable[], 1 => \stdClass[])
+     */
+    protected function get_sorted_analysables($includetarget) {
+
+        $analysables = $this->get_analysables();
+
+        // Get the list of analysables that have been already processed.
+        $processedanalysables = $this->get_processed_analysables($includetarget);
+
+        // We want to start processing analysables we have not yet processed and later continue
+        // with analysables that we already processed.
+        $unseen = array_diff_key($analysables, $processedanalysables);
+
+        // Var $processed first as we want to respect its timeanalysed DESC order so analysables that
+        // have recently been processed are on the bottom of the stack.
+        $seen = array_intersect_key($processedanalysables, $analysables);
+        array_walk($seen, function(&$value, $analysableid) use ($analysables) {
+            // We replace the analytics_used_analysables record by the analysable object.
+            $value = $analysables[$analysableid];
+        });
+
+        return array($unseen + $seen, $processedanalysables);
+    }
+
+    /**
+     * Get analysables that have been already processed.
+     *
+     * @param bool $includetarget
+     * @return \stdClass[]
+     */
+    protected function get_processed_analysables($includetarget) {
+        global $DB;
+
+        $params = array('modelid' => $this->modelid);
+        $params['action'] = ($includetarget) ? 'training' : 'prediction';
+        $select = 'modelid = :modelid and action = :action';
+
+        // Weird select fields ordering for performance (analysableid key matching, analysableid is also unique by modelid).
+        return $DB->get_records_select('analytics_used_analysables', $select,
+            $params, 'timeanalysed DESC', 'analysableid, modelid, action, timeanalysed, id AS primarykey');
+    }
+
+    /**
+     * Updates the analysable analysis time.
+     *
+     * @param array $processedanalysables
+     * @param int $analysableid
+     * @param bool $includetarget
+     * @return null
+     */
+    protected function update_analysable_analysed_time($processedanalysables, $analysableid, $includetarget) {
+        global $DB;
+
+        if (!empty($processedanalysables[$analysableid])) {
+            $obj = $processedanalysables[$analysableid];
+
+            $obj->id = $obj->primarykey;
+            unset($obj->primarykey);
+
+            $obj->timeanalysed = time();
+            $DB->update_record('analytics_used_analysables', $obj);
+
+        } else {
+
+            $obj = new \stdClass();
+            $obj->modelid = $this->modelid;
+            $obj->action = ($includetarget) ? 'training' : 'prediction';
+            $obj->analysableid = $analysableid;
+            $obj->timeanalysed = time();
+
+            $DB->insert_record('analytics_used_analysables', $obj);
         }
     }
 }

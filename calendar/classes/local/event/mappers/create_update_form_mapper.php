@@ -61,7 +61,10 @@ class create_update_form_mapper implements create_update_form_mapper_interface {
             $data->groupid = "{$legacyevent->courseid}-{$legacyevent->groupid}";
             $data->groupcourseid = $legacyevent->courseid;
         }
-
+        if ($legacyevent->eventtype == 'course') {
+            // Set up the correct value for the to display on the form.
+            $data->courseid = $legacyevent->courseid;
+        }
         $data->description = [
             'text' => $data->description,
             'format' => $data->format
@@ -85,26 +88,28 @@ class create_update_form_mapper implements create_update_form_mapper_interface {
     public function from_data_to_event_properties(\stdClass $data) {
         $properties = clone($data);
 
-        // Undo the form definition work around to allow us to have two different
-        // course selectors present depending on which event type the user selects.
-        if (isset($data->groupcourseid)) {
-            $properties->courseid = $data->groupcourseid;
-            unset($properties->groupcourseid);
-        }
+        if ($data->eventtype == 'group') {
+            if (isset($data->groupcourseid)) {
+                $properties->courseid = $data->groupcourseid;
+                unset($properties->groupcourseid);
+            }
 
-        // Pull the group id back out of the value. The form saves the value
-        // as "<courseid>-<groupid>" to allow the javascript to work correctly.
-        if (isset($data->groupid)) {
-            list($courseid, $groupid) = explode('-', $data->groupid);
-            $properties->groupid = $groupid;
-        }
-
-        // Default course id if none is set.
-        if (!isset($properties->courseid)) {
-            if ($properties->eventtype === 'site') {
-                $properties->courseid = SITEID;
+            // Pull the group id back out of the value. The form saves the value
+            // as "<courseid>-<groupid>" to allow the javascript to work correctly.
+            if (isset($data->groupid)) {
+                list($courseid, $groupid) = explode('-', $data->groupid);
+                $properties->groupid = $groupid;
+            }
+        } else {
+            // Default course id if none is set.
+            if (empty($properties->courseid)) {
+                if ($properties->eventtype == 'site') {
+                    $properties->courseid = SITEID;
+                } else {
+                    $properties->courseid = 0;
+                }
             } else {
-                $properties->courseid = 0;
+                $properties->courseid = $data->courseid;
             }
         }
 

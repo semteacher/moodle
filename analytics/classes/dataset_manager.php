@@ -157,16 +157,18 @@ class dataset_manager {
         ];
 
         // Delete previous and old (we already checked that previous copies are not recent) evaluation files for this analysable.
-        $select = " = {$filerecord['itemid']} AND filepath = :filepath";
-        $fs->delete_area_files_select($filerecord['contextid'], $filerecord['component'], $filerecord['filearea'],
-            $select, array('filepath' => $filerecord['filepath']));
+        if ($this->evaluation) {
+            $select = " = {$filerecord['itemid']} AND filepath = :filepath";
+            $fs->delete_area_files_select($filerecord['contextid'], $filerecord['component'], $filerecord['filearea'],
+                $select, array('filepath' => $filerecord['filepath']));
+        }
 
         // Write all this stuff to a tmp file.
         $filepath = make_request_directory() . DIRECTORY_SEPARATOR . $filerecord['filename'];
         $fh = fopen($filepath, 'w+');
         if (!$fh) {
             $this->close_process();
-            throw new \moodle_exception('errorcannotwritedataset', 'analytics', '', $tmpfilepath);
+            throw new \moodle_exception('errorcannotwritedataset', 'analytics', '', $filepath);
         }
         foreach ($data as $line) {
             fputcsv($fh, $line);
@@ -200,6 +202,61 @@ class dataset_manager {
         // Evaluation data is always labelled.
         return $fs->get_file(\context_system::instance()->id, 'analytics', self::LABELLED_FILEAREA, $modelid,
             '/timesplitting/' . self::clean_time_splitting_id($timesplittingid) . '/', self::EVALUATION_FILENAME);
+    }
+
+    /**
+     * Gets the list of files that couldn't be previously used for training and prediction.
+     *
+     * @param int $modelid
+     * @param bool $includetarget
+     * @param string[] $timesplittingids
+     * @return null
+     */
+    public static function get_pending_files($modelid, $includetarget, $timesplittingids) {
+        global $DB;
+
+        $fs = get_file_storage();
+
+        if ($includetarget) {
+            $filearea = self::LABELLED_FILEAREA;
+            $usedfileaction = 'trained';
+        } else {
+            $filearea = self::UNLABELLED_FILEAREA;
+            $usedfileaction = 'predicted';
+        }
+
+        $select = 'modelid = :modelid AND action = :action';
+        $params = array('modelid' => $modelid, 'action' => $usedfileaction);
+        $usedfileids = $DB->get_fieldset_select('analytics_used_files', 'fileid', $select, $params);
+
+        // Very likely that we will only have 1 time splitting method here.
+        $filesbytimesplitting = array();
+        foreach ($timesplittingids as $timesplittingid) {
+
+            $filepath = '/timesplitting/' . self::clean_time_splitting_id($timesplittingid) . '/';
+            $files = $fs->get_directory_files(\context_system::instance()->id, 'analytics', $filearea, $modelid, $filepath);
+            foreach ($files as $file) {
+
+                // Discard evaluation files.
+                if ($file->get_filename() === self::EVALUATION_FILENAME) {
+                    continue;
+                }
+
+                // No dirs.
+                if ($file->is_directory()) {
+                    continue;
+                }
+
+                // Already used for training.
+                if (in_array($file->get_id(), $usedfileids)) {
+                    continue;
+                }
+
+                $filesbytimesplitting[$timesplittingid][] = $file;
+            }
+        }
+
+        return $filesbytimesplitting;
     }
 
     /**
