@@ -77,6 +77,10 @@ class mod_data_export_form extends moodleform {
         if ($numfieldsthatcanbeselected > 1) {
             $this->add_checkbox_controller(1, null, null, 1);
         }
+        if (core_tag_tag::is_enabled('mod_data', 'data_records')) {
+            $mform->addElement('checkbox', 'exporttags', get_string('includetags', 'data'));
+            $mform->setDefault('exporttags', 1);
+        }
         $context = context_module::instance($this->_cm->id);
         if (has_capability('mod/data:exportuserinfo', $context)) {
             $mform->addElement('checkbox', 'exportuser', get_string('includeuserdetails', 'data'));
@@ -85,6 +89,7 @@ class mod_data_export_form extends moodleform {
         if ($this->_data->approval) {
             $mform->addElement('checkbox', 'exportapproval', get_string('includeapproval', 'data'));
         }
+
         $this->add_action_buttons(true, get_string('exportentries', 'data'));
     }
 

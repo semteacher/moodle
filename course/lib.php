@@ -1404,7 +1404,9 @@ function course_module_update_calendar_events($modulename, $instance = null, $cm
         if (!isset($cm)) {
             $cm = get_coursemodule_from_instance($modulename, $instance->id, $instance->course);
         }
-        course_module_calendar_event_update_process($instance, $cm);
+        if (!empty($cm)) {
+            course_module_calendar_event_update_process($instance, $cm);
+        }
         return true;
     }
     return false;
@@ -1433,8 +1435,9 @@ function course_module_bulk_update_calendar_events($modulename, $courseid = 0) {
     }
 
     foreach ($instances as $instance) {
-        $cm = get_coursemodule_from_instance($modulename, $instance->id, $instance->course);
-        course_module_calendar_event_update_process($instance, $cm);
+        if ($cm = get_coursemodule_from_instance($modulename, $instance->id, $instance->course)) {
+            course_module_calendar_event_update_process($instance, $cm);
+        }
     }
     return true;
 }
@@ -4265,4 +4268,33 @@ function course_require_view_participants($context) {
         }
         throw new required_capability_exception($context, $viewparticipantscap, 'nopermissions', '');
     }
+}
+
+/**
+ * Return whether the user can download from the specified backup file area in the given context.
+ *
+ * @param string $filearea the backup file area. E.g. 'course', 'backup' or 'automated'.
+ * @param \context $context
+ * @param stdClass $user the user object. If not provided, the current user will be checked.
+ * @return bool true if the user is allowed to download in the context, false otherwise.
+ */
+function can_download_from_backup_filearea($filearea, \context $context, stdClass $user = null) {
+    $candownload = false;
+    switch ($filearea) {
+        case 'course':
+        case 'backup':
+            $candownload = has_capability('moodle/backup:downloadfile', $context, $user);
+            break;
+        case 'automated':
+            // Given the automated backups may contain userinfo, we restrict access such that only users who are able to
+            // restore with userinfo are able to download the file. Users can't create these backups, so checking 'backup:userinfo'
+            // doesn't make sense here.
+            $candownload = has_capability('moodle/backup:downloadfile', $context, $user) &&
+                           has_capability('moodle/restore:userinfo', $context, $user);
+            break;
+        default:
+            break;
+
+    }
+    return $candownload;
 }

@@ -305,6 +305,10 @@ $capabilities = array(
 
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => array(
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        ),
     ),
 
     'moodle/restore:restoretargethub' => array(
@@ -1921,6 +1925,15 @@ $capabilities = array(
         )
     ),
     'moodle/course:markcomplete' => array(
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes' => array(
+            'teacher' => CAP_ALLOW,
+            'editingteacher' => CAP_ALLOW,
+            'manager' => CAP_ALLOW
+        )
+    ),
+    'moodle/course:overridecompletion' => array(
         'captype' => 'write',
         'contextlevel' => CONTEXT_COURSE,
         'archetypes' => array(

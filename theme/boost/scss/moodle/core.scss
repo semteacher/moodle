@@ -1974,6 +1974,10 @@ dd:after {
     &.inplaceeditable-toggle .quickediticon {
         display: none;
     }
+
+    &.inplaceeditable-autocomplete {
+        display: block;
+    }
 }
 
 h3.sectionname .inplaceeditable.inplaceeditingon .editinstructions {

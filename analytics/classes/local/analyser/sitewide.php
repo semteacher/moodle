@@ -42,6 +42,6 @@ abstract class sitewide extends base {
      */
     public function get_analysables() {
         $analysable = new \core_analytics\site();
-        return array($analysable);
+        return array(SYSCONTEXTID => $analysable);
     }
 }
