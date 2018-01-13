@@ -15,11 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Enable or disable maintenance mode.
+ * Bulk upload Amazon files to Vimeo by URL.
  *
  * @package    core
  * @subpackage cli
- * @copyright  2009 Petr Skoda (http://skodak.org)
+ * @copyright  2018 Andriy Semenets (semteacher@gmail.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -29,21 +29,8 @@ require(__DIR__.'/../../config.php');
 require_once("$CFG->libdir/clilib.php");
 require_once("$CFG->libdir/adminlib.php");
 
-//require("/vimeo/autoload.php");
-require_once("$CFG->libdir/classes/task/adhoc_task.php");
-require_once("$CFG->libdir/classes/task/manager.php");
-require_once("$CFG->libdir/vimeo/autoload.php");
-
-class pull_to_vimeo extends \core\task\adhoc_task {                                                                           
-    public function execute() {       
-        // gain 100,000,000 friends on facebook.
-        // crash the stock market.
-        // run for president.
-		$lib = new \Vimeo\Vimeo(null, null);
-		
-		echo "executed OK!";
-    }                                                                                                                               
-}
+//require_once("$CFG->libdir/vimeo/autoload.php");
+require_once ("$CFG->dirroot/vendor/autoload.php");
 
 // Now get cli options.
 list($options, $unrecognized) = cli_get_params(array('courseid'=>0, 'help'=>false),
@@ -71,17 +58,42 @@ Example:
 }
 
 if ($options['courseid']>0) {
-   // create the instance
-   $vimeopull = new pull_to_vimeo();
-   // set blocking if required (it probably isn't)
-   // $domination->set_blocking(true);
-   // add custom data
-   $vimeopull->set_custom_data(array(
-       'courseid' => $options['courseid']
-   ));
 
-   // queue it
-   \core\task\manager::queue_adhoc_task($vimeopull);
-   echo "queue has started for courseID = ".$options['courseid'];
+	//init Vimeo lib
+	$access_token = '4c3c32c1eea6060254cb3a1ea5daa714';
+	$lib = new \Vimeo\Vimeo(null, null);
+	$lib->setToken($access_token);
+	
+	//get list of url resoures from course
+	$table = 'url';
+	$urlarrayset = $DB->get_records($table,array('course'=>$options['courseid']));
+	
+	//process each url resource
+	foreach ($urlarrayset as $urlrec){
+		//submit only Amazon to Vimeo
+		if (!(strpos($urlrec->externalurl, 'https://vimeo.com')===0)) {
+			if (strpos($urlrec->externalurl, 'amazonaws.com')>0){
+			echo "Found Amazon URL in Moodle: ".$urlrec->externalurl." \n";
+			$response = $lib->request('/me/videos', array('type' => 'pull', 'link' => $urlrec->externalurl), 'POST');
+			//update URL Resource data on success:
+			if ($response['status']==200){
+				echo "Vimeo URL: ".$response['body']['link']."\n";
+				$urlrec->externalurl = $response['body']['link'];
+					if ($DB->update_record($table, $urlrec, $bulk=true)) {
+						echo "Moodle URL Resource record has been updated successfully! \n";
+					} else {
+						echo "Error writing to Moodle database \n";
+					}
+			} else {
+				echo "Error on submit to Vimeo, possibe cause - non-video or incorrect link \n";
+			}
+			} else {
+				echo "Nothing processed - Amazon URL not found! \n";
+			}
+		} else {
+			echo "Nothing processed - Vimeo URL found! \n";
+		}
+	}
+	echo "executed OK! \n";	
 }
 
