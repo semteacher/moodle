@@ -127,23 +127,19 @@ class core_calendar_external extends external_api {
                                     'eventids' => new external_multiple_structure(
                                             new external_value(PARAM_INT, 'event ids')
                                             , 'List of event ids',
-                                            VALUE_DEFAULT, array(), NULL_ALLOWED
-                                                ),
+                                            VALUE_DEFAULT, array()),
                                     'courseids' => new external_multiple_structure(
                                             new external_value(PARAM_INT, 'course ids')
                                             , 'List of course ids for which events will be returned',
-                                            VALUE_DEFAULT, array(), NULL_ALLOWED
-                                                ),
+                                            VALUE_DEFAULT, array()),
                                     'groupids' => new external_multiple_structure(
                                             new external_value(PARAM_INT, 'group ids')
                                             , 'List of group ids for which events should be returned',
-                                            VALUE_DEFAULT, array(), NULL_ALLOWED
-                                                ),
+                                            VALUE_DEFAULT, array()),
                                     'categoryids' => new external_multiple_structure(
                                             new external_value(PARAM_INT, 'Category ids'),
                                             'List of category ids for which events will be returned',
-                                            VALUE_DEFAULT, array()
-                                ),
+                                            VALUE_DEFAULT, array()),
                             ), 'Event details', VALUE_DEFAULT, array()),
                     'options' => new external_single_structure(
                             array(
@@ -226,25 +222,36 @@ class core_calendar_external extends external_api {
         }
 
         $categories = array();
-        if (empty($params['events']['categoryids']) && !empty($courses)) {
-            list($wheresql, $sqlparams) = $DB->get_in_or_equal($courses);
-            $wheresql = "id $wheresql";
-            $courseswithcategory = $DB->get_records_select('course', $wheresql, $sqlparams);
+        if ($hassystemcap || !empty($courses)) {
 
-            // Grab the list of course categories for the requested course list.
             $coursecategories = array();
-            foreach ($courseswithcategory as $course) {
-                if (empty($course->visible)) {
-                    if (!has_capability('moodle/course:viewhidden', context_course::instance($course->id))) {
-                        continue;
+            if (!empty($courses)) {
+                list($wheresql, $sqlparams) = $DB->get_in_or_equal($courses);
+                $wheresql = "id $wheresql";
+                $courseswithcategory = $DB->get_records_select('course', $wheresql, $sqlparams);
+
+                // Grab the list of course categories for the requested course list.
+                foreach ($courseswithcategory as $course) {
+                    if (empty($course->visible)) {
+                        if (!has_capability('moodle/course:viewhidden', context_course::instance($course->id))) {
+                            continue;
+                        }
                     }
+                    $category = \coursecat::get($course->category);
+                    // Fetch parent categories.
+                    $coursecategories = array_merge($coursecategories, [$category->id], $category->get_parents());
                 }
-                $category = \coursecat::get($course->category);
-                $coursecategories[] = $category;
             }
 
             foreach (\coursecat::get_all() as $category) {
-                if (has_capability('moodle/category:manage', $category->get_context(), $USER, false)) {
+                // Skip categories not requested.
+                if (!empty($params['events']['categoryids'])) {
+                    if (!in_array($category->id, $params['events']['categoryids'])) {
+                        continue;
+                    }
+                }
+
+                if (has_capability('moodle/category:manage', $category->get_context())) {
                     // If a user can manage a category, then they can see all child categories. as well as all parent categories.
                     $categories[] = $category->id;
 
@@ -254,28 +261,13 @@ class core_calendar_external extends external_api {
                         }
                     }
                     $categories = array_merge($categories, $category->get_parents());
-                } else if (isset($coursecategories[$category->id])) {
+                } else if (in_array($category->id, $coursecategories)) {
+
                     // The user has access to a course in this category.
                     // Fetch all of the parents too.
                     $categories = array_merge($categories, [$category->id], $category->get_parents());
                     $categories[] = $category->id;
                 }
-            }
-        } else {
-            // Build the category list.
-            // This includes the current category.
-            foreach ($params['events']['categoryids'] as $categoryid) {
-                $category = \coursecat::get($categoryid);
-                $categories = [$category->id];
-                // All of its descendants.
-                foreach (\coursecat::get_all() as $cat) {
-                    if (array_search($categoryid, $cat->get_parents()) !== false) {
-                        $categories[] = $cat->id;
-                    }
-                }
-
-                // And all of its parents.
-                $categories = array_merge($categories, $category->get_parents());
             }
         }
 
@@ -511,7 +503,7 @@ class core_calendar_external extends external_api {
             $params['aftereventid'] = null;
         }
 
-        $courses = enrol_get_my_courses('*', 'visible DESC,sortorder ASC', 0, [$courseid]);
+        $courses = enrol_get_my_courses('*', null, 0, [$courseid]);
         $courses = array_values($courses);
 
         if (empty($courses)) {
@@ -596,7 +588,7 @@ class core_calendar_external extends external_api {
         }
 
         $renderer = $PAGE->get_renderer('core_calendar');
-        $courses = enrol_get_my_courses('*', 'visible DESC,sortorder ASC', 0, $params['courseids']);
+        $courses = enrol_get_my_courses('*', null, 0, $params['courseids']);
         $courses = array_values($courses);
 
         if (empty($courses)) {
@@ -953,9 +945,10 @@ class core_calendar_external extends external_api {
      * @param   int     $courseid The course to be included
      * @param   int     $categoryid The category to be included
      * @param   bool    $includenavigation Whether to include navigation
+     * @param   bool    $mini Whether to return the mini month view or not
      * @return  array
      */
-    public static function get_calendar_monthly_view($year, $month, $courseid, $categoryid, $includenavigation) {
+    public static function get_calendar_monthly_view($year, $month, $courseid, $categoryid, $includenavigation, $mini) {
         global $CFG, $DB, $USER, $PAGE;
         require_once($CFG->dirroot."/calendar/lib.php");
 
@@ -966,6 +959,7 @@ class core_calendar_external extends external_api {
             'courseid' => $courseid,
             'categoryid' => $categoryid,
             'includenavigation' => $includenavigation,
+            'mini' => $mini,
         ]);
 
         $context = \context_user::instance($USER->id);
@@ -978,7 +972,8 @@ class core_calendar_external extends external_api {
         $calendar = \calendar_information::create($time, $params['courseid'], $params['categoryid']);
         self::validate_context($calendar->context);
 
-        list($data, $template) = calendar_get_view($calendar, 'month', $params['includenavigation']);
+        $view = $params['mini'] ? 'mini' : 'month';
+        list($data, $template) = calendar_get_view($calendar, $view, $params['includenavigation']);
 
         return $data;
     }
@@ -1000,6 +995,13 @@ class core_calendar_external extends external_api {
                     'Whether to show course navigation',
                     VALUE_DEFAULT,
                     true,
+                    NULL_ALLOWED
+                ),
+                'mini' => new external_value(
+                    PARAM_BOOL,
+                    'Whether to return the mini month view or not',
+                    VALUE_DEFAULT,
+                    false,
                     NULL_ALLOWED
                 ),
             ]
