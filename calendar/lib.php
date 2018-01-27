@@ -249,10 +249,6 @@ class calendar_event {
         }
 
         $this->properties = $data;
-
-        if (empty($data->context)) {
-            $this->properties->context = $this->calculate_context();
-        }
     }
 
     /**
@@ -344,6 +340,24 @@ class calendar_event {
     }
 
     /**
+     * Returns the context for this event. The context is calculated
+     * the first time is is requested and then stored in a member
+     * variable to be returned each subsequent time.
+     *
+     * This is a magical getter function that will be called when
+     * ever the context property is accessed, e.g. $event->context.
+     *
+     * @return context
+     */
+    protected function get_context() {
+        if (!isset($this->properties->context)) {
+            $this->properties->context = $this->calculate_context();
+        }
+
+        return $this->properties->context;
+    }
+
+    /**
      * Returns an array of editoroptions for this event.
      *
      * @return array event editor options
@@ -367,7 +381,7 @@ class calendar_event {
             // Check if we have already resolved the context for this event.
             if ($this->editorcontext === null) {
                 // Switch on the event type to decide upon the appropriate context to use for this event.
-                $this->editorcontext = $this->properties->context;
+                $this->editorcontext = $this->get_context();
                 if (!calendar_is_valid_eventtype($this->properties->eventtype)) {
                     return clean_text($this->properties->description, $this->properties->format);
                 }
@@ -433,7 +447,7 @@ class calendar_event {
 
         // Prepare event data.
         $eventargs = array(
-            'context' => $this->properties->context,
+            'context' => $this->get_context(),
             'objectid' => $this->properties->id,
             'other' => array(
                 'repeatid' => empty($this->properties->repeatid) ? 0 : $this->properties->repeatid,
@@ -485,7 +499,7 @@ class calendar_event {
                 // were set when calculate_context() was called from the constructor.
                 if ($usingeditor) {
                     $this->properties->context = $this->calculate_context();
-                    $this->editorcontext = $this->properties->context;
+                    $this->editorcontext = $this->get_context();
                 }
 
                 $editor = $this->properties->description;
@@ -512,7 +526,7 @@ class calendar_event {
 
             // Log the event entry.
             $eventargs['objectid'] = $this->properties->id;
-            $eventargs['context'] = $this->properties->context;
+            $eventargs['context'] = $this->get_context();
             $event = \core\event\calendar_event_created::create($eventargs);
             $event->trigger();
 
@@ -681,7 +695,7 @@ class calendar_event {
 
         // Trigger an event for the delete action.
         $eventargs = array(
-            'context' => $this->properties->context,
+            'context' => $this->get_context(),
             'objectid' => $this->properties->id,
             'other' => array(
                 'repeatid' => empty($this->properties->repeatid) ? 0 : $this->properties->repeatid,
@@ -715,7 +729,7 @@ class calendar_event {
 
         // If the editor context hasn't already been set then set it now.
         if ($this->editorcontext === null) {
-            $this->editorcontext = $this->properties->context;
+            $this->editorcontext = $this->get_context();
         }
 
         // If the context has been set delete all associated files.
@@ -774,10 +788,10 @@ class calendar_event {
 
                 if ($properties->eventtype === 'site') {
                     // Site context.
-                    $this->editorcontext = $this->properties->context;
+                    $this->editorcontext = $this->get_context();
                 } else if ($properties->eventtype === 'user') {
                     // User context.
-                    $this->editorcontext = $this->properties->context;
+                    $this->editorcontext = $this->get_context();
                 } else if ($properties->eventtype === 'group' || $properties->eventtype === 'course') {
                     // First check the course is valid.
                     $course = $DB->get_record('course', array('id' => $properties->courseid));
@@ -785,7 +799,7 @@ class calendar_event {
                         print_error('invalidcourse');
                     }
                     // Course context.
-                    $this->editorcontext = $this->properties->context;
+                    $this->editorcontext = $this->get_context();
                     // We have a course and are within the course context so we had
                     // better use the courses max bytes value.
                     $this->editoroptions['maxbytes'] = $course->maxbytes;
@@ -793,7 +807,7 @@ class calendar_event {
                     // First check the course is valid.
                     \coursecat::get($properties->categoryid, MUST_EXIST, true);
                     // Course context.
-                    $this->editorcontext = $this->properties->context;
+                    $this->editorcontext = $this->get_context();
                     // We have a course and are within the course context so we had
                     // better use the courses max bytes value.
                     $this->editoroptions['maxbytes'] = $course->maxbytes;
@@ -869,7 +883,7 @@ class calendar_event {
 
         // Prepare event data.
         $eventargs = array(
-            'context' => $this->properties->context,
+            'context' => $this->get_context(),
             'objectid' => $this->properties->id,
             'other' => array(
                 'repeatid' => empty($this->properties->repeatid) ? 0 : $this->properties->repeatid,
@@ -939,7 +953,7 @@ class calendar_event {
 
         if ($this->editorcontext === null) {
             // Switch on the event type to decide upon the appropriate context to use for this event.
-            $this->editorcontext = $this->properties->context;
+            $this->editorcontext = $this->get_context();
 
             if (!calendar_is_valid_eventtype($this->properties->eventtype)) {
                 // We don't have a context here, do a normal format_text.
@@ -1056,7 +1070,7 @@ class calendar_information {
             }
 
             $courses = [$course->id => $course];
-            $category = (\coursecat::get($course->category))->get_db_record();
+            $category = (\coursecat::get($course->category, MUST_EXIST, true))->get_db_record();
         } else if (!empty($categoryid)) {
             $course = get_site();
             $courses = calendar_get_default_courses();
@@ -1147,7 +1161,7 @@ class calendar_information {
             // A specific course was requested.
             // Fetch the category that this course is in, along with all parents.
             // Do not include child categories of this category, as the user many not have enrolments in those siblings or children.
-            $category = \coursecat::get($course->category);
+            $category = \coursecat::get($course->category, MUST_EXIST, true);
             $this->categoryid = $category->id;
 
             $this->categories = $category->get_parents();
@@ -1803,6 +1817,13 @@ function calendar_time_representation($time) {
     $timeformat = get_user_preferences('calendar_timeformat');
     if (empty($timeformat)) {
         $timeformat = get_config(null, 'calendar_site_timeformat');
+    }
+
+    // Allow language customization of selected time format.
+    if ($timeformat === CALENDAR_TF_12) {
+        $timeformat = get_string('strftimetime12', 'langconfig');
+    } else if ($timeformat === CALENDAR_TF_24) {
+        $timeformat = get_string('strftimetime24', 'langconfig');
     }
 
     return userdate($time, empty($timeformat) ? $langtimeformat : $timeformat);
@@ -2538,7 +2559,7 @@ function calendar_get_allowed_types(&$allowed, $course = null, $groups = null, $
 
     if (!empty($course)) {
         if (!is_object($course)) {
-            $course = $DB->get_record('course', array('id' => $course), '*', MUST_EXIST);
+            $course = $DB->get_record('course', array('id' => $course), 'id, groupmode, groupmodeforce', MUST_EXIST);
         }
         if ($course->id != SITEID) {
             $coursecontext = \context_course::instance($course->id);
@@ -2602,7 +2623,7 @@ function calendar_get_all_allowed_types() {
     // This function warms the context cache for the course so the calls
     // to load the course context in calendar_get_allowed_types don't result
     // in additional DB queries.
-    $courses = calendar_get_default_courses(null, '*', true);
+    $courses = calendar_get_default_courses(null, 'id, groupmode, groupmodeforce', true);
 
     // We want to pre-fetch all of the groups for each course in a single
     // query to avoid calendar_get_allowed_types from hitting the DB for
@@ -3347,9 +3368,10 @@ function calendar_get_legacy_events($tstart, $tend, $users, $groups, $courses,
  * @param   \calendar_information $calendar The calendar being represented
  * @param   string  $view The type of calendar to have displayed
  * @param   bool    $includenavigation Whether to include navigation
+ * @param   bool    $skipevents Whether to load the events or not
  * @return  array[array, string]
  */
-function calendar_get_view(\calendar_information $calendar, $view, $includenavigation = true) {
+function calendar_get_view(\calendar_information $calendar, $view, $includenavigation = true, bool $skipevents = false) {
     global $PAGE, $CFG;
 
     $renderer = $PAGE->get_renderer('core_calendar');
@@ -3422,36 +3444,40 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
         return $param;
     }, [$calendar->users, $calendar->groups, $calendar->courses, $calendar->categories]);
 
-    $events = \core_calendar\local\api::get_events(
-        $tstart,
-        $tend,
-        null,
-        null,
-        null,
-        null,
-        $eventlimit,
-        null,
-        $userparam,
-        $groupparam,
-        $courseparam,
-        $categoryparam,
-        true,
-        true,
-        function ($event) {
-            if ($proxy = $event->get_course_module()) {
-                $cminfo = $proxy->get_proxied_instance();
-                return $cminfo->uservisible;
+    if ($skipevents) {
+        $events = [];
+    } else {
+        $events = \core_calendar\local\api::get_events(
+            $tstart,
+            $tend,
+            null,
+            null,
+            null,
+            null,
+            $eventlimit,
+            null,
+            $userparam,
+            $groupparam,
+            $courseparam,
+            $categoryparam,
+            true,
+            true,
+            function ($event) {
+                if ($proxy = $event->get_course_module()) {
+                    $cminfo = $proxy->get_proxied_instance();
+                    return $cminfo->uservisible;
+                }
+
+                if ($proxy = $event->get_category()) {
+                    $category = $proxy->get_proxied_instance();
+
+                    return $category->is_uservisible();
+                }
+
+                return true;
             }
-
-            if ($proxy = $event->get_category()) {
-                $category = $proxy->get_proxied_instance();
-
-                return $category->is_uservisible();
-            }
-
-            return true;
-        }
-    );
+        );
+    }
 
     $related = [
         'events' => $events,
@@ -3463,6 +3489,8 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
     if ($view == "month" || $view == "mini" || $view == "minithree") {
         $month = new \core_calendar\external\month_exporter($calendar, $type, $related);
         $month->set_includenavigation($includenavigation);
+        $month->set_initialeventsloaded(!$skipevents);
+        $month->set_showcoursefilter($view == "month");
         $data = $month->export($renderer);
     } else if ($view == "day") {
         $day = new \core_calendar\external\calendar_day_exporter($calendar, $related);

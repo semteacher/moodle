@@ -2903,71 +2903,35 @@ EOD;
     }
 
     /**
-     * Output a notification at a particular level - in this case, NOTIFY_PROBLEM.
-     *
-     * @param string $message the message to print out
-     * @return string HTML fragment.
      * @deprecated since Moodle 3.1 MDL-30811 - please do not use this function any more.
-     * @todo MDL-53113 This will be removed in Moodle 3.5.
-     * @see \core\output\notification
      */
-    public function notify_problem($message) {
-        debugging(__FUNCTION__ . ' is deprecated.' .
-            'Please use \core\notification::add, or \core\output\notification as required',
-            DEBUG_DEVELOPER);
-        $n = new \core\output\notification($message, \core\output\notification::NOTIFY_ERROR);
-        return $this->render($n);
+    public function notify_problem() {
+        throw new coding_exception('core_renderer::notify_problem() can not be used any more, '.
+            'please use \core\notification::add(), or \core\output\notification as required.');
     }
 
     /**
-     * Output a notification at a particular level - in this case, NOTIFY_SUCCESS.
-     *
-     * @param string $message the message to print out
-     * @return string HTML fragment.
      * @deprecated since Moodle 3.1 MDL-30811 - please do not use this function any more.
-     * @todo MDL-53113 This will be removed in Moodle 3.5.
-     * @see \core\output\notification
      */
-    public function notify_success($message) {
-        debugging(__FUNCTION__ . ' is deprecated.' .
-            'Please use \core\notification::add, or \core\output\notification as required',
-            DEBUG_DEVELOPER);
-        $n = new \core\output\notification($message, \core\output\notification::NOTIFY_SUCCESS);
-        return $this->render($n);
+    public function notify_success() {
+        throw new coding_exception('core_renderer::notify_success() can not be used any more, '.
+            'please use \core\notification::add(), or \core\output\notification as required.');
     }
 
     /**
-     * Output a notification at a particular level - in this case, NOTIFY_MESSAGE.
-     *
-     * @param string $message the message to print out
-     * @return string HTML fragment.
      * @deprecated since Moodle 3.1 MDL-30811 - please do not use this function any more.
-     * @todo MDL-53113 This will be removed in Moodle 3.5.
-     * @see \core\output\notification
      */
-    public function notify_message($message) {
-        debugging(__FUNCTION__ . ' is deprecated.' .
-            'Please use \core\notification::add, or \core\output\notification as required',
-            DEBUG_DEVELOPER);
-        $n = new \core\output\notification($message, \core\output\notification::NOTIFY_INFO);
-        return $this->render($n);
+    public function notify_message() {
+        throw new coding_exception('core_renderer::notify_message() can not be used any more, '.
+            'please use \core\notification::add(), or \core\output\notification as required.');
     }
 
     /**
-     * Output a notification at a particular level - in this case, NOTIFY_REDIRECT.
-     *
-     * @param string $message the message to print out
-     * @return string HTML fragment.
      * @deprecated since Moodle 3.1 MDL-30811 - please do not use this function any more.
-     * @todo MDL-53113 This will be removed in Moodle 3.5.
-     * @see \core\output\notification
      */
-    public function notify_redirect($message) {
-        debugging(__FUNCTION__ . ' is deprecated.' .
-            'Please use \core\notification::add, or \core\output\notification as required',
-            DEBUG_DEVELOPER);
-        $n = new \core\output\notification($message, \core\output\notification::NOTIFY_INFO);
-        return $this->render($n);
+    public function notify_redirect() {
+        throw new coding_exception('core_renderer::notify_redirect() can not be used any more, '.
+            'please use \core\notification::add(), or \core\output\notification as required.');
     }
 
     /**
@@ -3272,6 +3236,10 @@ EOD;
 
         $contents = html_writer::tag('label', get_string('enteryoursearchquery', 'search'),
             array('for' => 'id_q_' . $id, 'class' => 'accesshide')) . html_writer::tag('input', '', $inputattrs);
+        if ($this->page->context && $this->page->context->contextlevel !== CONTEXT_SYSTEM) {
+            $contents .= html_writer::empty_tag('input', ['type' => 'hidden',
+                    'name' => 'context', 'value' => $this->page->context->id]);
+        }
         $searchinput = html_writer::tag('form', $contents, $formattrs);
 
         return html_writer::tag('div', $searchicon . $searchinput, array('class' => 'search-input-wrapper nav-link', 'id' => $id));
