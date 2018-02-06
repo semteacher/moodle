@@ -691,7 +691,7 @@ M.course_dndupload = {
                 // Remember this selection for next time
                 self.lastselected[extension] = module;
                 // Do the Vimeo upload
-                self.upload_vimeo(file, section, sectionnumber, module);
+                self.upload_vimeo_init(file, section, sectionnumber, module);
             },
             section: Y.WidgetStdMod.FOOTER
         });
@@ -828,8 +828,34 @@ M.course_dndupload = {
         xhr.send(formData);
     },
 
+	upload_vimeo_init: function(file, section, sectionnumber, module) {
+		var xhr = new XMLHttpRequest();
+        var self = this;
+		
+		xhr.onreadystatechange = function() {
+			console.log(xhr.readyState);
+			console.log(xhr.status);
+			
+            if (xhr.readyState == 4) {
+				if (xhr.status >= 200 && xhr.status < 300) {
+                    var vimeo_ticket = JSON.parse(xhr.responseText);
+					console.log(vimeo_ticket);
+                    if (vimeo_ticket) {
+						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
+					}					
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+		};
+		
+		// Send the AJAX call to get Vimeo "put" upload ticket
+        xhr.open("POST", "https://api.vimeo.com/me/videos", true);
+		xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+		xhr.send("type=streaming");
+	},
 	
-	upload_vimeo: function(file, section, sectionnumber, module) {
+	upload_vimeo_process: function(file, section, sectionnumber, module, vticket) {
 
         // This would be an ideal place to use the Y.io function
         // however, this does not support data encoded using the
@@ -839,11 +865,6 @@ M.course_dndupload = {
         // http://yuilibrary.com/projects/yui3/ticket/2531274
         var xhr = new XMLHttpRequest();
         var self = this;
-
-        if (file.size > this.maxbytes) {
-            new M.core.alert({message: M.util.get_string('namedfiletoolarge', 'moodle', {filename: file.name})});
-            return;
-        }
 
         // Add the file to the display
         var resel = this.add_resource_element(file.name, section, module);
@@ -863,8 +884,7 @@ M.course_dndupload = {
 			console.log(xhr.readyState);
 			console.log(xhr.status);
 			console.log(xhr.responseTex);
-			console.log(xhr.responseXML);
-			console.log(xhr.getAllResponseHeaders());
+			//console.log(xhr.getAllResponseHeaders());
             if (xhr.readyState == 4) {
                 //if (xhr.status == 200) {
 				if (xhr.status >= 200) {	
@@ -908,10 +928,13 @@ M.course_dndupload = {
         formData.append('module', module);
         formData.append('type', 'Files');
 
-        // Send the AJAX call
-        xhr.open("POST", "https://api.vimeo.com/me/videos", true);
-		xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
-		xhr.send("type=streaming");
+        console.log(file);
+		console.log(file.size);
+		// Send the AJAX call
+        xhr.open("PUT", vticket.upload_link_secure, true);
+		xhr.setRequestHeader("Content-Length", file.size);
+		xhr.setRequestHeader("Content-Type", file.type);
+		xhr.send(file);
 		//console.log(xhr.status);
         //xhr.send(formData);
     },
