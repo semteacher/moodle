@@ -671,6 +671,30 @@ M.course_dndupload = {
             }
         });
 
+		// Add the vimeo buttons to the bottom of the dialog.
+        panel.addButton({
+            label: M.util.get_string('vimeo', 'moodle'),
+            action: function(e) {
+                e.preventDefault();
+                // Find out which module was selected
+                var module = false;
+                var div = Y.one('#dndupload_handlers'+uploadid);
+                div.all('input').each(function(input) {
+                    if (input.get('checked')) {
+                        module = input.get('value');
+                    }
+                });
+                if (!module) {
+                    return;
+                }
+                panel.hide();
+                // Remember this selection for next time
+                self.lastselected[extension] = module;
+                // Do the Vimeo upload
+                self.upload_vimeo(file, section, sectionnumber, module);
+            },
+            section: Y.WidgetStdMod.FOOTER
+        });
         // Add the submit/cancel buttons to the bottom of the dialog.
         panel.addButton({
             label: M.util.get_string('upload', 'moodle'),
@@ -804,6 +828,93 @@ M.course_dndupload = {
         xhr.send(formData);
     },
 
+	
+	upload_vimeo: function(file, section, sectionnumber, module) {
+
+        // This would be an ideal place to use the Y.io function
+        // however, this does not support data encoded using the
+        // FormData object, which is needed to transfer data from
+        // the DataTransfer object into an XMLHTTPRequest
+        // This can be converted when the YUI issue has been integrated:
+        // http://yuilibrary.com/projects/yui3/ticket/2531274
+        var xhr = new XMLHttpRequest();
+        var self = this;
+
+        if (file.size > this.maxbytes) {
+            new M.core.alert({message: M.util.get_string('namedfiletoolarge', 'moodle', {filename: file.name})});
+            return;
+        }
+
+        // Add the file to the display
+        var resel = this.add_resource_element(file.name, section, module);
+
+        // Update the progress bar as the file is uploaded
+        xhr.upload.addEventListener('progress', function(e) {
+			console.log(xhr.status);
+            if (e.lengthComputable) {
+                var percentage = Math.round((e.loaded * 100) / e.total);
+                resel.progress.style.width = percentage + '%';
+            }
+        }, false);
+
+        // Wait for the AJAX call to complete, then update the
+        // dummy element with the returned details
+        xhr.onreadystatechange = function() {
+			console.log(xhr.readyState);
+			console.log(xhr.status);
+			console.log(xhr.responseTex);
+			console.log(xhr.responseXML);
+			console.log(xhr.getAllResponseHeaders());
+            if (xhr.readyState == 4) {
+                //if (xhr.status == 200) {
+				if (xhr.status >= 200) {	
+					
+					//console.log(JSON.parse(xhr.responseTex));
+					
+                    var result = JSON.parse(xhr.responseText);
+					console.log(result);
+                    if (result) {
+                        if (result.error == 0) {
+                            // All OK - replace the dummy element.
+                            resel.li.outerHTML = result.fullcontent;
+                            if (self.Y.UA.gecko > 0) {
+                                // Fix a Firefox bug which makes sites with a '~' in their wwwroot
+                                // log the user out when clicking on the link (before refreshing the page).
+                                resel.li.outerHTML = unescape(resel.li.outerHTML);
+                            }
+                            self.add_editing(result.elementid);
+                            // Fire the content updated event.
+                            require(['core/event', 'jquery'], function(event, $) {
+                                event.notifyFilterContentUpdated($(result.fullcontent));
+                            });
+                        } else {
+                            // Error - remove the dummy element
+                            resel.parent.removeChild(resel.li);
+                            new M.core.alert({message: result.error});
+                        }
+                    }
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+        };
+
+        // Prepare the data to send
+        var formData = new FormData();
+        formData.append('repo_upload_file', file);
+        formData.append('sesskey', M.cfg.sesskey);
+        formData.append('course', this.courseid);
+        formData.append('section', sectionnumber);
+        formData.append('module', module);
+        formData.append('type', 'Files');
+
+        // Send the AJAX call
+        xhr.open("POST", "https://api.vimeo.com/me/videos", true);
+		xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+		xhr.send("type=streaming");
+		//console.log(xhr.status);
+        //xhr.send(formData);
+    },
     /**
      * Show a dialog box to gather the name of the resource / activity to be created
      * from the uploaded content
