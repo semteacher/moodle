@@ -887,32 +887,53 @@ M.course_dndupload = {
 			//console.log(xhr.getAllResponseHeaders());
             if (xhr.readyState == 4) {
                 //if (xhr.status == 200) {
-				if (xhr.status >= 200) {	
+				if (xhr.status >= 200) {
 					
 					//console.log(JSON.parse(xhr.responseTex));
 					
-                    var result = JSON.parse(xhr.responseText);
-					console.log(result);
-                    if (result) {
-                        if (result.error == 0) {
-                            // All OK - replace the dummy element.
-                            resel.li.outerHTML = result.fullcontent;
-                            if (self.Y.UA.gecko > 0) {
-                                // Fix a Firefox bug which makes sites with a '~' in their wwwroot
-                                // log the user out when clicking on the link (before refreshing the page).
-                                resel.li.outerHTML = unescape(resel.li.outerHTML);
-                            }
-                            self.add_editing(result.elementid);
-                            // Fire the content updated event.
-                            require(['core/event', 'jquery'], function(event, $) {
-                                event.notifyFilterContentUpdated($(result.fullcontent));
-                            });
-                        } else {
-                            // Error - remove the dummy element
-                            resel.parent.removeChild(resel.li);
-                            new M.core.alert({message: result.error});
-                        }
-                    }
+					var xhr_del = new XMLHttpRequest();
+					
+					xhr_del.onreadystatechange = function() {
+						console.log(xhr_del.readyState);
+						console.log(xhr_del.status);
+						console.log(xhr_del.responseTex);
+						console.log(xhr_del.getAllResponseHeaders());
+						if (xhr.readyState == 4) {
+							if (xhr.status >= 200) {
+								
+								var result = JSON.parse(xhr.responseText);
+								console.log(result);
+								if (result) {
+									if (result.error == 0) {
+										// All OK - replace the dummy element.
+										resel.li.outerHTML = result.fullcontent;
+										if (self.Y.UA.gecko > 0) {
+											// Fix a Firefox bug which makes sites with a '~' in their wwwroot
+											// log the user out when clicking on the link (before refreshing the page).
+											resel.li.outerHTML = unescape(resel.li.outerHTML);
+										}
+										self.add_editing(result.elementid);
+										// Fire the content updated event.
+										require(['core/event', 'jquery'], function(event, $) {
+											event.notifyFilterContentUpdated($(result.fullcontent));
+										});
+									} else {
+										// Error - remove the dummy element
+										resel.parent.removeChild(resel.li);
+										new M.core.alert({message: result.error});
+									}	
+								}						
+							}
+						}
+					}
+					
+					// Send the AJAX call
+					xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
+					xhr_del.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+					//xhr.setRequestHeader("Content-Length", file.size);
+					//xhr.setRequestHeader("Content-Type", file.type);
+					xhr_del.send();
+		
                 } else {
                     new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
                 }
