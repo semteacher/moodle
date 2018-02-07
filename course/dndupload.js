@@ -57,7 +57,11 @@ M.course_dndupload = {
     // The selector identifying the list of modules within a section (note changing this may require
     // changes to the get_mods_element function)
     modslistselector: 'ul.section',
-
+	//F_START	
+	//Vimeo token
+	vimeotoken: null,
+	//F_END
+	
     /**
      * Initalise the drag and drop upload interface
      * Note: one and only one of options.filemanager and options.formcallback must be defined
@@ -79,6 +83,9 @@ M.course_dndupload = {
         this.maxbytes = options.maxbytes;
         this.courseid = options.courseid;
         this.handlers = options.handlers;
+		//F_START		
+		this.vimeotoken = options.vimeotoken;
+		//F_END
         this.uploadqueue = new Array();
         this.lastselected = new Array();
 
@@ -670,7 +677,8 @@ M.course_dndupload = {
                 self.check_upload_queue();
             }
         });
-
+		
+		//F_START
 		// Add the vimeo buttons to the bottom of the dialog.
         panel.addButton({
             label: M.util.get_string('vimeo', 'moodle'),
@@ -695,6 +703,8 @@ M.course_dndupload = {
             },
             section: Y.WidgetStdMod.FOOTER
         });
+		//F_END
+
         // Add the submit/cancel buttons to the bottom of the dialog.
         panel.addButton({
             label: M.util.get_string('upload', 'moodle'),
@@ -828,6 +838,7 @@ M.course_dndupload = {
         xhr.send(formData);
     },
 
+	//F_START
 	upload_vimeo_init: function(file, section, sectionnumber, module) {
 		var xhr = new XMLHttpRequest();
         var self = this;
@@ -849,9 +860,11 @@ M.course_dndupload = {
             }
 		};
 		
+		console.log(this.vimeotoken);
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
-		xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+		//xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+		xhr.setRequestHeader("Authorization", "Bearer "+this.vimeotoken);
 		xhr.send("type=streaming");
 	},
 	
@@ -959,6 +972,8 @@ M.course_dndupload = {
 		//console.log(xhr.status);
         //xhr.send(formData);
     },
+	//F_END
+	
     /**
      * Show a dialog box to gather the name of the resource / activity to be created
      * from the uploaded content

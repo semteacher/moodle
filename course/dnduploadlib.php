@@ -73,7 +73,10 @@ function dndupload_add_to_course($course, $modnames) {
         array('courseid' => $course->id,
               'maxbytes' => get_max_upload_file_size($CFG->maxbytes, $course->maxbytes),
               'handlers' => $handler->get_js_data(),
-              'showstatus' => $showstatus)
+              'showstatus' => $showstatus,
+			  //F_START
+			  'vimeotoken' => $CFG->fvimeo_vimeouploadtoken)
+			  //F_END
     );
 
     $PAGE->requires->js_init_call('M.course_dndupload.init', $vars, true, $jsmodule);
