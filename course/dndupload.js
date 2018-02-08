@@ -852,6 +852,7 @@ M.course_dndupload = {
                     var vimeo_ticket = JSON.parse(xhr.responseText);
 					console.log(vimeo_ticket);
                     if (vimeo_ticket) {
+						console.log(self.vimeotoken);
 						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
 					}					
                 } else {
@@ -911,10 +912,10 @@ M.course_dndupload = {
 						console.log(xhr_del.status);
 						console.log(xhr_del.responseTex);
 						console.log(xhr_del.getAllResponseHeaders());
-						if (xhr.readyState == 4) {
-							if (xhr.status >= 200) {
+						if (xhr_del.readyState == 4) {
+							if (xhr_del.status >= 200) {
 								
-								var result = JSON.parse(xhr.responseText);
+								var result = JSON.parse(xhr_del.responseText);
 								console.log(result);
 								if (result) {
 									if (result.error == 0) {
@@ -940,9 +941,12 @@ M.course_dndupload = {
 						}
 					}
 					
+					console.log(self.vimeotoken);
+					//console.log(this.parent);
 					// Send the AJAX call
 					xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
-					xhr_del.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+					//xhr_del.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
+					xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
 					//xhr.setRequestHeader("Content-Length", file.size);
 					//xhr.setRequestHeader("Content-Type", file.type);
 					xhr_del.send();
@@ -954,13 +958,13 @@ M.course_dndupload = {
         };
 
         // Prepare the data to send
-        var formData = new FormData();
-        formData.append('repo_upload_file', file);
-        formData.append('sesskey', M.cfg.sesskey);
-        formData.append('course', this.courseid);
-        formData.append('section', sectionnumber);
-        formData.append('module', module);
-        formData.append('type', 'Files');
+        //var formData = new FormData();
+        //formData.append('repo_upload_file', file);
+        //formData.append('sesskey', M.cfg.sesskey);
+        //formData.append('course', this.courseid);
+        //formData.append('section', sectionnumber);
+        //formData.append('module', module);
+        //formData.append('type', 'Files');
 
         console.log(file);
 		console.log(file.size);
