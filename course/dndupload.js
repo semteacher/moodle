@@ -850,7 +850,6 @@ M.course_dndupload = {
 		};
 		
 		console.log(this.vimeotoken);
-		console.log(M.cfg.vimeotoken);
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
 		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
@@ -874,13 +873,9 @@ M.course_dndupload = {
             }
         }, false);
 
-        // Wait for the AJAX call to complete, then update the
-        // dummy element with the returned details
+        // Wait for the AJAX call to complete, then call 
+        // Vimeo finalization request
         xhr.onreadystatechange = function() {
-			console.log(xhr.readyState);
-			console.log(xhr.status);
-			console.log(xhr.responseTex);
-			//console.log(xhr.getAllResponseHeaders());
             if (xhr.readyState == 4) {
                 //if (xhr.status == 200) {
 				if (xhr.status >= 200 && xhr.status < 300) {
@@ -891,7 +886,7 @@ M.course_dndupload = {
             }
         };
 
-		// Send the AJAX call
+		// Send the AJAX call to process "pull" upload
         xhr.open("PUT", vticket.upload_link_secure, true);
 		xhr.setRequestHeader("Content-Length", file.size);
 		xhr.setRequestHeader("Content-Type", file.type);
@@ -907,7 +902,6 @@ M.course_dndupload = {
 		xhr_del.onreadystatechange = function() {
 			console.log(xhr_del.readyState);
 			console.log(xhr_del.status);
-			//console.log(xhr_del.getAllResponseHeaders());
 			if (xhr_del.readyState == 4) {
 				if (xhr_del.status >= 200 && xhr_del.status < 300) {
 								
@@ -918,19 +912,16 @@ M.course_dndupload = {
 						var contents = 'https://vimeo.com/'+vimeolocation;
 						console.log(contents);
 						//TODO: patch filename!
-						//TODO: send moodle request there
-						//upload_item: function(name, type, contents, section, sectionnumber, module)
+						//send moodle request to create URL resource
 						self.upload_vimeo_moodleurl(file.name, module, contents, section, sectionnumber, module, resel);
-	
 					}						
 				} else {
                     new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
                 }
 			}
 		}
-					
-		console.log(self.vimeotoken);
-		// Send the AJAX call
+
+		// Send the AJAX call to finalize of the upload
 		xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
 		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
 		xhr_del.send();		
@@ -938,17 +929,8 @@ M.course_dndupload = {
 	
     upload_vimeo_moodleurl: function(name, type, contents, section, sectionnumber, module, resel) {
 
-        // This would be an ideal place to use the Y.io function
-        // however, this does not support data encoded using the
-        // FormData object, which is needed to transfer data from
-        // the DataTransfer object into an XMLHTTPRequest
-        // This can be converted when the YUI issue has been integrated:
-        // http://yuilibrary.com/projects/yui3/ticket/2531274
         var xhr = new XMLHttpRequest();
         var self = this;
-
-        // Add the item to the display
-        //var resel = this.add_resource_element(name, section, module);
 
         // Wait for the AJAX call to complete, then update the
         // dummy element with the returned details
@@ -979,7 +961,7 @@ M.course_dndupload = {
             }
         };
 
-        // Prepare the data to send
+        // Prepare the data to send moodle request to create URL resource with Vimeo link
         var formData = new FormData();
         formData.append('contents', contents);
         formData.append('displayname', name);
