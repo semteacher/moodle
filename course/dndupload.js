@@ -654,6 +654,17 @@ M.course_dndupload = {
             content += handlers[i].message;
             content += '</label><br/>';
         }
+		//F_START
+		var str = file.type;
+		if (str.search("video")>=0) {
+			id = 'dndupload_handler'+uploadid+'url';
+			checked = 'checked="checked" ';
+			content += '<input type="radio" name="handler" value=vimeo id="'+id+'" '+checked+'/>';
+            content += ' <label for="'+id+'">';
+            content += 'Upload to Vimeo, insert as URL Resource';
+            content += '</label><br/>';
+		}
+		//F_END
         content += '</div>';
 
         var Y = this.Y;
@@ -677,33 +688,6 @@ M.course_dndupload = {
                 self.check_upload_queue();
             }
         });
-		
-		//F_START
-		// Add the vimeo buttons to the bottom of the dialog.
-        panel.addButton({
-            label: M.util.get_string('vimeo', 'moodle'),
-            action: function(e) {
-                e.preventDefault();
-                // Find out which module was selected
-                var module = false;
-                var div = Y.one('#dndupload_handlers'+uploadid);
-                div.all('input').each(function(input) {
-                    if (input.get('checked')) {
-                        module = input.get('value');
-                    }
-                });
-                if (!module) {
-                    return;
-                }
-                panel.hide();
-                // Remember this selection for next time
-                self.lastselected[extension] = module;
-                // Do the Vimeo upload
-                self.upload_vimeo_init(file, section, sectionnumber, module);
-            },
-            section: Y.WidgetStdMod.FOOTER
-        });
-		//F_END
 
         // Add the submit/cancel buttons to the bottom of the dialog.
         panel.addButton({
@@ -725,7 +709,14 @@ M.course_dndupload = {
                 // Remember this selection for next time
                 self.lastselected[extension] = module;
                 // Do the upload
-                self.upload_file(file, section, sectionnumber, module);
+				//F_START
+				if (module !='vimeo') {
+					self.upload_file(file, section, sectionnumber, module);
+				} else {
+					// Do the Vimeo upload - being inserted as URL in Moodle
+					self.upload_vimeo_init(file, section, sectionnumber, 'url');
+				}
+				//F_END
             },
             section: Y.WidgetStdMod.FOOTER
         });
