@@ -838,18 +838,20 @@ M.course_dndupload = {
             if (xhr.readyState == 4) {
 				if (xhr.status >= 200 && xhr.status < 300) {
                     var vimeo_ticket = JSON.parse(xhr.responseText);
-					console.log(vimeo_ticket);
+					//console.log(vimeo_ticket);
                     if (vimeo_ticket) {
-						console.log(self.vimeotoken);
+						//console.log(self.vimeotoken);
 						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
-					}					
+					} else {
+						new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+					}
                 } else {
                     new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
                 }
             }
 		};
 		
-		console.log(this.vimeotoken);
+		//console.log(this.vimeotoken);
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
 		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
@@ -900,23 +902,30 @@ M.course_dndupload = {
 		
 		// Wait for the AJAX call to complete
 		xhr_del.onreadystatechange = function() {
-			console.log(xhr_del.readyState);
-			console.log(xhr_del.status);
+			//console.log(xhr_del.readyState);
+			//console.log(xhr_del.status);
 			if (xhr_del.readyState == 4) {
 				if (xhr_del.status >= 200 && xhr_del.status < 300) {
 								
 					var vimeolocation = xhr_del.getResponseHeader("location");
-					vimeolocation = vimeolocation.substring(vimeolocation.lastIndexOf("/") + 1);
-					console.log(vimeolocation);
-					if (vimeolocation) {
-						var contents = 'https://vimeo.com/'+vimeolocation;
-						console.log(contents);
-						//TODO: patch filename!
-						//send moodle request to create URL resource
-						self.upload_vimeo_moodleurl(file.name, module, contents, section, sectionnumber, module, resel);
-					}						
+					var vimeovideoid = vimeolocation.substring(vimeolocation.lastIndexOf("/") + 1);
+					//console.log(vimeovideoid);
+					if (vimeovideoid) {
+						//var contents = 'https://vimeo.com/'+vimeovideoid;
+						//console.log(contents);
+						//patch filename!
+						self.upload_vimeo_patchfilename(file.name, section, sectionnumber, module, vimeovideoid, resel);
+						//send moodle request to create URL resource - OK
+						//self.upload_vimeo_moodleurl(file.name, module, contents, section, sectionnumber, module, resel);
+					} else {
+						// Error - remove the dummy element
+                        resel.parent.removeChild(resel.li);
+                        new M.core.alert({message: "No Vimeo videoID! Server respond: "+xhr_del.status});
+					}
 				} else {
-                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+					// Error - remove the dummy element
+					resel.parent.removeChild(resel.li);
+                    new M.core.alert({message: "Server respond: "+xhr_del.status});
                 }
 			}
 		}
@@ -927,7 +936,44 @@ M.course_dndupload = {
 		xhr_del.send();		
 	},
 	
-    upload_vimeo_moodleurl: function(name, type, contents, section, sectionnumber, module, resel) {
+	upload_vimeo_patchfilename: function(filename, section, sectionnumber, module, vimeovideoid, resel) {
+		
+		var xhr_del = new XMLHttpRequest();
+		var self = this;
+		
+		// Wait for the AJAX call to complete
+		xhr_del.onreadystatechange = function() {
+			//console.log(xhr_del.readyState);
+			//console.log(xhr_del.status);
+			if (xhr_del.readyState == 4) {
+				if (xhr_del.status == 200) {
+					var result = JSON.parse(xhr_del.responseText);
+					if (result.link) {
+						//var contents = 'https://vimeo.com/'+vimeovideoid;
+						//console.log(contents);
+						//console.log(result.link);
+						//send moodle request to create URL resource
+						self.upload_vimeo_moodleurl(filename, module, result.link, section, sectionnumber, module, resel);
+					} else {
+                        // Error - remove the dummy element
+                        resel.parent.removeChild(resel.li);
+                        new M.core.alert({message: "PATCH filename request: Vimeo link does not exist!"});
+                    }
+				} else {
+					// Error - remove the dummy element
+					resel.parent.removeChild(resel.li);
+                    new M.core.alert({message: "PATCH filename - server respond: "+xhr_del.status});
+                }
+			}
+		}
+
+		// Send the AJAX call to finalize of the upload
+		xhr_del.open("PATCH", "https://api.vimeo.com/videos/"+vimeovideoid, true);
+		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
+		xhr_del.send("name="+filename+"&privacy.view=anybody");		
+	},
+	
+    upload_vimeo_moodleurl: function(filename, type, vimeourl, section, sectionnumber, module, resel) {
 
         var xhr = new XMLHttpRequest();
         var self = this;
@@ -938,7 +984,7 @@ M.course_dndupload = {
             if (xhr.readyState == 4) {
                 if (xhr.status == 200) {
                     var result = JSON.parse(xhr.responseText);
-					console.log(result);
+					//console.log(result);
                     if (result) {
                         if (result.error == 0) {
                             // All OK - replace the dummy element.
@@ -954,6 +1000,10 @@ M.course_dndupload = {
                             resel.parent.removeChild(resel.li);
                             new M.core.alert({message: result.error});
                         }
+                    } else {
+                            // Error - remove the dummy element
+                            resel.parent.removeChild(resel.li);
+                            new M.core.alert({message: "Empty result of request to Moodle!"});
                     }
                 } else {
                     new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
@@ -963,8 +1013,8 @@ M.course_dndupload = {
 
         // Prepare the data to send moodle request to create URL resource with Vimeo link
         var formData = new FormData();
-        formData.append('contents', contents);
-        formData.append('displayname', name);
+        formData.append('contents', vimeourl);
+        formData.append('displayname', filename);
         formData.append('sesskey', M.cfg.sesskey);
         formData.append('course', this.courseid);
         formData.append('section', sectionnumber);
