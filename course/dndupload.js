@@ -844,9 +844,6 @@ M.course_dndupload = {
         var self = this;
 		
 		xhr.onreadystatechange = function() {
-			console.log(xhr.readyState);
-			console.log(xhr.status);
-			
             if (xhr.readyState == 4) {
 				if (xhr.status >= 200 && xhr.status < 300) {
                     var vimeo_ticket = JSON.parse(xhr.responseText);
@@ -862,21 +859,15 @@ M.course_dndupload = {
 		};
 		
 		console.log(this.vimeotoken);
+		console.log(M.cfg.vimeotoken);
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
-		//xhr.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
-		xhr.setRequestHeader("Authorization", "Bearer "+this.vimeotoken);
+		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
 		xhr.send("type=streaming");
 	},
 	
 	upload_vimeo_process: function(file, section, sectionnumber, module, vticket) {
 
-        // This would be an ideal place to use the Y.io function
-        // however, this does not support data encoded using the
-        // FormData object, which is needed to transfer data from
-        // the DataTransfer object into an XMLHTTPRequest
-        // This can be converted when the YUI issue has been integrated:
-        // http://yuilibrary.com/projects/yui3/ticket/2531274
         var xhr = new XMLHttpRequest();
         var self = this;
 
@@ -902,22 +893,37 @@ M.course_dndupload = {
             if (xhr.readyState == 4) {
                 //if (xhr.status == 200) {
 				if (xhr.status >= 200) {
-					
-					//console.log(JSON.parse(xhr.responseTex));
-					
-					var xhr_del = new XMLHttpRequest();
+					self.upload_vimeo_finalization(file, section, sectionnumber, module, vticket, resel);
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+        };
+
+		// Send the AJAX call
+        xhr.open("PUT", vticket.upload_link_secure, true);
+		xhr.setRequestHeader("Content-Length", file.size);
+		xhr.setRequestHeader("Content-Type", file.type);
+		xhr.send(file);
+    },
+	
+	upload_vimeo_finalization: function(file, section, sectionnumber, module, vticket, resel) {
+		
+		var xhr_del = new XMLHttpRequest();
+		var self = this;
 					
 					xhr_del.onreadystatechange = function() {
 						console.log(xhr_del.readyState);
 						console.log(xhr_del.status);
-						console.log(xhr_del.responseTex);
+						//console.log(xhr_del.responseTex);
 						console.log(xhr_del.getAllResponseHeaders());
 						if (xhr_del.readyState == 4) {
 							if (xhr_del.status >= 200) {
 								
-								var result = JSON.parse(xhr_del.responseText);
-								console.log(result);
-								if (result) {
+								var vimeolocation = xhr_del.getResponseHeader("location");
+								console.log(vimeolocation);
+								if (vimeolocation) {
+									//TODO: send moodle request there
 									if (result.error == 0) {
 										// All OK - replace the dummy element.
 										resel.li.outerHTML = result.fullcontent;
@@ -942,40 +948,11 @@ M.course_dndupload = {
 					}
 					
 					console.log(self.vimeotoken);
-					//console.log(this.parent);
 					// Send the AJAX call
 					xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
-					//xhr_del.setRequestHeader("Authorization", "Bearer 690c3c19ccce8d7b51fab08f725e754a");
 					xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
-					//xhr.setRequestHeader("Content-Length", file.size);
-					//xhr.setRequestHeader("Content-Type", file.type);
-					xhr_del.send();
-		
-                } else {
-                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
-                }
-            }
-        };
-
-        // Prepare the data to send
-        //var formData = new FormData();
-        //formData.append('repo_upload_file', file);
-        //formData.append('sesskey', M.cfg.sesskey);
-        //formData.append('course', this.courseid);
-        //formData.append('section', sectionnumber);
-        //formData.append('module', module);
-        //formData.append('type', 'Files');
-
-        console.log(file);
-		console.log(file.size);
-		// Send the AJAX call
-        xhr.open("PUT", vticket.upload_link_secure, true);
-		xhr.setRequestHeader("Content-Length", file.size);
-		xhr.setRequestHeader("Content-Type", file.type);
-		xhr.send(file);
-		//console.log(xhr.status);
-        //xhr.send(formData);
-    },
+					xhr_del.send();		
+	},
 	//F_END
 	
     /**
