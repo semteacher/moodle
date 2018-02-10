@@ -883,7 +883,7 @@ M.course_dndupload = {
 			//console.log(xhr.getAllResponseHeaders());
             if (xhr.readyState == 4) {
                 //if (xhr.status == 200) {
-				if (xhr.status >= 200) {
+				if (xhr.status >= 200 && xhr.status < 300) {
 					self.upload_vimeo_finalization(file, section, sectionnumber, module, vticket, resel);
                 } else {
                     new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
@@ -902,48 +902,97 @@ M.course_dndupload = {
 		
 		var xhr_del = new XMLHttpRequest();
 		var self = this;
-					
-					xhr_del.onreadystatechange = function() {
-						console.log(xhr_del.readyState);
-						console.log(xhr_del.status);
-						//console.log(xhr_del.responseTex);
-						console.log(xhr_del.getAllResponseHeaders());
-						if (xhr_del.readyState == 4) {
-							if (xhr_del.status >= 200) {
+		
+		// Wait for the AJAX call to complete
+		xhr_del.onreadystatechange = function() {
+			console.log(xhr_del.readyState);
+			console.log(xhr_del.status);
+			//console.log(xhr_del.getAllResponseHeaders());
+			if (xhr_del.readyState == 4) {
+				if (xhr_del.status >= 200 && xhr_del.status < 300) {
 								
-								var vimeolocation = xhr_del.getResponseHeader("location");
-								console.log(vimeolocation);
-								if (vimeolocation) {
-									//TODO: send moodle request there
-									if (result.error == 0) {
-										// All OK - replace the dummy element.
-										resel.li.outerHTML = result.fullcontent;
-										if (self.Y.UA.gecko > 0) {
-											// Fix a Firefox bug which makes sites with a '~' in their wwwroot
-											// log the user out when clicking on the link (before refreshing the page).
-											resel.li.outerHTML = unescape(resel.li.outerHTML);
-										}
-										self.add_editing(result.elementid);
-										// Fire the content updated event.
-										require(['core/event', 'jquery'], function(event, $) {
-											event.notifyFilterContentUpdated($(result.fullcontent));
-										});
-									} else {
-										// Error - remove the dummy element
-										resel.parent.removeChild(resel.li);
-										new M.core.alert({message: result.error});
-									}	
-								}						
-							}
-						}
-					}
+					var vimeolocation = xhr_del.getResponseHeader("location");
+					vimeolocation = vimeolocation.substring(vimeolocation.lastIndexOf("/") + 1);
+					console.log(vimeolocation);
+					if (vimeolocation) {
+						var contents = 'https://vimeo.com/'+vimeolocation;
+						console.log(contents);
+						//TODO: patch filename!
+						//TODO: send moodle request there
+						//upload_item: function(name, type, contents, section, sectionnumber, module)
+						self.upload_vimeo_moodleurl(file.name, module, contents, section, sectionnumber, module, resel);
+	
+					}						
+				} else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+			}
+		}
 					
-					console.log(self.vimeotoken);
-					// Send the AJAX call
-					xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
-					xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
-					xhr_del.send();		
+		console.log(self.vimeotoken);
+		// Send the AJAX call
+		xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
+		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
+		xhr_del.send();		
 	},
+	
+    upload_vimeo_moodleurl: function(name, type, contents, section, sectionnumber, module, resel) {
+
+        // This would be an ideal place to use the Y.io function
+        // however, this does not support data encoded using the
+        // FormData object, which is needed to transfer data from
+        // the DataTransfer object into an XMLHTTPRequest
+        // This can be converted when the YUI issue has been integrated:
+        // http://yuilibrary.com/projects/yui3/ticket/2531274
+        var xhr = new XMLHttpRequest();
+        var self = this;
+
+        // Add the item to the display
+        //var resel = this.add_resource_element(name, section, module);
+
+        // Wait for the AJAX call to complete, then update the
+        // dummy element with the returned details
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState == 4) {
+                if (xhr.status == 200) {
+                    var result = JSON.parse(xhr.responseText);
+					console.log(result);
+                    if (result) {
+                        if (result.error == 0) {
+                            // All OK - replace the dummy element.
+                            resel.li.outerHTML = result.fullcontent;
+                            if (self.Y.UA.gecko > 0) {
+                                // Fix a Firefox bug which makes sites with a '~' in their wwwroot
+                                // log the user out when clicking on the link (before refreshing the page).
+                                resel.li.outerHTML = unescape(resel.li.outerHTML);
+                            }
+                            self.add_editing(result.elementid);
+                        } else {
+                            // Error - remove the dummy element
+                            resel.parent.removeChild(resel.li);
+                            new M.core.alert({message: result.error});
+                        }
+                    }
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+        };
+
+        // Prepare the data to send
+        var formData = new FormData();
+        formData.append('contents', contents);
+        formData.append('displayname', name);
+        formData.append('sesskey', M.cfg.sesskey);
+        formData.append('course', this.courseid);
+        formData.append('section', sectionnumber);
+        formData.append('type', type);
+        formData.append('module', module);
+
+        // Send the data
+        xhr.open("POST", this.url, true);
+        xhr.send(formData);
+    },	
 	//F_END
 	
     /**
