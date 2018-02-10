@@ -838,9 +838,7 @@ M.course_dndupload = {
             if (xhr.readyState == 4) {
 				if (xhr.status >= 200 && xhr.status < 300) {
                     var vimeo_ticket = JSON.parse(xhr.responseText);
-					//console.log(vimeo_ticket);
                     if (vimeo_ticket) {
-						//console.log(self.vimeotoken);
 						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
 					} else {
 						new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
@@ -850,8 +848,7 @@ M.course_dndupload = {
                 }
             }
 		};
-		
-		//console.log(this.vimeotoken);
+
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
 		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
@@ -902,21 +899,14 @@ M.course_dndupload = {
 		
 		// Wait for the AJAX call to complete
 		xhr_del.onreadystatechange = function() {
-			//console.log(xhr_del.readyState);
-			//console.log(xhr_del.status);
 			if (xhr_del.readyState == 4) {
 				if (xhr_del.status >= 200 && xhr_del.status < 300) {
 								
 					var vimeolocation = xhr_del.getResponseHeader("location");
 					var vimeovideoid = vimeolocation.substring(vimeolocation.lastIndexOf("/") + 1);
-					//console.log(vimeovideoid);
 					if (vimeovideoid) {
-						//var contents = 'https://vimeo.com/'+vimeovideoid;
-						//console.log(contents);
 						//patch filename!
 						self.upload_vimeo_patchfilename(file.name, section, sectionnumber, module, vimeovideoid, resel);
-						//send moodle request to create URL resource - OK
-						//self.upload_vimeo_moodleurl(file.name, module, contents, section, sectionnumber, module, resel);
 					} else {
 						// Error - remove the dummy element
                         resel.parent.removeChild(resel.li);
@@ -943,15 +933,10 @@ M.course_dndupload = {
 		
 		// Wait for the AJAX call to complete
 		xhr_del.onreadystatechange = function() {
-			//console.log(xhr_del.readyState);
-			//console.log(xhr_del.status);
 			if (xhr_del.readyState == 4) {
 				if (xhr_del.status == 200) {
 					var result = JSON.parse(xhr_del.responseText);
 					if (result.link) {
-						//var contents = 'https://vimeo.com/'+vimeovideoid;
-						//console.log(contents);
-						//console.log(result.link);
 						//send moodle request to create URL resource
 						self.upload_vimeo_moodleurl(filename, module, result.link, section, sectionnumber, module, resel);
 					} else {
@@ -984,7 +969,6 @@ M.course_dndupload = {
             if (xhr.readyState == 4) {
                 if (xhr.status == 200) {
                     var result = JSON.parse(xhr.responseText);
-					//console.log(result);
                     if (result) {
                         if (result.error == 0) {
                             // All OK - replace the dummy element.
