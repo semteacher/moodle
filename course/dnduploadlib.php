@@ -589,15 +589,7 @@ class dndupload_ajax_processor {
         if ($draftitemid) {
             $data->draftitemid = $draftitemid;
         } else if ($content) {
-			//F_START
-			if ($this->type == 'url'){			
-				$data->externalurl = $content;
-				$data->content = $content;
-				$data->intro = $content;
-			} else {
-				$data->content = $content;
-			}
-			//F_END
+            $data->content = $content;
         }
         $data->coursemodule = $this->cm->id;
         $data->displayname = $this->displayname;
