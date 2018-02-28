@@ -837,8 +837,11 @@ M.course_dndupload = {
 		xhr.onreadystatechange = function() {
             if (xhr.readyState == 4) {
 				if (xhr.status >= 200 && xhr.status < 300) {
+					console.log(xhr.responseText);
+					console.log(JSON.parse(xhr.responseText));
                     var vimeo_ticket = JSON.parse(xhr.responseText);
                     if (vimeo_ticket) {
+						//self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
 						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
 					} else {
 						new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
@@ -852,14 +855,17 @@ M.course_dndupload = {
 		// Send the AJAX call to get Vimeo "put" upload ticket
         xhr.open("POST", "https://api.vimeo.com/me/videos", true);
 		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
-		xhr.send("type=streaming");
+		xhr.setRequestHeader("Content-Type", "application/json");
+		jsonreq = JSON.stringify({upload : {approach : 'tus', size : file.size}});
+		console.log(jsonreq);
+		xhr.send(jsonreq);
 	},
 	
 	upload_vimeo_process: function(file, section, sectionnumber, module, vticket) {
 
         var xhr = new XMLHttpRequest();
         var self = this;
-
+console.log(file);
         // Add the file to the display
         var resel = this.add_resource_element(file.name, section, module);
 
@@ -886,9 +892,12 @@ M.course_dndupload = {
         };
 
 		// Send the AJAX call to process "pull" upload
-        xhr.open("PUT", vticket.upload_link_secure, true);
-		xhr.setRequestHeader("Content-Length", file.size);
-		xhr.setRequestHeader("Content-Type", file.type);
+		console.log(vticket.upload.upload_link);
+        xhr.open("PATCH", vticket.upload.upload_link, true);
+		//xhr.setRequestHeader("Expect", "");
+		xhr.setRequestHeader("Content-Type", "application/offset+octet-stream");
+		xhr.setRequestHeader("Tus-Resumable", "1.0.0");
+		xhr.setRequestHeader("Upload-Offest", 0);
 		xhr.send(file);
     },
 	
