@@ -1366,19 +1366,22 @@ class core_renderer extends renderer_base {
             return '';
         }
 
-		//TDMU - begin block
+//TDMU - begin block
 		$tdmu_icon_url = new moodle_url('/pix/tdmu_icon_small_22.png');
 		$ua_icon_url = new moodle_url('/pix/flag_ua.gif');
 		$en_icon_url = new moodle_url('/pix/flag_en.gif');
+		$ru_icon_url = new moodle_url('/pix/flag_ru.gif');
 		$ua_home = new moodle_url('/my/index.php?lang=uk');
 		$en_home = new moodle_url('/my/index.php?lang=en');
+		$ru_home = new moodle_url('/my/index.php?lang=ru');
 		$flags = '<div class="tdmu_lang_flags">
 		    <span align="center"><a href="http://www.tdmu.edu.ua"><img src="'.$tdmu_icon_url->out().'" alt="TDMU" border="0" height="22"></a></span>
-			
+
 			<span align="center"><a href="'.$ua_home->out().'"><img src="'.$ua_icon_url->out().'" alt="UA" border="0" height="22"></a></span>
 
-		    <span align="center" width="35"><a href="'.$en_home->out().'"><img src="'.$en_icon_url->out().'" alt="EN" border="0" height="22" width="32"></a></span>
+		    <span align="center"><a href="'.$ru_home->out().'"><img src="'.$ru_icon_url->out().'" alt="RU" border="0" height="22"></a></span>
 
+			<span align="center" width="35"><a href="'.$en_home->out().'"><img src="'.$en_icon_url->out().'" alt="EN" border="0" height="22" width="32"></a></span>
 		</div>';
 		//TDMU - end block
         $s = new single_select($this->page->url, 'lang', $langs, $currlang, null);
