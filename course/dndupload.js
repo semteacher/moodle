@@ -60,6 +60,8 @@ M.course_dndupload = {
 	//F_START	
 	//Vimeo token
 	vimeotoken: null,
+	//domain whielist for embeding
+	embedingwhitelist: null,
 	//F_END
 	
     /**
@@ -85,6 +87,7 @@ M.course_dndupload = {
         this.handlers = options.handlers;
 		//F_START		
 		this.vimeotoken = options.vimeotoken;
+		this.embedingwhitelist = options.embedingwhitelist;
 		//F_END
         this.uploadqueue = new Array();
         this.lastselected = new Array();
@@ -936,6 +939,7 @@ M.course_dndupload = {
 			if (xhr_del.readyState == 4) {
 				if (xhr_del.status == 200) {
 					var result = JSON.parse(xhr_del.responseText);
+					//console.log(result);
 					if (result.link) {
 						//send moodle request to create URL resource
 						self.upload_vimeo_moodleurl(filename, module, result.link, section, sectionnumber, module, resel);
@@ -955,7 +959,14 @@ M.course_dndupload = {
 		// Send the AJAX call to finalize of the upload
 		xhr_del.open("PATCH", "https://api.vimeo.com/videos/"+vimeovideoid, true);
 		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
-		xhr_del.send("name="+filename+"&privacy.view=anybody");		
+		if (this.embedingwhitelist) {
+			//console.log(document.location.host);
+			xhr_del.send("name="+filename+"&privacy.view=anybody&privacy.embed=private");
+			//TODO: provide current domain as whitelist by document.location.host
+			//xhr_del.send("name="+filename+"&privacy.view=anybody&privacy.embed=whitelist[document.location.host]?");
+		} else {
+			xhr_del.send("name="+filename+"&privacy.view=anybody");	
+		}
 	},
 	
     upload_vimeo_moodleurl: function(filename, type, vimeourl, section, sectionnumber, module, resel) {

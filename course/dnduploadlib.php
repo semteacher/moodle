@@ -75,7 +75,8 @@ function dndupload_add_to_course($course, $modnames) {
               'handlers' => $handler->get_js_data(),
               'showstatus' => $showstatus,
 			  //F_START
-			  'vimeotoken' => $CFG->fvimeo_vimeouploadtoken)
+			  'vimeotoken' => $CFG->fvimeo_vimeouploadtoken,
+			  'embedingwhitelist' => $CFG->fvimeo_embedingwhitelist)
 			  //F_END
     );
 
