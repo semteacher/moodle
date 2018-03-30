@@ -73,7 +73,11 @@ function dndupload_add_to_course($course, $modnames) {
         array('courseid' => $course->id,
               'maxbytes' => get_max_upload_file_size($CFG->maxbytes, $course->maxbytes),
               'handlers' => $handler->get_js_data(),
-              'showstatus' => $showstatus)
+              'showstatus' => $showstatus,
+			  //F_START
+			  'vimeotoken' => $CFG->fvimeo_vimeouploadtoken,
+			  'embedingwhitelist' => $CFG->fvimeo_embedingwhitelist)
+			  //F_END
     );
 
     $PAGE->requires->js_init_call('M.course_dndupload.init', $vars, true, $jsmodule);
@@ -519,7 +523,11 @@ class dndupload_ajax_processor {
      * @param string $content the content uploaded to the browser
      */
     protected function handle_other_upload($content) {
-        // Check this plugin is registered to handle this type of upload
+		//F_START
+		global $CFG;
+        //F_END
+		
+		// Check this plugin is registered to handle this type of upload
         if (!$this->dnduploadhandler->has_type_handler($this->module->name, $this->type)) {
             $info = (object)array('modname' => $this->module->name, 'type' => $this->type);
             throw new moodle_exception('moddoesnotsupporttype', 'moodle', $info);
@@ -534,6 +542,14 @@ class dndupload_ajax_processor {
         if ($instanceid === 'invalidfunction') {
             throw new coding_exception("{$this->module->name} does not support drag and drop upload (missing {$this->module->name}_dndupload_handle function");
         }
+
+		//F_START
+		$vimeourlpos = strpos($content, 'https://vimeo.com');
+		if ($vimeourlpos === 0) {
+			$videoid = preg_replace('/\D/', '', $content);
+			$album_res = \local_fvimeo\task\vimeo_arrangement::add_video2album($CFG->fvimeo_vimeouploadtoken, $this->course->id, '/videos/'.$videoid);
+		}
+		//F_END
 
         // Finish setting up the course module.
         $this->finish_setup_course_module($instanceid);
@@ -630,7 +646,11 @@ class dndupload_ajax_processor {
             throw new moodle_exception('errorcreatingactivity', 'moodle', '', $this->module->name);
         }
         $mod = $info->get_cm($this->cm->id);
-
+//F_START DEBUG!
+//file_put_contents ('vimeo_content1.log', $mod->name);
+//file_put_contents ('vimeo_content2.log', $mod->modname);
+//file_put_contents ('vimeo_content3.log', $mod->id);
+//F_END
         // Trigger course module created event.
         $event = \core\event\course_module_created::create_from_cm($mod);
         $event->trigger();
