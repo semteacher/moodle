@@ -57,7 +57,13 @@ M.course_dndupload = {
     // The selector identifying the list of modules within a section (note changing this may require
     // changes to the get_mods_element function)
     modslistselector: 'ul.section',
-
+	//F_START	
+	//Vimeo token
+	vimeotoken: null,
+	//domain whielist for embeding
+	embedingwhitelist: null,
+	//F_END
+	
     /**
      * Initalise the drag and drop upload interface
      * Note: one and only one of options.filemanager and options.formcallback must be defined
@@ -79,6 +85,10 @@ M.course_dndupload = {
         this.maxbytes = options.maxbytes;
         this.courseid = options.courseid;
         this.handlers = options.handlers;
+		//F_START		
+		this.vimeotoken = options.vimeotoken;
+		this.embedingwhitelist = options.embedingwhitelist;
+		//F_END
         this.uploadqueue = new Array();
         this.lastselected = new Array();
 
@@ -647,6 +657,17 @@ M.course_dndupload = {
             content += handlers[i].message;
             content += '</label><br/>';
         }
+		//F_START
+		var str = file.type;
+		if (str.search("video")>=0) {
+			id = 'dndupload_handler'+uploadid+'url';
+			checked = 'checked="checked" ';
+			content += '<input type="radio" name="handler" value=vimeo id="'+id+'" '+checked+'/>';
+            content += ' <label for="'+id+'">';
+            content += 'Upload to Vimeo, insert as URL Resource';
+            content += '</label><br/>';
+		}
+		//F_END
         content += '</div>';
 
         var Y = this.Y;
@@ -691,7 +712,14 @@ M.course_dndupload = {
                 // Remember this selection for next time
                 self.lastselected[extension] = module;
                 // Do the upload
-                self.upload_file(file, section, sectionnumber, module);
+				//F_START
+				if (module !='vimeo') {
+					self.upload_file(file, section, sectionnumber, module);
+				} else {
+					// Do the Vimeo upload - being inserted as URL in Moodle
+					self.upload_vimeo_init(file, section, sectionnumber, 'url');
+				}
+				//F_END
             },
             section: Y.WidgetStdMod.FOOTER
         });
@@ -830,6 +858,196 @@ M.course_dndupload = {
         }
     },
 
+	//F_START
+	upload_vimeo_init: function(file, section, sectionnumber, module) {
+		var xhr = new XMLHttpRequest();
+        var self = this;
+		
+		xhr.onreadystatechange = function() {
+            if (xhr.readyState == 4) {
+				if (xhr.status >= 200 && xhr.status < 300) {
+                    var vimeo_ticket = JSON.parse(xhr.responseText);
+                    if (vimeo_ticket) {
+						self.upload_vimeo_process(file, section, sectionnumber, module, vimeo_ticket);
+					} else {
+						new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+					}
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+		};
+
+		// Send the AJAX call to get Vimeo "put" upload ticket
+        xhr.open("POST", "https://api.vimeo.com/me/videos", true);
+		xhr.setRequestHeader("Authorization", "bearer "+this.vimeotoken);
+		xhr.send("type=streaming");
+	},
+	
+	upload_vimeo_process: function(file, section, sectionnumber, module, vticket) {
+
+        var xhr = new XMLHttpRequest();
+        var self = this;
+
+        // Add the file to the display
+        var resel = this.add_resource_element(file.name, section, module);
+
+        // Update the progress bar as the file is uploaded
+        xhr.upload.addEventListener('progress', function(e) {
+			console.log(xhr.status);
+            if (e.lengthComputable) {
+                var percentage = Math.round((e.loaded * 100) / e.total);
+                resel.progress.style.width = percentage + '%';
+            }
+        }, false);
+
+        // Wait for the AJAX call to complete, then call 
+        // Vimeo finalization request
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState == 4) {
+                //if (xhr.status == 200) {
+				if (xhr.status >= 200 && xhr.status < 300) {
+					self.upload_vimeo_finalization(file, section, sectionnumber, module, vticket, resel);
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+        };
+
+		// Send the AJAX call to process "pull" upload
+        xhr.open("PUT", vticket.upload_link_secure, true);
+		xhr.setRequestHeader("Content-Length", file.size);
+		xhr.setRequestHeader("Content-Type", file.type);
+		xhr.send(file);
+    },
+	
+	upload_vimeo_finalization: function(file, section, sectionnumber, module, vticket, resel) {
+		
+		var xhr_del = new XMLHttpRequest();
+		var self = this;
+		
+		// Wait for the AJAX call to complete
+		xhr_del.onreadystatechange = function() {
+			if (xhr_del.readyState == 4) {
+				if (xhr_del.status >= 200 && xhr_del.status < 300) {
+								
+					var vimeolocation = xhr_del.getResponseHeader("location");
+					var vimeovideoid = vimeolocation.substring(vimeolocation.lastIndexOf("/") + 1);
+					if (vimeovideoid) {
+						//patch filename!
+						self.upload_vimeo_patchfilename(file.name, section, sectionnumber, module, vimeovideoid, resel);
+					} else {
+						// Error - remove the dummy element
+                        resel.parent.removeChild(resel.li);
+                        new M.core.alert({message: "No Vimeo videoID! Server respond: "+xhr_del.status});
+					}
+				} else {
+					// Error - remove the dummy element
+					resel.parent.removeChild(resel.li);
+                    new M.core.alert({message: "Server respond: "+xhr_del.status});
+                }
+			}
+		}
+
+		// Send the AJAX call to finalize of the upload
+		xhr_del.open("DELETE", "https://api.vimeo.com"+vticket.complete_uri, true);
+		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
+		xhr_del.send();		
+	},
+	
+	upload_vimeo_patchfilename: function(filename, section, sectionnumber, module, vimeovideoid, resel) {
+		
+		var xhr_del = new XMLHttpRequest();
+		var self = this;
+		
+		// Wait for the AJAX call to complete
+		xhr_del.onreadystatechange = function() {
+			if (xhr_del.readyState == 4) {
+				if (xhr_del.status == 200) {
+					var result = JSON.parse(xhr_del.responseText);
+					//console.log(result);
+					if (result.link) {
+						//send moodle request to create URL resource
+						self.upload_vimeo_moodleurl(filename, module, result.link, section, sectionnumber, module, resel);
+					} else {
+                        // Error - remove the dummy element
+                        resel.parent.removeChild(resel.li);
+                        new M.core.alert({message: "PATCH filename request: Vimeo link does not exist!"});
+                    }
+				} else {
+					// Error - remove the dummy element
+					resel.parent.removeChild(resel.li);
+                    new M.core.alert({message: "PATCH filename - server respond: "+xhr_del.status});
+                }
+			}
+		}
+
+		// Send the AJAX call to finalize of the upload
+		xhr_del.open("PATCH", "https://api.vimeo.com/videos/"+vimeovideoid, true);
+		xhr_del.setRequestHeader("Authorization", "bearer "+self.vimeotoken);
+		if (this.embedingwhitelist) {
+			//console.log(document.location.host);
+			xhr_del.send("name="+filename+"&privacy.view=anybody&privacy.embed=private");
+			//TODO: provide current domain as whitelist by document.location.host
+			//xhr_del.send("name="+filename+"&privacy.view=anybody&privacy.embed=whitelist[document.location.host]?");
+		} else {
+			xhr_del.send("name="+filename+"&privacy.view=anybody");	
+		}
+	},
+	
+    upload_vimeo_moodleurl: function(filename, type, vimeourl, section, sectionnumber, module, resel) {
+
+        var xhr = new XMLHttpRequest();
+        var self = this;
+
+        // Wait for the AJAX call to complete, then update the
+        // dummy element with the returned details
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState == 4) {
+                if (xhr.status == 200) {
+                    var result = JSON.parse(xhr.responseText);
+                    if (result) {
+                        if (result.error == 0) {
+                            // All OK - replace the dummy element.
+                            resel.li.outerHTML = result.fullcontent;
+                            if (self.Y.UA.gecko > 0) {
+                                // Fix a Firefox bug which makes sites with a '~' in their wwwroot
+                                // log the user out when clicking on the link (before refreshing the page).
+                                resel.li.outerHTML = unescape(resel.li.outerHTML);
+                            }
+                            self.add_editing(result.elementid);
+                        } else {
+                            // Error - remove the dummy element
+                            resel.parent.removeChild(resel.li);
+                            new M.core.alert({message: result.error});
+                        }
+                    } else {
+                            // Error - remove the dummy element
+                            resel.parent.removeChild(resel.li);
+                            new M.core.alert({message: "Empty result of request to Moodle!"});
+                    }
+                } else {
+                    new M.core.alert({message: M.util.get_string('servererror', 'moodle')});
+                }
+            }
+        };
+
+        // Prepare the data to send moodle request to create URL resource with Vimeo link
+        var formData = new FormData();
+        formData.append('contents', vimeourl);
+        formData.append('displayname', filename);
+        formData.append('sesskey', M.cfg.sesskey);
+        formData.append('course', this.courseid);
+        formData.append('section', sectionnumber);
+        formData.append('type', type);
+        formData.append('module', module);
+
+        // Send the data
+        xhr.open("POST", this.url, true);
+        xhr.send(formData);
+    },	
+	//F_END
+	
     /**
      * Show a dialog box to gather the name of the resource / activity to be created
      * from the uploaded content
