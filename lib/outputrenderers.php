@@ -2816,7 +2816,7 @@ EOD;
             $message .= '<p class="errormessage">' . get_string('installproblem', 'error') . '</p>';
             //It is usually not possible to recover from errors triggered during installation, you may need to create a new database or use a different database prefix for new installation.
         }
-        $output .= $this->box($message, 'errorbox', null, array('data-rel' => 'fatalerror'));
+        $output .= $this->box($message, 'errorbox alert alert-danger', null, array('data-rel' => 'fatalerror'));
 
         if ($CFG->debugdeveloper) {
             if (!empty($debuginfo)) {
@@ -4468,6 +4468,30 @@ EOD;
         $context = $form->export_for_template($this);
 
         return $this->render_from_template('core/signup_form_layout', $context);
+    }
+
+    /**
+     * Render the verify age and location page into a nice template for the theme.
+     *
+     * @param \core_auth\output\verify_age_location_page $page The renderable
+     * @return string
+     */
+    protected function render_verify_age_location_page($page) {
+        $context = $page->export_for_template($this);
+
+        return $this->render_from_template('core/auth_verify_age_location_page', $context);
+    }
+
+    /**
+     * Render the digital minor contact information page into a nice template for the theme.
+     *
+     * @param \core_auth\output\digital_minor_page $page The renderable
+     * @return string
+     */
+    protected function render_digital_minor_page($page) {
+        $context = $page->export_for_template($this);
+
+        return $this->render_from_template('core/auth_digital_minor_page', $context);
     }
 
     /**

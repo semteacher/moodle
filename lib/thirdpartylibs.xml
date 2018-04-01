@@ -197,13 +197,6 @@
     <licenseversion>2.0</licenseversion>
   </library>
   <library>
-    <location>xmlize.php</location>
-    <name>XMLize</name>
-    <license>GPL</license>
-    <version>1.0</version>
-    <licenseversion>3.0+</licenseversion>
-  </library>
-  <library>
     <location>horde</location>
     <name>Horde</name>
     <license>LGPL/BSD</license>
@@ -257,7 +250,7 @@
     <location>scssphp</location>
     <name>scssphp</name>
     <license>MIT</license>
-    <version>0.6.7</version>
+    <version>0.7.5</version>
   </library>
   <library>
     <location>spout</location>
