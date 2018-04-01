@@ -15,22 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Event observers definition.
+ * Strings for component 'privacy', language 'en', branch 'master'
  *
- * @package message_popup
- * @category event
- * @copyright 2016 Ryan Wyllie <ryan@moodle.com>
- * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   core_privacy
+ * @copyright  2018 Andrew Nicols <andrew@nicols.co.uk>
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
-$observers = array(
-
-    // Message viewed.
-    array(
-        'eventname' => '\core\event\message_viewed',
-        'callback' => 'message_output_popup::message_viewed',
-        'includefile' => '/message/output/popup/message_output_popup.php'
-    )
-);
+$string['privacy:metadata'] = 'The privacy subsystem does not store any data of its own and is designed to act as a channel between components and the interface used to describe, export, and remove their data.';

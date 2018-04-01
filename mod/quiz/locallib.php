@@ -208,10 +208,12 @@ function quiz_start_new_attempt($quizobj, $quba, $attempt, $attemptnumber, $time
                 continue;
             }
 
+            $tagids = quiz_extract_random_question_tag_ids($questiondata->randomfromtags);
+
             // Deal with fixed random choices for testing.
             if (isset($questionids[$quba->next_slot_number()])) {
                 if ($randomloader->is_question_available($questiondata->category,
-                        (bool) $questiondata->questiontext, $questionids[$quba->next_slot_number()])) {
+                        (bool) $questiondata->questiontext, $questionids[$quba->next_slot_number()], $tagids)) {
                     $questions[$slot] = question_bank::load_question(
                             $questionids[$quba->next_slot_number()], $quizobj->get_quiz()->shuffleanswers);
                     continue;
@@ -221,8 +223,8 @@ function quiz_start_new_attempt($quizobj, $quba, $attempt, $attemptnumber, $time
             }
 
             // Normal case, pick one at random.
-            $questionid = $randomloader->get_next_question_id($questiondata->category,
-                        (bool) $questiondata->questiontext);
+            $questionid = $randomloader->get_next_question_id($questiondata->randomfromcategory,
+                    $questiondata->randomincludingsubcategories, $tagids);
             if ($questionid === null) {
                 throw new moodle_exception('notenoughrandomquestions', 'quiz',
                                            $quizobj->view_url(), $questiondata);
@@ -1344,12 +1346,12 @@ function quiz_question_edit_button($cmid, $question, $returnurl, $contentafteric
     // What sort of icon should we show?
     $action = '';
     if (!empty($question->id) &&
-            (question_has_capability_on($question, 'edit', $question->category) ||
-                    question_has_capability_on($question, 'move', $question->category))) {
+            (question_has_capability_on($question, 'edit') ||
+                    question_has_capability_on($question, 'move'))) {
         $action = $stredit;
         $icon = 't/edit';
     } else if (!empty($question->id) &&
-            question_has_capability_on($question, 'view', $question->category)) {
+            question_has_capability_on($question, 'view')) {
         $action = $strview;
         $icon = 'i/info';
     }
@@ -1401,7 +1403,7 @@ function quiz_question_preview_url($quiz, $question, $variant = null) {
  */
 function quiz_question_preview_button($quiz, $question, $label = false, $variant = null) {
     global $PAGE;
-    if (!question_has_capability_on($question, 'use', $question->category)) {
+    if (!question_has_capability_on($question, 'use')) {
         return '';
     }
 
@@ -2085,6 +2087,15 @@ function quiz_has_question_use($quiz, $slot) {
  */
 function quiz_add_quiz_question($questionid, $quiz, $page = 0, $maxmark = null) {
     global $DB;
+
+    // Make sue the question is not of the "random" type.
+    $questiontype = $DB->get_field('question', 'qtype', array('id' => $questionid));
+    if ($questiontype == 'random') {
+        throw new coding_exception(
+                'Adding "random" questions via quiz_add_quiz_question() is deprecated. Please use quiz_add_random_questions().'
+        );
+    }
+
     $slots = $DB->get_records('quiz_slots', array('quizid' => $quiz->id),
             'slot', 'questionid, slot, page, id');
     if (array_key_exists($questionid, $slots)) {
@@ -2172,14 +2183,15 @@ function quiz_update_section_firstslots($quizid, $direction, $afterslot, $before
 
 /**
  * Add a random question to the quiz at a given point.
- * @param object $quiz the quiz settings.
+ * @param stdClass $quiz the quiz settings.
  * @param int $addonpage the page on which to add the question.
  * @param int $categoryid the question category to add the question from.
  * @param int $number the number of random questions to add.
  * @param bool $includesubcategories whether to include questoins from subcategories.
+ * @param int[] $tagids Array of tagids. The question that will be picked randomly should be tagged with all these tags.
  */
 function quiz_add_random_questions($quiz, $addonpage, $categoryid, $number,
-        $includesubcategories) {
+        $includesubcategories, $tagids = []) {
     global $DB;
 
     $category = $DB->get_record('question_categories', array('id' => $categoryid));
@@ -2190,44 +2202,62 @@ function quiz_add_random_questions($quiz, $addonpage, $categoryid, $number,
     $catcontext = context::instance_by_id($category->contextid);
     require_capability('moodle/question:useall', $catcontext);
 
+    $tags = [];
+    $tagstrings = [];
+    foreach ($tagids as $tagid) {
+        if ($tag = core_tag_tag::get($tagid, 'id,name')) {
+            $tags[] = [
+                    'id' => $tagid,
+                    'name' => $tag->name
+            ];
+            $tagstrings[] = "{$tagid},{$tag->name}";
+        } else if (!empty($tagid)) {
+            print_error('invalidtagid', 'mod_quiz');
+        }
+    }
+
     // Find existing random questions in this category that are
     // not used by any quiz.
-    if ($existingquestions = $DB->get_records_sql(
-            "SELECT q.id, q.qtype FROM {question} q
-            WHERE qtype = 'random'
-                AND category = ?
-                AND " . $DB->sql_compare_text('questiontext') . " = ?
-                AND NOT EXISTS (
-                        SELECT *
-                          FROM {quiz_slots}
-                         WHERE questionid = q.id)
-            ORDER BY id", array($category->id, ($includesubcategories ? '1' : '0')))) {
-            // Take as many of these as needed.
-        while (($existingquestion = array_shift($existingquestions)) && $number > 0) {
-            quiz_add_quiz_question($existingquestion->id, $quiz, $addonpage);
-            $number -= 1;
-        }
-    }
+    $existingquestions = $DB->get_records_sql(
+        "SELECT q.id, q.qtype FROM {question} q
+        WHERE qtype = 'random'
+            AND category = ?
+            AND " . $DB->sql_compare_text('questiontext') . " = ?
+            AND NOT EXISTS (
+                    SELECT *
+                      FROM {quiz_slots}
+                     WHERE questionid = q.id)
+        ORDER BY id", array($category->id, $includesubcategories ? '1' : '0'));
 
-    if ($number <= 0) {
-        return;
-    }
-
-    // More random questions are needed, create them.
-    for ($i = 0; $i < $number; $i += 1) {
-        $form = new stdClass();
-        $form->questiontext = array('text' => ($includesubcategories ? '1' : '0'), 'format' => 0);
-        $form->category = $category->id . ',' . $category->contextid;
-        $form->defaultmark = 1;
-        $form->hidden = 1;
-        $form->stamp = make_unique_id_code(); // Set the unique code (not to be changed).
-        $question = new stdClass();
-        $question->qtype = 'random';
-        $question = question_bank::get_qtype('random')->save_question($question, $form);
-        if (!isset($question->id)) {
-            print_error('cannotinsertrandomquestion', 'quiz');
+    for ($i = 0; $i < $number; $i++) {
+        // Take as many of orphaned "random" questions as needed.
+        if (!$question = array_shift($existingquestions)) {
+            $form = new stdClass();
+            $form->category = $category->id . ',' . $category->contextid;
+            $form->includesubcategories = $includesubcategories;
+            $form->fromtags = $tagstrings;
+            $form->defaultmark = 1;
+            $form->hidden = 1;
+            $form->stamp = make_unique_id_code(); // Set the unique code (not to be changed).
+            $question = new stdClass();
+            $question->qtype = 'random';
+            $question = question_bank::get_qtype('random')->save_question($question, $form);
+            if (!isset($question->id)) {
+                print_error('cannotinsertrandomquestion', 'quiz');
+            }
         }
-        quiz_add_quiz_question($question->id, $quiz, $addonpage);
+
+        $randomslotdata = new stdClass();
+        $randomslotdata->quizid = $quiz->id;
+        $randomslotdata->questionid = $question->id;
+        $randomslotdata->questioncategoryid = $categoryid;
+        $randomslotdata->includingsubcategories = $includesubcategories ? 1 : 0;
+        $randomslotdata->tags = json_encode($tags);
+        $randomslotdata->maxmark = 1;
+
+        $randomslot = new \mod_quiz\local\structure\slot_random($randomslotdata);
+        $randomslot->set_quiz($quiz);
+        $randomslot->insert($addonpage);
     }
 }
 
@@ -2420,4 +2450,83 @@ function quiz_is_overriden_calendar_event(\calendar_event $event) {
     }
 
     return $DB->record_exists('quiz_overrides', $overrideparams);
+}
+
+/**
+ * Providing a list of tag records, this function validates each pair and builds a json string
+ * that can be stored in the quiz_slots.tags field.
+ *
+ * @param stdClass[] $tagrecords List of tag objects with id and name properties.
+ * @return string
+ */
+function quiz_build_random_question_tag_json($tagrecords) {
+    $tags = [];
+    foreach ($tagrecords as $tagrecord) {
+        if ($tagrecord->id && $tag = core_tag_tag::get($tagrecord->id, 'id, name')) {
+            $tags[] = [
+                'id' => (int)$tagrecord->id,
+                'name' => $tag->name
+            ];
+        } else if ($tag = core_tag_tag::get_by_name(0, $tagrecord->name, 'id, name')) {
+            $tags[] = [
+                'id' => (int)$tag->id,
+                'name' => $tagrecord->name
+            ];
+        } else {
+            $tags[] = [
+                'id' => null,
+                'name' => $tagrecord->name
+            ];
+        }
+    }
+    return json_encode($tags);
+}
+
+/**
+ * Providing tags data in the JSON format, this function returns tag records containing the id and name properties.
+ *
+ * @param string $tagsjson The JSON string representing an array of tags in the [{"id":tagid,"name":"tagname"}] format.
+ *      E.g. [{"id":1,"name":"tag1"},{"id":2,"name":"tag2"}]
+ *      Usually equal to the value of the tags field retrieved from the quiz_slots table.
+ * @param bool $matchbyid If set to true, then the function tries to find tags by their id.
+ *      If no tag is found by the tag id or if $matchbyid is set to false, then the function tries to find the tag by its name.
+ * @return array An array of tags containing the id and name properties, indexed by tag ids.
+ */
+function quiz_extract_random_question_tags($tagsjson, $matchbyid = true) {
+    $tagrecords = [];
+    if (!empty($tagsjson)) {
+        $tags = json_decode($tagsjson);
+
+        foreach ($tags as $tagdata) {
+            if ($matchbyid && $tag = core_tag_tag::get($tagdata->id, 'id, name')) {
+                $tagrecords[] = $tag->to_object();
+            } else if ($tag = core_tag_tag::get_by_name(0, $tagdata->name, 'id, name')) {
+                $tagrecords[] = $tag->to_object();
+            } else {
+                $tagrecords[] = (object)[
+                    'id' => null,
+                    'name' => $tagdata->name
+                ];
+            }
+        }
+    }
+
+    return $tagrecords;
+}
+
+/**
+ * Providing tags data in the JSON format, this function returns tagids.
+ *
+ * @param string $tagsjson The JSON string representing an array of tags in the [{"id":tagid,"name":"tagname"}] format.
+ *      E.g. [{"id":1,"name":"tag1"},{"id":2,"name":"tag2"}]
+ *      Usually equal to the value of the tags field retrieved from the {quiz_slots} table.
+ * @param bool $matchbyid If set to true, then this function relies on the tag ids that are stored in $tagsjson to find tags.
+ *      If no tag is found by the tag id or if $matchbyid is set to false, then this function tries to find the tag by its name.
+ * @return int[] List of tag ids.
+ */
+function quiz_extract_random_question_tag_ids($tagsjson, $matchbyid = true) {
+    $tags = quiz_extract_random_question_tags($tagsjson, $matchbyid);
+
+    // Only work with tags that exist.
+    return array_filter(array_column($tags, 'id'));
 }
