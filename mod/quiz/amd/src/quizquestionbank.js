@@ -23,55 +23,26 @@
  */
 define(
     [
-        'jquery',
-        'core/notification',
-        'core/custom_interaction_events',
-        'core/modal_factory',
+        'mod_quiz/add_question_modal_launcher',
         'mod_quiz/modal_quiz_question_bank'
     ],
     function(
-        $,
-        Notification,
-        CustomEvents,
-        ModalFactory,
+        AddQuestionModalLauncher,
         ModalQuizQuestionBank
     ) {
 
-    var SELECTORS = {
-        ADD_QUESTION_LINKS:   '.menu [data-action="questionbank"]',
-    };
-
     return {
+        /**
+         * Create the question bank modal.
+         *
+         * @param  {int} contextId Current context id.
+         */
         init: function(contextId) {
-            var body = $('body');
-
-            // Create a question bank modal using the factory.
-            // The same modal will be used by all of the add question
-            // links on the page. The content of the modal will be
-            // changed depending on which link is clicked.
-            ModalFactory.create(
-                {
-                    type: ModalQuizQuestionBank.TYPE,
-                    large: true
-                },
-                // Created a deligated listener rather than a single
-                // trigger element.
-                [body, SELECTORS.ADD_QUESTION_LINKS]
-            ).then(function(modal) {
-                // Save the Moodle context id that the modal is being rendered in.
-                modal.setContextId(contextId);
-
-                body.on(CustomEvents.events.activate, SELECTORS.ADD_QUESTION_LINKS, function(e) {
-                    // We need to listen for activations on the trigger elements because there are
-                    // several on the page and we need to know which one was activated in order to
-                    // set some relevant data on the modal.
-                    var triggerElement = $(e.target).closest(SELECTORS.ADD_QUESTION_LINKS);
-                    modal.setAddOnPageId(triggerElement.attr('data-addonpage'));
-                    modal.setTitle(triggerElement.attr('data-header'));
-                });
-
-                return modal;
-            }).fail(Notification.exception);
+            AddQuestionModalLauncher.init(
+                ModalQuizQuestionBank.TYPE,
+                '.menu [data-action="questionbank"]',
+                contextId
+            );
         }
     };
 });

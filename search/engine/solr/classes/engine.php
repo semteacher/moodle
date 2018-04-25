@@ -290,6 +290,9 @@ class engine extends \core_search\engine {
         if (!empty($data->groupids)) {
             $query->addFilterQuery('{!cache=false}groupid:(' . implode(' OR ', $data->groupids) . ')');
         }
+        if (!empty($data->userids)) {
+            $query->addFilterQuery('{!cache=false}userid:(' . implode(' OR ', $data->userids) . ')');
+        }
 
         if (!empty($data->timestart) or !empty($data->timeend)) {
             if (empty($data->timestart)) {
@@ -1137,6 +1140,12 @@ class engine extends \core_search\engine {
             return $configured;
         }
 
+        // As part of the above we have already checked that we can contact the server. For pages
+        // where performance is important, we skip doing a full schema check as well.
+        if ($this->should_skip_schema_check()) {
+            return true;
+        }
+
         // Update schema if required/possible.
         $schemalatest = $this->check_latest_schema();
         if ($schemalatest !== true) {
@@ -1392,5 +1401,14 @@ class engine extends \core_search\engine {
         }
 
         return $orders;
+    }
+
+    /**
+     * Solr supports search by user id.
+     *
+     * @return bool True
+     */
+    public function supports_users() {
+        return true;
     }
 }

@@ -136,7 +136,7 @@ class quiz {
     public function preload_questions() {
         $this->questions = question_preload_questions(null,
                 'slot.maxmark, slot.id AS slotid, slot.slot, slot.page,
-                 slot.questioncategoryid AS randomfromcategory, slot.tags AS randomfromtags,
+                 slot.questioncategoryid AS randomfromcategory,
                  slot.includingsubcategories AS randomincludingsubcategories',
                 '{quiz_slots} slot ON slot.quizid = :quizid AND q.id = slot.questionid',
                 array('quizid' => $this->quiz->id), 'slot.slot');
@@ -340,6 +340,7 @@ class quiz {
         if ($page) {
             $url .= '&page=' . $page;
         }
+        $url .= '&cmid=' . $this->get_cmid();
         return $url;
     }
 
@@ -359,7 +360,7 @@ class quiz {
      * @return string the URL of the review of that attempt.
      */
     public function review_url($attemptid) {
-        return new moodle_url('/mod/quiz/review.php', array('attempt' => $attemptid));
+        return new moodle_url('/mod/quiz/review.php', array('attempt' => $attemptid, 'cmid' => $this->get_cmid()));
     }
 
     /**
@@ -367,7 +368,7 @@ class quiz {
      * @return string the URL of the review of that attempt.
      */
     public function summary_url($attemptid) {
-        return new moodle_url('/mod/quiz/summary.php', array('attempt' => $attemptid));
+        return new moodle_url('/mod/quiz/summary.php', array('attempt' => $attemptid, 'cmid' => $this->get_cmid()));
     }
 
     // Bits of content =========================================================
@@ -568,7 +569,7 @@ class quiz_attempt {
         $this->quba = question_engine::load_questions_usage_by_activity($this->attempt->uniqueid);
         $this->slots = $DB->get_records('quiz_slots',
                 array('quizid' => $this->get_quizid()), 'slot',
-                'slot, requireprevious, questionid, includingsubcategories, tags');
+                'slot, requireprevious, questionid, includingsubcategories');
         $this->sections = array_values($DB->get_records('quiz_sections',
                 array('quizid' => $this->get_quizid()), 'firstslot'));
 
@@ -1400,7 +1401,7 @@ class quiz_attempt {
      * @return string the URL of this quiz's summary page.
      */
     public function summary_url() {
-        return new moodle_url('/mod/quiz/summary.php', array('attempt' => $this->attempt->id));
+        return new moodle_url('/mod/quiz/summary.php', array('attempt' => $this->attempt->id, 'cmid' => $this->get_cmid()));
     }
 
     /**
@@ -1873,7 +1874,7 @@ class quiz_attempt {
         if ($questiondata->qtype != 'random') {
             $newqusetionid = $questiondata->id;
         } else {
-            $tagids = quiz_extract_random_question_tag_ids($this->slots[$slot]->tags);
+            $tagids = quiz_retrieve_slot_tag_ids($this->slots[$slot]->id);
 
             $randomloader = new \core_question\bank\random_question_loader($qubaids, array());
             $newqusetionid = $randomloader->get_next_question_id($questiondata->category,
@@ -2104,7 +2105,7 @@ class quiz_attempt {
 
         } else {
             $url = new moodle_url('/mod/quiz/' . $script . '.php' . $fragment,
-                    array('attempt' => $this->attempt->id));
+                    array('attempt' => $this->attempt->id, 'cmid' => $this->get_cmid()));
             if ($page == 0 && $showall != $defaultshowall) {
                 $url->param('showall', (int) $showall);
             } else if ($page > 0) {
