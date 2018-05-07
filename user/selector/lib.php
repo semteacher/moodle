@@ -439,7 +439,26 @@ abstract class user_selector_base {
         // Prepend the table alias.
         if ($u) {
             foreach ($fields as &$field) {
-                $field = $u . '.' . $field;
+                //get data from custom user fields
+                if (strstr($field, "profile_field_")) {
+                    $sql = '(SELECT data FROM {user_info_field} xuif LEFT JOIN {user_info_data} xuid ON xuif.id=xuid.fieldid WHERE xuif.shortname=\''.substr($field, 14).'\' AND xuid.userid='.$u.'.id)';
+                    $field = $sql . ' AS ' . $field;
+                } else {                
+                    $field = $u . '.' . $field;
+                }
+            }
+        } else {
+            $renumber = false;
+            foreach ($fields as $key => $field) {
+                if (strstr($field, "profile_field_")) {
+                    unset($fields[$key]);
+                    $renumber = true;
+                }
+            }
+            if ($renumber) {
+                // For consistency, if entries are removed from array, renumber it
+                // so they are numbered as you would expect.
+                $fields = array_merge($fields);
             }
         }
         return implode(',', $fields);
@@ -456,6 +475,7 @@ abstract class user_selector_base {
      *      this uses ? style placeholders.
      */
     protected function search_sql($search, $u) {
+//var_dump($this->extrafields);        
         return users_search_sql($search, $u, $this->searchanywhere, $this->extrafields,
                 $this->exclude, $this->validatinguserids);
     }

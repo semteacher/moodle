@@ -274,10 +274,20 @@ class user_picture implements renderable {
                 if ($e === 'id' or isset($fields[$e])) {
                     continue;
                 }
-                if ($fieldprefix) {
-                    $fields[$e] = "$tableprefix$e AS $fieldprefix$e";
+                //get data from custom user fields
+                if (strstr($e, "profile_field_")) {
+                    $result = '(SELECT data FROM {user_info_field} xuif LEFT JOIN {user_info_data} xuid ON xuif.id=xuid.fieldid WHERE xuif.shortname=\''.substr($e, 14).'\' AND xuid.userid='.$tableprefix.'id)';
+                    if ($fieldprefix) {
+                        $fields[$e] = $result . ' AS ' . $fieldprefix . $e;
+                    } else {
+                        $fields[$e] = $result . ' AS ' . $e;
+                    }
                 } else {
-                    $fields[$e] = "$tableprefix$e";
+                    if ($fieldprefix) {
+                        $fields[$e] = "$tableprefix$e AS $fieldprefix$e";
+                    } else {
+                        $fields[$e] = "$tableprefix$e";
+                    }
                 }
             }
         }

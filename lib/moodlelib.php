@@ -3638,11 +3638,22 @@ function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = a
         $alias .= '.';
     }
     foreach ($fields as $field) {
-        $result .= ', ' . $alias . $field;
-        if ($prefix) {
-            $result .= ' AS ' . $prefix . $field;
+        if (strstr($field, "profile_field_")) {
+           $result .= ', (SELECT data FROM {user_info_field} xuif LEFT JOIN {user_info_data} xuid ON xuif.id=xuid.fieldid WHERE xuif.shortname=\''.substr($field, 14).'\' AND xuid.userid='.$alias.'id)';
+            if ($prefix) {
+                $result .= ' AS ' . $prefix . $field;
+            } else {
+                $result .= ' AS '.$field;
+            }
+            //var_dump($result);
+        } else {
+            $result .= ', ' . $alias . $field;
+            if ($prefix) {
+                $result .= ' AS ' . $prefix . $field;
+            }
         }
     }
+    //var_dump($result);die();
     return $result;
 }
 
@@ -3652,6 +3663,10 @@ function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = a
  * @return string Text description taken from language file, e.g. 'Phone number'
  */
 function get_user_field_name($field) {
+    //is it custom fied?
+    if (strstr($field, "profile_field_")) {
+        return get_custom_user_field_name($field);
+    }
     // Some fields have language strings which are not the same as field name.
     switch ($field) {
         case 'url' : {
@@ -3675,6 +3690,19 @@ function get_user_field_name($field) {
     }
     // Otherwise just use the same lang string.
     return get_string($field);
+}
+
+/**
+ * Returns the display name of a field in the custom user fields table.
+ * @param string $field Field name, e.g. 'phone1'
+ * @return string Text description taken from language file, e.g. 'Phone number'
+ */
+function get_custom_user_field_name($field) {
+    global $DB;
+    
+    //skip "profile_field_" field name prefix:
+    $res = $DB->get_record_sql('SELECT name FROM {user_info_field} xuif WHERE xuif.shortname=\''.substr($field, 14).'\'');
+    return $res->name;
 }
 
 /**

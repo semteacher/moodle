@@ -240,7 +240,8 @@ class course_enrolment_manager {
             $extrafields = get_extra_user_fields($this->get_context());
             $extrafields[] = 'lastaccess';
             $ufields = user_picture::fields('u', $extrafields);
-            $sql = "SELECT DISTINCT $ufields, COALESCE(ul.timeaccess, 0) AS lastcourseaccess
+            $sql = "SELECT DISTINCT $ufields ,
+            COALESCE(ul.timeaccess, 0) AS lastcourseaccess
                       FROM {user} u
                       JOIN {user_enrolments} ue ON (ue.userid = u.id  AND ue.enrolid $instancessql)
                       JOIN {enrol} e ON (e.id = ue.enrolid)
@@ -390,9 +391,17 @@ class course_enrolment_manager {
             }
             $i = 0;
             foreach ($conditions as $key => $condition) {
-                $conditions[$key] = $DB->sql_like($condition, ":con{$i}00", false);
-                $params["con{$i}00"] = $searchparam;
-                $i++;
+                //MERIDIAN-START
+                if (!strstr($condition, "profile_field_")) {
+                //MERIDIAN-END
+                    $conditions[$key] = $DB->sql_like($condition, ":con{$i}00", false);
+                    $params["con{$i}00"] = $searchparam;
+                    $i++;
+                //MERIDIAN-START
+                } else {
+                    unset($conditions[$key]);
+                }
+                //MERIDIAN-END
             }
             $tests[] = '(' . implode(' OR ', $conditions) . ')';
         }

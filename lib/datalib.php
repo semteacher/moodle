@@ -240,7 +240,10 @@ function users_search_sql($search, $u = 'u', $searchanywhere = true, array $extr
             $conditions[] = $u . 'lastname'
         );
         foreach ($extrafields as $field) {
-            $conditions[] = $u . $field;
+            //force exclude custom user fileds
+            if (!strstr($field, "profile_field_")) {
+                $conditions[] = $u . $field;
+            }
         }
         if ($searchanywhere) {
             $searchparam = '%' . $search . '%';
@@ -367,9 +370,12 @@ function users_order_by_sql($usertablealias = '', $search = null, context $conte
 
     $fieldstocheck = array_merge(array('firstname', 'lastname'), get_extra_user_fields($context));
     foreach ($fieldstocheck as $key => $field) {
-        $exactconditions[] = 'LOWER(' . $tableprefix . $field . ') = LOWER(:' . $paramkey . ')';
-        $params[$paramkey] = $search;
-        $paramkey++;
+        //force exclude custom user fileds
+        if (!strstr($field, "profile_field_")) {
+            $exactconditions[] = 'LOWER(' . $tableprefix . $field . ') = LOWER(:' . $paramkey . ')';
+            $params[$paramkey] = $search;
+            $paramkey++;
+        }
     }
 
     $sort = 'CASE WHEN ' . implode(' OR ', $exactconditions) .
@@ -476,14 +482,14 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
 
     $fullname  = $DB->sql_fullname();
 
-    $select = "deleted <> 1 AND id <> :guestid";
+    $select = "u.deleted <> 1 AND u.id <> :guestid";
     $params = array('guestid' => $CFG->siteguest);
 
     if (!empty($search)) {
         $search = trim($search);
         $select .= " AND (". $DB->sql_like($fullname, ':search1', false, false).
                    " OR ". $DB->sql_like('email', ':search2', false, false).
-                   " OR username = :search3)";
+                   " OR u.username = :search3)";
         $params['search1'] = "%$search%";
         $params['search2'] = "%$search%";
         $params['search3'] = "$search";
@@ -511,16 +517,16 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
     // is supposed to see.
     $extrafields = '';
     if ($extracontext) {
-        $extrafields = get_extra_user_fields_sql($extracontext, '', '',
-                array('id', 'username', 'email', 'firstname', 'lastname', 'city', 'country',
-                'lastaccess', 'confirmed', 'mnethostid'));
+        $extrafields = get_extra_user_fields_sql($extracontext, 'u', '',
+                array('u.id', 'u.username', 'u.email', 'u.firstname', 'u.lastname', 'u.city', 'u.country',
+                'u.lastaccess', 'u.confirmed', 'u.mnethostid'));
     }
     $namefields = get_all_user_name_fields(true);
     $extrafields = "$extrafields, $namefields";
 
     // warning: will return UNCONFIRMED USERS
-    return $DB->get_records_sql("SELECT id, username, email, city, country, lastaccess, confirmed, mnethostid, suspended $extrafields
-                                   FROM {user}
+    return $DB->get_records_sql("SELECT u.id, u.username, u.email, u.city, u.country, u.lastaccess, u.confirmed, u.mnethostid, u.suspended $extrafields
+                                   FROM {user} u
                                   WHERE $select
                                   $sort", $params, $page, $recordsperpage);
 

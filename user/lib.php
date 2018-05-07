@@ -268,7 +268,7 @@ function user_get_user_details($user, $course = null, array $userfields = array(
 
     foreach ($userfields as $thefield) {
         if (!in_array($thefield, $defaultfields)) {
-            throw new moodle_exception('invaliduserfield', 'error', '', $thefield);
+            //throw new moodle_exception('invaliduserfield', 'error', '', $thefield);
         }
     }
 
