@@ -3659,6 +3659,9 @@ body#page-lib-editor-tinymce-plugins-moodlemedia-preview {
 .moodle-dialogue-base .moodle-dialogue-lightbox {
   background-color: #aaa;
 }
+.pagelayout-popup .moodle-dialogue-base .moodle-dialogue-lightbox {
+  background-color: transparent;
+}
 .moodle-dialogue-base .hidden,
 .moodle-dialogue-base .moodle-dialogue-hidden {
   display: none;
@@ -15787,6 +15790,9 @@ li.activity.label,
 .choosercontainer #chooseform .option label {
   font-size: 12px;
 }
+.modal:focus {
+  outline: #5e9ed7 auto 5px;
+}
 /* block.invisible vs .invisible
  * block.hidden vs .invisible
  *
@@ -16643,7 +16649,8 @@ form {
 }
 .mform .fcheckbox > span,
 .mform .fradio > span,
-.mform .fgroup > span {
+.mform .fgroup > span,
+.mform .fadvcheckbox > span {
   display: inline-block;
   margin-top: 5px;
 }
@@ -18383,6 +18390,16 @@ div#dock {
   padding: 10px;
   height: 300px;
   overflow-y: scroll;
+}
+@media (max-width: 768px) {
+  .backup-restore .backup-section.settings-section .detail-pair {
+    width: 100%;
+  }
+}
+@media (max-width: 900px) {
+  .backup-restore .backup-section.settings-section .detail-pair-label {
+    width: 50%;
+  }
 }
 table.flexible,
 .generaltable {
