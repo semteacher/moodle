@@ -152,7 +152,7 @@ $doughnut-fill-colour: $brand-warning;
             /*rtl:ignore*/
             left: 50%;
             margin: 0;
-            transform: translate(-45%, -45%);
+            transform: translate(-63%, -50%);
             color: #fff;
             height: ($chart-size / 2) + 10px;
             width: ($chart-size / 2) + 10px;
@@ -211,14 +211,6 @@ $doughnut-fill-colour: $brand-warning;
         &.courseimage {
             background-position: center;
             background-size: cover;
-        }
-    }
-}
-
-@media (min-width: 1600px) {
-    .block_myoverview {
-        .courses-view-course-item {
-            height: 190px;
         }
     }
 }
