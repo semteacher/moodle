@@ -293,10 +293,7 @@ form.popupform div {
 
 // Accessibility: text 'seen' by screen readers but not visual users.
 .accesshide {
-    position: absolute;
-    left: -10000px;
-    font-weight: normal;
-    font-size: 1em;
+    @include sr-only();
 }
 
 span.hide,
@@ -1103,6 +1100,18 @@ body#page-lib-editor-tinymce-plugins-moodlemedia-preview {
     background-color: $gray;
 }
 
+// Prevent adding backdrops to popups in popups.
+.pagelayout-popup {
+    .moodle-dialogue-base {
+        .moodle-dialogue-lightbox {
+            background-color: transparent;
+        }
+        .moodle-dialogue {
+            box-shadow: $popover-box-shadow;
+        }
+    }
+}
+
 .moodle-dialogue-base .hidden,
 .moodle-dialogue-base .moodle-dialogue-hidden {
     display: none;
@@ -1240,9 +1249,6 @@ body#page-lib-editor-tinymce-plugins-moodlemedia-preview {
 
 .moodle-dialogue-confirm .confirmation-message {
     margin: 0.5rem 0;
-}
-.moodle-dialogue-confirm .confirmation-buttons {
-    text-align: right;
 }
 
 .moodle-dialogue-confirm .confirmation-dialogue input {
@@ -1755,16 +1761,9 @@ img#persona_signin {
     }
 }
 
-/** Header. */
-header {
-    .logo img {
-        max-height: 35px;
-    }
-    .collapse.in,
-    .collapsing {
-        display: block;
-        clear: both;
-    }
+/** Navbar logo. */
+nav.navbar .logo img {
+    max-height: 35px;
 }
 
 /** Header-bar styles **/
