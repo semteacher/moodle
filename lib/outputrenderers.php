@@ -81,10 +81,24 @@ class renderer_base {
         global $CFG;
 
         if ($this->mustache === null) {
+            require_once("{$CFG->libdir}/filelib.php");
+
             $themename = $this->page->theme->name;
             $themerev = theme_get_revision();
 
+            // Create new localcache directory.
             $cachedir = make_localcache_directory("mustache/$themerev/$themename");
+
+            // Remove old localcache directories.
+            $mustachecachedirs = glob("{$CFG->localcachedir}/mustache/*", GLOB_ONLYDIR);
+            foreach ($mustachecachedirs as $localcachedir) {
+                $cachedrev = [];
+                preg_match("/\/mustache\/([0-9]+)$/", $localcachedir, $cachedrev);
+                $cachedrev = isset($cachedrev[1]) ? intval($cachedrev[1]) : 0;
+                if ($cachedrev > 0 && $cachedrev < $themerev) {
+                    fulldelete($localcachedir);
+                }
+            }
 
             $loader = new \core\output\mustache_filesystem_loader();
             $stringhelper = new \core\output\mustache_string_helper();
@@ -781,7 +795,8 @@ class core_renderer extends renderer_base {
         $output .= $this->theme_switch_links();
 
         if (!empty($CFG->debugpageinfo)) {
-            $output .= '<div class="performanceinfo pageinfo">This page is: ' . $this->page->debug_summary() . '</div>';
+            $output .= '<div class="performanceinfo pageinfo">' . get_string('pageinfodebugsummary', 'core_admin',
+                $this->page->debug_summary()) . '</div>';
         }
         if (debugging(null, DEBUG_DEVELOPER) and has_capability('moodle/site:config', context_system::instance())) {  // Only in developer mode
             // Add link to profiling report if necessary
@@ -1523,6 +1538,35 @@ class core_renderer extends renderer_base {
     }
 
     /**
+     * Returns the HTML for a basic textarea field.
+     *
+     * @param string $name Name to use for the textarea element
+     * @param string $id The id to use fort he textarea element
+     * @param string $value Initial content to display in the textarea
+     * @param int $rows Number of rows to display
+     * @param int $cols Number of columns to display
+     * @return string the HTML to display
+     */
+    public function print_textarea($name, $id, $value, $rows, $cols) {
+        global $OUTPUT;
+
+        editors_head_setup();
+        $editor = editors_get_preferred_editor(FORMAT_HTML);
+        $editor->set_text($value);
+        $editor->use_editor($id, []);
+
+        $context = [
+            'id' => $id,
+            'name' => $name,
+            'value' => $value,
+            'rows' => $rows,
+            'cols' => $cols
+        ];
+
+        return $OUTPUT->render_from_template('core_form/editor_textarea', $context);
+    }
+
+    /**
      * Renders an action menu component.
      *
      * ARIA references:
@@ -1926,12 +1970,23 @@ class core_renderer extends renderer_base {
             throw new coding_exception('The cancel param to $OUTPUT->confirm() must be either a URL (string/moodle_url) or a single_button instance.');
         }
 
-        $output = $this->box_start('generalbox modal modal-dialog modal-in-page show', 'notice');
+        $attributes = [
+            'role'=>'alertdialog',
+            'aria-labelledby'=>'modal-header',
+            'aria-describedby'=>'modal-body',
+            'aria-modal'=>'true'
+        ];
+
+        $output = $this->box_start('generalbox modal modal-dialog modal-in-page show', 'notice', $attributes);
         $output .= $this->box_start('modal-content', 'modal-content');
         $output .= $this->box_start('modal-header p-x-1', 'modal-header');
         $output .= html_writer::tag('h4', get_string('confirm'));
         $output .= $this->box_end();
-        $output .= $this->box_start('modal-body', 'modal-body');
+        $attributes = [
+            'role'=>'alert',
+            'data-aria-autofocus'=>'true'
+        ];
+        $output .= $this->box_start('modal-body', 'modal-body', $attributes);
         $output .= html_writer::tag('p', $message);
         $output .= $this->box_end();
         $output .= $this->box_start('modal-footer', 'modal-footer');
@@ -2478,6 +2533,7 @@ class core_renderer extends renderer_base {
      *     - class = image class attribute (default 'userpicture')
      *     - visibletoscreenreaders=true (whether to be visible to screen readers)
      *     - includefullname=false (whether to include the user's full name together with the user picture)
+     *     - includetoken = false
      * @return string HTML fragment
      */
     public function user_picture(stdClass $user, array $options = null) {
@@ -2500,12 +2556,13 @@ class core_renderer extends renderer_base {
         global $CFG, $DB;
 
         $user = $userpicture->user;
+        $canviewfullnames = has_capability('moodle/site:viewfullnames', context_system::instance());
 
         if ($userpicture->alttext) {
             if (!empty($user->imagealt)) {
                 $alt = $user->imagealt;
             } else {
-                $alt = get_string('pictureof', '', fullname($user));
+                $alt = get_string('pictureof', '', fullname($user, $canviewfullnames));
             }
         } else {
             $alt = '';
@@ -2537,7 +2594,7 @@ class core_renderer extends renderer_base {
 
         // Show fullname together with the picture when desired.
         if ($userpicture->includefullname) {
-            $output .= fullname($userpicture->user);
+            $output .= fullname($userpicture->user, $canviewfullnames);
         }
 
         // then wrap it in link if needed
@@ -2684,29 +2741,12 @@ EOD;
     }
 
     /**
-     * Returns HTML to display the 'Update this Modulename' button that appears on module pages.
-     *
      * @deprecated since Moodle 3.2
-     *
-     * @param string $cmid the course_module id.
-     * @param string $modulename the module name, eg. "forum", "quiz" or "workshop"
-     * @return string the HTML for the button, if this user has permission to edit it, else an empty string.
      */
-    public function update_module_button($cmid, $modulename) {
-        global $CFG;
-
-        debugging('core_renderer::update_module_button() has been deprecated and should not be used anymore. Activity modules ' .
-            'should not add the edit module button, the link is already available in the Administration block. Themes can choose ' .
-            'to display the link in the buttons row consistently for all module types.', DEBUG_DEVELOPER);
-
-        if (has_capability('moodle/course:manageactivities', context_module::instance($cmid))) {
-            $modulename = get_string('modulename', $modulename);
-            $string = get_string('updatethis', '', $modulename);
-            $url = new moodle_url("$CFG->wwwroot/course/mod.php", array('update' => $cmid, 'return' => true, 'sesskey' => sesskey()));
-            return $this->single_button($url, $string);
-        } else {
-            return '';
-        }
+    public function update_module_button() {
+        throw new coding_exception('core_renderer::update_module_button() can not be used anymore. Activity ' .
+            'modules should not add the edit module button, the link is already available in the Administration block. ' .
+            'Themes can choose to display the link in the buttons row consistently for all module types.');
     }
 
     /**
@@ -2997,41 +3037,15 @@ EOD;
     }
 
     /**
-     * Internal implementation of paging bar rendering.
+     * Returns HTML to display the paging bar.
      *
      * @param paging_bar $pagingbar
-     * @return string
+     * @return string the HTML to output.
      */
     protected function render_paging_bar(paging_bar $pagingbar) {
-        $output = '';
-        $pagingbar = clone($pagingbar);
-        $pagingbar->prepare($this, $this->page, $this->target);
-
-        if ($pagingbar->totalcount > $pagingbar->perpage) {
-            $output .= get_string('page') . ':';
-
-            if (!empty($pagingbar->previouslink)) {
-                $output .= ' (' . $pagingbar->previouslink . ') ';
-            }
-
-            if (!empty($pagingbar->firstlink)) {
-                $output .= ' ' . $pagingbar->firstlink . ' ...';
-            }
-
-            foreach ($pagingbar->pagelinks as $link) {
-                $output .= "  $link";
-            }
-
-            if (!empty($pagingbar->lastlink)) {
-                $output .= ' ... ' . $pagingbar->lastlink . ' ';
-            }
-
-            if (!empty($pagingbar->nextlink)) {
-                $output .= '  (' . $pagingbar->nextlink . ')';
-            }
-        }
-
-        return html_writer::tag('div', $output, array('class' => 'paging'));
+        // Any more than 10 is not usable and causes weird wrapping of the pagination.
+        $pagingbar->maxdisplay = 10;
+        return $this->render_from_template('core/paging_bar', $pagingbar->export_for_template($this));
     }
 
     /**
@@ -3421,6 +3435,7 @@ EOD;
         $am->set_menu_trigger(
             $returnstr
         );
+        $am->set_action_label(get_string('usermenu'));
         $am->set_alignment(action_menu::TR, action_menu::BR);
         $am->set_nowrap_on_items();
         if ($withlinks) {
@@ -4157,7 +4172,7 @@ EOD;
     }
 
     public function context_header($headerinfo = null, $headinglevel = 1) {
-        global $DB, $USER, $CFG;
+        global $DB, $USER, $CFG, $COURSE;
         require_once($CFG->dirroot . '/user/lib.php');
         $context = $this->page->context;
         $heading = null;
@@ -4168,6 +4183,14 @@ EOD;
         if (isset($headerinfo['heading'])) {
             $heading = $headerinfo['heading'];
         }
+
+        // Show a course image if enabled.
+        if ($context->contextlevel == CONTEXT_COURSE && get_config('moodlecourse', 'showcourseimages')) {
+            $exporter = new core_course\external\course_summary_exporter($COURSE, ['context' => $context]);
+            $courseinfo = $exporter->export($this);
+            $imagedata = $this->render_from_template('core/course_header_image', $courseinfo);
+        }
+
         // The user context currently has images and buttons. Other contexts may follow.
         if (isset($headerinfo['user']) || $context->contextlevel == CONTEXT_USER) {
             if (isset($headerinfo['user'])) {
@@ -4198,7 +4221,7 @@ EOD;
 
                 // Check to see if we should be displaying a message button.
                 if (!empty($CFG->messaging) && $USER->id != $user->id && has_capability('moodle/site:sendmessage', $context)) {
-                    $iscontact = !empty(message_get_contact($user->id));
+                    $iscontact = \core_message\api::is_contact($USER->id, $user->id);
                     $contacttitle = $iscontact ? 'removefromyourcontacts' : 'addtoyourcontacts';
                     $contacturlaction = $iscontact ? 'removecontact' : 'addcontact';
                     $contactimage = $iscontact ? 'removecontact' : 'addcontact';
@@ -4260,6 +4283,11 @@ EOD;
       * @return string HTML for the header bar.
       */
     protected function render_context_header(context_header $contextheader) {
+
+        $showheader = empty($this->page->layout_options['nocontextheader']);
+        if (!$showheader) {
+            return '';
+        }
 
         // All the html stuff goes here.
         $html = html_writer::start_div('page-context-header');
@@ -4404,10 +4432,16 @@ EOD;
      * @return string
      */
     public function render_login(\core_auth\output\login $form) {
+        global $CFG;
+
         $context = $form->export_for_template($this);
 
         // Override because rendering is not supported in template yet.
-        $context->cookieshelpiconformatted = $this->help_icon('cookiesenabled');
+        if ($CFG->rememberusername == 0) {
+            $context->cookieshelpiconformatted = $this->help_icon('cookiesenabledonlysession');
+        } else {
+            $context->cookieshelpiconformatted = $this->help_icon('cookiesenabled');
+        }
         $context->errorformatted = $this->error_text($context->error);
 
         return $this->render_from_template('core/loginform', $context);
@@ -4742,133 +4776,6 @@ class core_renderer_ajax extends core_renderer {
 }
 
 
-/**
- * Renderer for media files.
- *
- * Used in file resources, media filter, and any other places that need to
- * output embedded media.
- *
- * @deprecated since Moodle 3.2
- * @copyright 2011 The Open University
- * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-class core_media_renderer extends plugin_renderer_base {
-    /** @var array Array of available 'player' objects */
-    private $players;
-    /** @var string Regex pattern for links which may contain embeddable content */
-    private $embeddablemarkers;
-
-    /**
-     * Constructor
-     *
-     * This is needed in the constructor (not later) so that you can use the
-     * constants and static functions that are defined in core_media class
-     * before you call renderer functions.
-     */
-    public function __construct() {
-        debugging('Class core_media_renderer is deprecated, please use core_media_manager::instance()', DEBUG_DEVELOPER);
-    }
-
-    /**
-     * Renders a media file (audio or video) using suitable embedded player.
-     *
-     * See embed_alternatives function for full description of parameters.
-     * This function calls through to that one.
-     *
-     * When using this function you can also specify width and height in the
-     * URL by including ?d=100x100 at the end. If specified in the URL, this
-     * will override the $width and $height parameters.
-     *
-     * @param moodle_url $url Full URL of media file
-     * @param string $name Optional user-readable name to display in download link
-     * @param int $width Width in pixels (optional)
-     * @param int $height Height in pixels (optional)
-     * @param array $options Array of key/value pairs
-     * @return string HTML content of embed
-     */
-    public function embed_url(moodle_url $url, $name = '', $width = 0, $height = 0,
-            $options = array()) {
-        return core_media_manager::instance()->embed_url($url, $name, $width, $height, $options);
-    }
-
-    /**
-     * Renders media files (audio or video) using suitable embedded player.
-     * The list of URLs should be alternative versions of the same content in
-     * multiple formats. If there is only one format it should have a single
-     * entry.
-     *
-     * If the media files are not in a supported format, this will give students
-     * a download link to each format. The download link uses the filename
-     * unless you supply the optional name parameter.
-     *
-     * Width and height are optional. If specified, these are suggested sizes
-     * and should be the exact values supplied by the user, if they come from
-     * user input. These will be treated as relating to the size of the video
-     * content, not including any player control bar.
-     *
-     * For audio files, height will be ignored. For video files, a few formats
-     * work if you specify only width, but in general if you specify width
-     * you must specify height as well.
-     *
-     * The $options array is passed through to the core_media_player classes
-     * that render the object tag. The keys can contain values from
-     * core_media::OPTION_xx.
-     *
-     * @param array $alternatives Array of moodle_url to media files
-     * @param string $name Optional user-readable name to display in download link
-     * @param int $width Width in pixels (optional)
-     * @param int $height Height in pixels (optional)
-     * @param array $options Array of key/value pairs
-     * @return string HTML content of embed
-     */
-    public function embed_alternatives($alternatives, $name = '', $width = 0, $height = 0,
-            $options = array()) {
-        return core_media_manager::instance()->embed_alternatives($alternatives, $name, $width, $height, $options);
-    }
-
-    /**
-     * Checks whether a file can be embedded. If this returns true you will get
-     * an embedded player; if this returns false, you will just get a download
-     * link.
-     *
-     * This is a wrapper for can_embed_urls.
-     *
-     * @param moodle_url $url URL of media file
-     * @param array $options Options (same as when embedding)
-     * @return bool True if file can be embedded
-     */
-    public function can_embed_url(moodle_url $url, $options = array()) {
-        return core_media_manager::instance()->can_embed_url($url, $options);
-    }
-
-    /**
-     * Checks whether a file can be embedded. If this returns true you will get
-     * an embedded player; if this returns false, you will just get a download
-     * link.
-     *
-     * @param array $urls URL of media file and any alternatives (moodle_url)
-     * @param array $options Options (same as when embedding)
-     * @return bool True if file can be embedded
-     */
-    public function can_embed_urls(array $urls, $options = array()) {
-        return core_media_manager::instance()->can_embed_urls($urls, $options);
-    }
-
-    /**
-     * Obtains a list of markers that can be used in a regular expression when
-     * searching for URLs that can be embedded by any player type.
-     *
-     * This string is used to improve peformance of regex matching by ensuring
-     * that the (presumably C) regex code can do a quick keyword check on the
-     * URL part of a link to see if it matches one of these, rather than having
-     * to go into PHP code for every single link to see if it can be embedded.
-     *
-     * @return string String suitable for use in regex such as '(\.mp4|\.flv)'
-     */
-    public function get_embeddable_markers() {
-        return core_media_manager::instance()->get_embeddable_markers();
-    }
-}
 
 /**
  * The maintenance renderer.

@@ -48,7 +48,6 @@ $returnurl = null;
 $editparam = null;
 if ($context->contextlevel == CONTEXT_SYSTEM or $context->contextlevel == CONTEXT_COURSECAT) {
     require_once $CFG->libdir.'/adminlib.php';
-    require_login();
 
     admin_externalpage_setup('letters');
 
@@ -141,7 +140,7 @@ if (!$edit) {
         if (!$admin and empty($data->override)) {
             $records = $DB->get_records('grade_letters', array('contextid' => $context->id));
             foreach ($records as $record) {
-                $DB->delete_record('grade_letters', array('id' => $record->id));
+                $DB->delete_records('grade_letters', array('id' => $record->id));
                 // Trigger the letter grade deleted event.
                 $event = \core\event\grade_letter_deleted::create(array(
                     'objectid' => $record->id,

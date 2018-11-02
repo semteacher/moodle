@@ -170,6 +170,8 @@ $string['getcontextfromfile'] = 'Get context from file';
 $string['changepublishstatuscat'] = '<a href="{$a->caturl}">Category "{$a->name}"</a> in course "{$a->coursename}" will have it\'s sharing status changed from <strong>{$a->changefrom} to {$a->changeto}</strong>.';
 $string['chooseqtypetoadd'] = 'Choose a question type to add';
 $string['editquestions'] = 'Edit questions';
+$string['idnumber'] = 'ID number';
+$string['idnumber_help'] = 'If used, the ID number must be unique within each question category. It provides another way of identifying a question which is sometimes useful, but can usually be left blank.';
 $string['ignorebroken'] = 'Ignore broken links';
 $string['impossiblechar'] = 'Impossible character {$a} detected as parenthesis character';
 $string['import'] = 'Import';
@@ -386,7 +388,7 @@ $string['penaltyforeachincorrecttry_help'] = 'When questions are run using the \
 
 The penalty is a proportion of the total question grade, so if the question is worth three marks, and the penalty is 0.3333333, then the student will score 3 if they get the question right first time, 2 if they get it right second try, and 1 of they get it right on the third try.';
 $string['previewquestion'] = 'Preview question: {$a}';
-$string['privacy:metadata:database:question'] = 'The details about an specific question.';
+$string['privacy:metadata:database:question'] = 'The details about a specific question.';
 $string['privacy:metadata:database:question:createdby'] = 'The person who created the question.';
 $string['privacy:metadata:database:question:generalfeedback'] = 'The general feedback for this question.';
 $string['privacy:metadata:database:question:modifiedby'] = 'The person who last updated the question.';

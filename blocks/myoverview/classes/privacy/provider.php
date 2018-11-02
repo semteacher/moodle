@@ -24,6 +24,9 @@
 
 namespace block_myoverview\privacy;
 
+use core_privacy\local\request\user_preference_provider;
+use core_privacy\local\metadata\collection;
+
 defined('MOODLE_INTERNAL') || die();
 
 /**
@@ -32,7 +35,7 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright  2018 Zig Tan <zig@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider implements \core_privacy\local\metadata\provider, \core_privacy\local\request\user_preference_provider {
+class provider implements \core_privacy\local\metadata\provider, user_preference_provider {
 
     /**
      * Returns meta-data information about the myoverview block.
@@ -40,22 +43,40 @@ class provider implements \core_privacy\local\metadata\provider, \core_privacy\l
      * @param  \core_privacy\local\metadata\collection $collection A collection of meta-data.
      * @return \core_privacy\local\metadata\collection Return the collection of meta-data.
      */
-    public static function get_metadata(\core_privacy\local\metadata\collection $collection) :
-            \core_privacy\local\metadata\collection {
-        $collection->add_user_preference('block_myoverview_last_tab', 'privacy:metadata:overviewlasttab');
+    public static function get_metadata(collection $collection) : collection {
+        $collection->add_user_preference('block_myoverview_user_sort_preference', 'privacy:metadata:overviewsortpreference');
+        $collection->add_user_preference('block_myoverview_user_view_preference', 'privacy:metadata:overviewviewpreference');
+        $collection->add_user_preference('block_myoverview_user_grouping_preference',
+            'privacy:metadata:overviewgroupingpreference');
         return $collection;
     }
-
     /**
      * Export all user preferences for the myoverview block
      *
      * @param int $userid The userid of the user whose data is to be exported.
      */
     public static function export_user_preferences(int $userid) {
-        $preference = get_user_preferences('block_myoverview_last_tab', null, $userid);
+        $preference = get_user_preferences('block_myoverview_user_sort_preference', null, $userid);
         if (isset($preference)) {
-            \core_privacy\local\request\writer::export_user_preference('block_myoverview', 'block_myoverview_last_tab',
-                    $preference, get_string('privacy:metadata:overviewlasttab', 'block_myoverview'));
+            \core_privacy\local\request\writer::export_user_preference('block_myoverview',
+                'block_myoverview_user_sort_preference', get_string($preference, 'block_myoverview'),
+                get_string('privacy:metadata:overviewsortpreference', 'block_myoverview'));
+        }
+
+        $preference = get_user_preferences('block_myoverview_user_view_preference', null, $userid);
+        if (isset($preference)) {
+            \core_privacy\local\request\writer::export_user_preference('block_myoverview',
+                'block_myoverview_user_view_preference',
+                get_string($preference, 'block_myoverview'),
+                get_string('privacy:metadata:overviewviewpreference', 'block_myoverview'));
+        }
+
+        $preference = get_user_preferences('block_myoverview_user_grouping_preference', null, $userid);
+        if (isset($preference)) {
+            \core_privacy\local\request\writer::export_user_preference('block_myoverview',
+                'block_myoverview_user_grouping_preference',
+                get_string($preference, 'block_myoverview'),
+                get_string('privacy:metadata:overviewgroupingpreference', 'block_myoverview'));
         }
     }
 }

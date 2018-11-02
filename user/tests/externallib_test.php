@@ -508,8 +508,14 @@ class core_user_externallib_testcase extends externallib_advanced_testcase {
                 ], [
                     'type' => 'invalidpreference',
                     'value' => 'abcd'
-                ]]
-            );
+                ]
+            ],
+            'department' => 'College of Science',
+            'institution' => 'National Institute of Physics',
+            'phone1' => '01 2345 6789',
+            'maildisplay' => 1,
+            'interests' => 'badminton, basketball, cooking,  '
+        );
 
         $context = context_system::instance();
         $roleid = $this->assignUserCapability('moodle/user:create', $context->id);
@@ -534,14 +540,101 @@ class core_user_externallib_testcase extends externallib_advanced_testcase {
             $this->assertEquals($dbuser->description, $user1['description']);
             $this->assertEquals($dbuser->city, $user1['city']);
             $this->assertEquals($dbuser->country, $user1['country']);
+            $this->assertEquals($dbuser->department, $user1['department']);
+            $this->assertEquals($dbuser->institution, $user1['institution']);
+            $this->assertEquals($dbuser->phone1, $user1['phone1']);
+            $this->assertEquals($dbuser->maildisplay, $user1['maildisplay']);
             $this->assertEquals('atto', get_user_preferences('htmleditor', null, $dbuser));
             $this->assertEquals(null, get_user_preferences('invalidpreference', null, $dbuser));
+            // Confirm user interests have been saved.
+            $interests = core_tag_tag::get_item_tags_array('core', 'user', $createduser['id'], core_tag_tag::BOTH_STANDARD_AND_NOT,
+                0, false);
+            // There should be 3 user interests.
+            $this->assertCount(3, $interests);
         }
 
         // Call without required capability
         $this->unassignUserCapability('moodle/user:create', $context->id, $roleid);
         $this->expectException('required_capability_exception');
         $createdusers = core_user_external::create_users(array($user1));
+    }
+
+    /**
+     * Test create_users with invalid parameters
+     *
+     * @dataProvider data_create_users_invalid_parameter
+     * @param array $data User data to attempt to register.
+     * @param string $expectmessage Expected exception message.
+     */
+    public function test_create_users_invalid_parameter(array $data, $expectmessage) {
+        global $USER, $CFG, $DB;
+
+        $this->resetAfterTest(true);
+        $this->assignUserCapability('moodle/user:create', SYSCONTEXTID);
+
+        $this->expectException('invalid_parameter_exception');
+        $this->expectExceptionMessage($expectmessage);
+
+        core_user_external::create_users(array($data));
+    }
+
+    /**
+     * Data provider for {@link self::test_create_users_invalid_parameter()}.
+     *
+     * @return array
+     */
+    public function data_create_users_invalid_parameter() {
+        return [
+            'blank_username' => [
+                'data' => [
+                    'username' => '',
+                    'firstname' => 'Foo',
+                    'lastname' => 'Bar',
+                    'email' => 'foobar@example.com',
+                    'createpassword' => 1,
+                ],
+                'expectmessage' => 'The field username cannot be blank',
+            ],
+            'blank_firtname' => [
+                'data' => [
+                    'username' => 'foobar',
+                    'firstname' => "\t \n",
+                    'lastname' => 'Bar',
+                    'email' => 'foobar@example.com',
+                    'createpassword' => 1,
+                ],
+                'expectmessage' => 'The field firstname cannot be blank',
+            ],
+            'blank_lastname' => [
+                'data' => [
+                    'username' => 'foobar',
+                    'firstname' => '0',
+                    'lastname' => '   ',
+                    'email' => 'foobar@example.com',
+                    'createpassword' => 1,
+                ],
+                'expectmessage' => 'The field lastname cannot be blank',
+            ],
+            'invalid_email' => [
+                'data' => [
+                    'username' => 'foobar',
+                    'firstname' => 'Foo',
+                    'lastname' => 'Bar',
+                    'email' => '@foobar',
+                    'createpassword' => 1,
+                ],
+                'expectmessage' => 'Email address is invalid',
+            ],
+            'missing_password' => [
+                'data' => [
+                    'username' => 'foobar',
+                    'firstname' => 'Foo',
+                    'lastname' => 'Bar',
+                    'email' => 'foobar@example.com',
+                ],
+                'expectmessage' => 'Invalid password: you must provide a password, or set createpassword',
+            ],
+        ];
     }
 
     /**
@@ -623,8 +716,14 @@ class core_user_externallib_testcase extends externallib_advanced_testcase {
                 ], [
                     'type' => 'invialidpreference',
                     'value' => 'abcd'
-                ]]
-            );
+                ]
+            ],
+            'department' => 'College of Science',
+            'institution' => 'National Institute of Physics',
+            'phone1' => '01 2345 6789',
+            'maildisplay' => 1,
+            'interests' => 'badminton, basketball, cooking,  '
+        );
 
         $context = context_system::instance();
         $roleid = $this->assignUserCapability('moodle/user:update', $context->id);
@@ -661,8 +760,17 @@ class core_user_externallib_testcase extends externallib_advanced_testcase {
         $this->assertEquals($dbuser->city, $user1['city']);
         $this->assertEquals($dbuser->country, $user1['country']);
         $this->assertNotEquals(0, $dbuser->picture, 'Picture must be set to the new icon itemid for this user');
+        $this->assertEquals($dbuser->department, $user1['department']);
+        $this->assertEquals($dbuser->institution, $user1['institution']);
+        $this->assertEquals($dbuser->phone1, $user1['phone1']);
+        $this->assertEquals($dbuser->maildisplay, $user1['maildisplay']);
         $this->assertEquals('atto', get_user_preferences('htmleditor', null, $dbuser));
         $this->assertEquals(null, get_user_preferences('invalidpreference', null, $dbuser));
+
+        // Confirm user interests have been saved.
+        $interests = core_tag_tag::get_item_tags_array('core', 'user', $user1['id'], core_tag_tag::BOTH_STANDARD_AND_NOT, 0, false);
+        // There should be 3 user interests.
+        $this->assertCount(3, $interests);
 
         // Confirm no picture change when parameter is not supplied.
         unset($user1['userpicture']);

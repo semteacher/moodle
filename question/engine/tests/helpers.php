@@ -170,6 +170,7 @@ class test_question_maker {
 
         $q->id = 0;
         $q->category = 0;
+        $q->idnumber = null;
         $q->parent = 0;
         $q->questiontextformat = FORMAT_HTML;
         $q->generalfeedbackformat = FORMAT_HTML;
@@ -190,6 +191,7 @@ class test_question_maker {
 
         $qdata->id = 0;
         $qdata->category = 0;
+        $qdata->idnumber = null;
         $qdata->contextid = 0;
         $qdata->parent = 0;
         $qdata->questiontextformat = FORMAT_HTML;
@@ -1241,5 +1243,24 @@ class question_test_recordset extends moodle_recordset {
 
     public function close() {
         $this->records = null;
+    }
+}
+
+/**
+ * Helper class for tests that help to test core_question_renderer.
+ *
+ * @copyright  2018 Huong Nguyen <huongnv13@gmail.com>
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class testable_core_question_renderer extends core_question_renderer {
+
+    /**
+     * Test the private number function.
+     *
+     * @param null|string $number
+     * @return HTML
+     */
+    public function number($number) {
+        return parent::number($number);
     }
 }

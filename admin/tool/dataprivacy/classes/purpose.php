@@ -64,7 +64,7 @@ class purpose extends \core\persistent {
                 // Replicate self::read.
                 $this->from_record($data);
 
-                // Using validate() as self::$validated is private.
+                // Validate the purpose record.
                 $this->validate();
 
                 // Now replicate the parent constructor.
@@ -162,7 +162,6 @@ class purpose extends \core\persistent {
      * @return null
      */
     public function is_used() {
-
         if (\tool_dataprivacy\contextlevel::is_purpose_used($this->get('id')) ||
                 \tool_dataprivacy\context_instance::is_purpose_used($this->get('id'))) {
             return true;
@@ -179,5 +178,14 @@ class purpose extends \core\persistent {
         }
 
         return false;
+    }
+
+    /**
+     * Get a list of the role purpose overrides for this purpose.
+     *
+     * @return  array
+     */
+    public function get_purpose_overrides() : array {
+        return purpose_override::get_overrides_for_purpose($this);
     }
 }

@@ -257,7 +257,7 @@ function question_remove_stale_questions_from_category($categoryid) {
  * 2/ Any questions that can't be deleted are moved to a new category
  * NOTE: this function is called from lib/db/upgrade.php
  *
- * @param object|coursecat $category course category object
+ * @param object|core_course_category $category course category object
  */
 function question_category_delete_safe($category) {
     global $DB;
@@ -438,8 +438,8 @@ function question_delete_course($course, $feedback=true) {
  * 1/ All question categories and their questions are deleted for this course category.
  * 2/ All questions are moved to new category
  *
- * @param object|coursecat $category course category object
- * @param object|coursecat $newcategory empty means everything deleted, otherwise id of
+ * @param object|core_course_category $category course category object
+ * @param object|core_course_category $newcategory empty means everything deleted, otherwise id of
  *      category where content moved
  * @param boolean $feedback to specify if the process must output a summary of its work
  * @return boolean
@@ -504,7 +504,7 @@ function question_save_from_deletion($questionids, $newcontextid, $oldplace,
     // Make a category in the parent context to move the questions to.
     if (is_null($newcategory)) {
         $newcategory = new stdClass();
-        $newcategory->parent = 0;
+        $newcategory->parent = question_get_top_category($newcontextid, true)->id;
         $newcategory->contextid = $newcontextid;
         $newcategory->name = get_string('questionsrescuedfrom', 'question', $oldplace);
         $newcategory->info = get_string('questionsrescuedfrominfo', 'question', $oldplace);
@@ -673,7 +673,7 @@ function question_move_questions_to_category($questionids, $newcategoryid) {
             array('id' => $newcategoryid));
     list($questionidcondition, $params) = $DB->get_in_or_equal($questionids);
     $questions = $DB->get_records_sql("
-            SELECT q.id, q.qtype, qc.contextid
+            SELECT q.id, q.qtype, qc.contextid, q.idnumber
               FROM {question} q
               JOIN {question_categories} qc ON q.category = qc.id
              WHERE  q.id $questionidcondition", $params);
@@ -681,6 +681,27 @@ function question_move_questions_to_category($questionids, $newcategoryid) {
         if ($newcontextid != $question->contextid) {
             question_bank::get_qtype($question->qtype)->move_files(
                     $question->id, $question->contextid, $newcontextid);
+        }
+        // Check whether there could be a clash of idnumbers in the new category.
+        if (((string) $question->idnumber !== '') &&
+                $DB->record_exists('question', ['idnumber' => $question->idnumber, 'category' => $newcategoryid])) {
+            $rec = $DB->get_records_select('question', "category = ? AND idnumber LIKE ?",
+                    [$newcategoryid, $question->idnumber . '_%'], 'idnumber DESC', 'id, idnumber', 0, 1);
+            $unique = 1;
+            if (count($rec)) {
+                $rec = reset($rec);
+                $idnumber = $rec->idnumber;
+                if (strpos($idnumber, '_') !== false) {
+                    $unique = substr($idnumber, strpos($idnumber, '_') + 1) + 1;
+                }
+            }
+            // For the move process, add a numerical increment to the idnumber. This means that if a question is
+            // mistakenly moved then the idnumber will not be completely lost.
+            $q = new stdClass();
+            $q->id = $question->id;
+            $q->category = $newcategoryid;
+            $q->idnumber = $question->idnumber . '_' . $unique;
+            $DB->update_record('question', $q);
         }
     }
 
@@ -1484,6 +1505,30 @@ function question_categorylist($categoryid) {
                 "parent $in", $params, NULL, 'id,id AS id2');
     }
 
+    return $categorylist;
+}
+
+/**
+ * Get all parent categories of a given question category in decending order.
+ * @param int $categoryid for which you want to find the parents.
+ * @return array of question category ids of all parents categories.
+ */
+function question_categorylist_parents(int $categoryid) {
+    global $DB;
+    $parent = $DB->get_field('question_categories', 'parent', array('id' => $categoryid));
+    if (!$parent) {
+        return [];
+    }
+    $categorylist = [$parent];
+    $currentid = $parent;
+    while ($currentid) {
+        $currentid = $DB->get_field('question_categories', 'parent', array('id' => $currentid));
+        if ($currentid) {
+            $categorylist[] = $currentid;
+        }
+    }
+    // Present the list in decending order (the top category at the top).
+    $categorylist = array_reverse($categorylist);
     return $categorylist;
 }
 

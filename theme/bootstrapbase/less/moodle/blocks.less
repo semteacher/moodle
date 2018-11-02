@@ -341,71 +341,113 @@
 }
 
 .block_myoverview {
-    background-color: transparent;
-
-    .row-fluid [class*="span"] {
-        margin-left: 0;
-    }
-
-    .event-list-item {
-        border-bottom: 1px solid @tableBorder;
-        padding-bottom: 10px;
-        margin-bottom: 10px;
-
-        &:last-of-type {
-            border-bottom: none;
-            padding-bottom: 0;
-            margin-bottom: 0;
-        }
-
-        .event-icon {
-            vertical-align: middle;
-
-            &::before {
-                content: '';
-                display: inline-block;
-                height: 100%;
-                vertical-align: middle;
-            }
-        }
-
-        .event-name-container {
-            vertical-align: middle;
-            max-width: ~"calc(100% - 50px)";
-
-            .event-name {
-                display: block;
-            }
-        }
-    }
-
-    .empty-placeholder-image-sm {
-        height: 50px;
-    }
 
     .empty-placeholder-image-lg {
         height: 125px;
     }
-
-    .courses-view-course-item {
-        height: 220px;
-        overflow-y: hidden;
+    .course-info-container {
+        flex: 1 1 auto;
+        padding: 0.8rem;
     }
-
-    h4 {
-        font-weight: normal;
+    .dashboard-card-footer {
+        padding: 0.8rem;
+        background-color: @wellBackground;
+        border-top: 1px solid darken(@wellBackground, 7%);
+        .border-bottom-radius(@baseBorderRadius);
     }
-
-    .well {
+    .progress {
+        height: 0.5rem;
+        margin-bottom: 0;
+    }
+    .list-group {
+        margin: 0;
+    }
+    .course-listitem {
+        display: block;
+        padding: 0.75rem 1.25rem;
+        margin-bottom: 0.5rem;
         background-color: @white;
-        box-shadow: none;
-        margin: 0 5px 10px;
+        border: 1px solid @tableBorder;
+        .border-radius(@baseBorderRadius);
     }
-    .myoverviewimg {
-        height: 150px;
-        &.courseimage {
-            background-position: center;
-            background-size: cover;
+    .course-summaryitem {
+        padding: 0.5rem;
+        background-color: @white;
+        border: 1px solid @tableBorder;
+        .border-radius(@baseBorderRadius);
+    }
+    .summary img {
+        max-width: 100%;
+    }
+
+    @media (max-width: 576px) {
+        .summaryimage {
+            max-height: 7rem;
         }
     }
+}
+
+.dashboard-card-deck {
+    box-sizing: border-box;
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+    display: flex;
+    flex-flow: row wrap;
+    margin-right: -.25rem;
+    margin-left: -.25rem;
+
+    .dashboard-card {
+        .border-radius(@baseBorderRadius);
+        margin-bottom: 0.5rem;
+        flex-grow: 0;
+        flex-shrink: 0;
+        min-width: 0;
+        flex-basis: 100%;
+    }
+    @media (min-width: 576px) {
+        .dashboard-card {
+            display: flex;
+            flex-direction: column;
+            margin-right: 0.25rem;
+            margin-left: 0.25rem;
+            flex-basis: ~"calc(50% - 0.6rem)";
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .dashboard-card {
+            flex-basis: ~"calc(33% - 0.5rem)";
+        }
+    }
+}
+
+@media (min-width: 768px) {
+    #block-region-side-post .dashboard-card-deck {
+        margin: 0;
+        .dashboard-card {
+            flex-basis: 100%;
+            margin-left: 0;
+            margin-right: 0;
+        }
+    }
+}
+
+.dashboard-card-img {
+    height: 7rem;
+    background-position: center;
+    background-size: cover;
+    .border-top-radius(@baseBorderRadius);
+}
+
+.summaryimage {
+    height: 7rem;
+    background-position: center;
+    background-size: cover;
+}
+
+.position-absolute {
+    position: absolute;
 }

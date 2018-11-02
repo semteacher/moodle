@@ -62,6 +62,8 @@
  * <b>Name conventions</b>
  *
  * "ctx" means context
+ * "ra" means role assignment
+ * "rdef" means role definition
  *
  * <b>accessdata</b>
  *
@@ -72,9 +74,7 @@
  * against userid in $ACCESSLIB_PRIVATE->accessdatabyuser).
  *
  * $accessdata is a multidimensional array, holding
- * role assignments (RAs), role-capabilities-perm sets
- * (role defs) and a list of courses we have loaded
- * data for.
+ * role assignments (RAs), role switches and initialization time.
  *
  * Things are keyed on "contextpaths" (the path field of
  * the context table) for fast walking up/down the tree.
@@ -182,6 +182,7 @@ global $ACCESSLIB_PRIVATE;
 $ACCESSLIB_PRIVATE = new stdClass();
 $ACCESSLIB_PRIVATE->cacheroledefs    = array(); // Holds site-wide role definitions.
 $ACCESSLIB_PRIVATE->dirtycontexts    = null;    // Dirty contexts cache, loaded from DB once per page
+$ACCESSLIB_PRIVATE->dirtyusers       = null;    // Dirty users cache, loaded from DB once per $USER->id
 $ACCESSLIB_PRIVATE->accessdatabyuser = array(); // Holds the cache of $accessdata structure for users (including $USER)
 
 /**
@@ -201,6 +202,7 @@ function accesslib_clear_all_caches_for_unit_testing() {
     }
 
     accesslib_clear_all_caches(true);
+    accesslib_reset_role_cache();
 
     unset($USER->access);
 }
@@ -218,15 +220,32 @@ function accesslib_clear_all_caches($resetcontexts) {
     global $ACCESSLIB_PRIVATE;
 
     $ACCESSLIB_PRIVATE->dirtycontexts    = null;
+    $ACCESSLIB_PRIVATE->dirtyusers       = null;
     $ACCESSLIB_PRIVATE->accessdatabyuser = array();
-    $ACCESSLIB_PRIVATE->cacheroledefs    = array();
-
-    $cache = cache::make('core', 'roledefs');
-    $cache->purge();
 
     if ($resetcontexts) {
         context_helper::reset_caches();
     }
+}
+
+/**
+ * Full reset of accesslib's private role cache. ONLY TO BE USED FROM THIS LIBRARY FILE!
+ *
+ * This reset does not touch global $USER.
+ *
+ * Note: Only use this when the roles that need a refresh are unknown.
+ *
+ * @see accesslib_clear_role_cache()
+ *
+ * @access private
+ * @return void
+ */
+function accesslib_reset_role_cache() {
+    global $ACCESSLIB_PRIVATE;
+
+    $ACCESSLIB_PRIVATE->cacheroledefs = array();
+    $cache = cache::make('core', 'roledefs');
+    $cache->purge();
 }
 
 /**
@@ -286,7 +305,11 @@ function get_role_definitions(array $roleids) {
     // Grab all keys we have not yet got in our static cache.
     if ($uncached = array_diff($roleids, array_keys($ACCESSLIB_PRIVATE->cacheroledefs))) {
         $cache = cache::make('core', 'roledefs');
-        $ACCESSLIB_PRIVATE->cacheroledefs += array_filter($cache->get_many($uncached));
+        foreach ($cache->get_many($uncached) as $roleid => $cachedroledef) {
+            if (is_array($cachedroledef)) {
+                $ACCESSLIB_PRIVATE->cacheroledefs[$roleid] = $cachedroledef;
+            }
+        }
 
         // Check we have the remaining keys from the MUC.
         if ($uncached = array_diff($roleids, array_keys($ACCESSLIB_PRIVATE->cacheroledefs))) {
@@ -313,20 +336,25 @@ function get_role_definitions_uncached(array $roleids) {
         return array();
     }
 
-    list($sql, $params) = $DB->get_in_or_equal($roleids);
+    // Create a blank results array: even if a role has no capabilities,
+    // we need to ensure it is included in the results to show we have
+    // loaded all the capabilities that there are.
     $rdefs = array();
+    foreach ($roleids as $roleid) {
+        $rdefs[$roleid] = array();
+    }
 
+    // Load all the capabilities for these roles in all contexts.
+    list($sql, $params) = $DB->get_in_or_equal($roleids);
     $sql = "SELECT ctx.path, rc.roleid, rc.capability, rc.permission
               FROM {role_capabilities} rc
               JOIN {context} ctx ON rc.contextid = ctx.id
              WHERE rc.roleid $sql";
     $rs = $DB->get_recordset_sql($sql, $params);
 
+    // Store the capabilities into the expected data structure.
     foreach ($rs as $rd) {
         if (!isset($rdefs[$rd->roleid][$rd->path])) {
-            if (!isset($rdefs[$rd->roleid])) {
-                $rdefs[$rd->roleid] = array();
-            }
             $rdefs[$rd->roleid][$rd->path] = array();
         }
         $rdefs[$rd->roleid][$rd->path][$rd->capability] = (int) $rd->permission;
@@ -981,14 +1009,19 @@ function reload_all_capabilities() {
 
     accesslib_clear_all_caches(true);
     unset($USER->access);
-    $ACCESSLIB_PRIVATE->dirtycontexts = array(); // prevent dirty flags refetching on this page
+
+    // Prevent dirty flags refetching on this page.
+    $ACCESSLIB_PRIVATE->dirtycontexts = array();
+    $ACCESSLIB_PRIVATE->dirtyusers    = array($USER->id => false);
 
     load_all_capabilities();
 
     foreach ($sw as $path => $roleid) {
         if ($record = $DB->get_record('context', array('path'=>$path))) {
             $context = context::instance_by_id($record->id);
-            role_switch($roleid, $context);
+            if (has_capability('moodle/role:switchroles', $context)) {
+                role_switch($roleid, $context);
+            }
         }
     }
 }
@@ -1271,8 +1304,6 @@ function delete_role($roleid) {
 /**
  * Function to write context specific overrides, or default capabilities.
  *
- * NOTE: use $context->mark_dirty() after this
- *
  * @param string $capability string name
  * @param int $permission CAP_ constants
  * @param int $roleid role id
@@ -1325,8 +1356,6 @@ function assign_capability($capability, $permission, $roleid, $contextid, $overw
 
 /**
  * Unassign a capability from a role.
- *
- * NOTE: use $context->mark_dirty() after this
  *
  * @param string $capability the name of the capability
  * @param int $roleid the role id
@@ -1411,7 +1440,7 @@ function get_roles_with_capability($capability, $permission = null, $context = n
  * @return int new/existing id of the assignment
  */
 function role_assign($roleid, $userid, $contextid, $component = '', $itemid = 0, $timemodified = '') {
-    global $USER, $DB, $CFG;
+    global $USER, $DB;
 
     // first of all detect if somebody is using old style parameters
     if ($contextid === 0 or is_numeric($component)) {
@@ -1484,16 +1513,10 @@ function role_assign($roleid, $userid, $contextid, $component = '', $itemid = 0,
 
     $ra->id = $DB->insert_record('role_assignments', $ra);
 
-    // mark context as dirty - again expensive, but needed
-    $context->mark_dirty();
+    // Role assignments have changed, so mark user as dirty.
+    mark_user_dirty($userid);
 
-    if (!empty($USER->id) && $USER->id == $userid) {
-        // If the user is the current user, then do full reload of capabilities too.
-        reload_all_capabilities();
-    }
-
-    require_once($CFG->libdir . '/coursecatlib.php');
-    coursecat::role_assignment_changed($roleid, $context);
+    core_course_category::role_assignment_changed($roleid, $context);
 
     $event = \core\event\role_assigned::create(array(
         'context' => $context,
@@ -1552,7 +1575,6 @@ function role_unassign($roleid, $userid, $contextid, $component = '', $itemid = 
  */
 function role_unassign_all(array $params, $subcontexts = false, $includemanual = false) {
     global $USER, $CFG, $DB;
-    require_once($CFG->libdir . '/coursecatlib.php');
 
     if (!$params) {
         throw new coding_exception('Missing parameters in role_unsassign_all() call');
@@ -1585,12 +1607,9 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
     foreach($ras as $ra) {
         $DB->delete_records('role_assignments', array('id'=>$ra->id));
         if ($context = context::instance_by_id($ra->contextid, IGNORE_MISSING)) {
-            // this is a bit expensive but necessary
-            $context->mark_dirty();
-            // If the user is the current user, then do full reload of capabilities too.
-            if (!empty($USER->id) && $USER->id == $ra->userid) {
-                reload_all_capabilities();
-            }
+            // Role assignments have changed, so mark user as dirty.
+            mark_user_dirty($ra->userid);
+
             $event = \core\event\role_unassigned::create(array(
                 'context' => $context,
                 'objectid' => $ra->roleid,
@@ -1603,7 +1622,7 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
             ));
             $event->add_record_snapshot('role_assignments', $ra);
             $event->trigger();
-            coursecat::role_assignment_changed($ra->roleid, $context);
+            core_course_category::role_assignment_changed($ra->roleid, $context);
         }
     }
     unset($ras);
@@ -1624,18 +1643,15 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
                 $ras = $DB->get_records('role_assignments', $mparams);
                 foreach($ras as $ra) {
                     $DB->delete_records('role_assignments', array('id'=>$ra->id));
-                    // this is a bit expensive but necessary
-                    $context->mark_dirty();
-                    // If the user is the current user, then do full reload of capabilities too.
-                    if (!empty($USER->id) && $USER->id == $ra->userid) {
-                        reload_all_capabilities();
-                    }
+                    // Role assignments have changed, so mark user as dirty.
+                    mark_user_dirty($ra->userid);
+
                     $event = \core\event\role_unassigned::create(
                         array('context'=>$context, 'objectid'=>$ra->roleid, 'relateduserid'=>$ra->userid,
                             'other'=>array('id'=>$ra->id, 'component'=>$ra->component, 'itemid'=>$ra->itemid)));
                     $event->add_record_snapshot('role_assignments', $ra);
                     $event->trigger();
-                    coursecat::role_assignment_changed($ra->roleid, $context);
+                    core_course_category::role_assignment_changed($ra->roleid, $context);
                 }
             }
         }
@@ -1646,6 +1662,30 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
         $params['component'] = '';
         role_unassign_all($params, $subcontexts, false);
     }
+}
+
+/**
+ * Mark a user as dirty (with timestamp) so as to force reloading of the user session.
+ *
+ * @param int $userid
+ * @return void
+ */
+function mark_user_dirty($userid) {
+    global $CFG, $ACCESSLIB_PRIVATE;
+
+    if (during_initial_install()) {
+        return;
+    }
+
+    // Throw exception if invalid userid is provided.
+    if (empty($userid)) {
+        throw new coding_exception('Invalid user parameter supplied for mark_user_dirty() function!');
+    }
+
+    // Set dirty flag in database, set dirty field locally, and clear local accessdata cache.
+    set_cache_flag('accesslib/dirtyusers', $userid, 1, time() + $CFG->sessiontimeout);
+    $ACCESSLIB_PRIVATE->dirtyusers[$userid] = 1;
+    unset($ACCESSLIB_PRIVATE->accessdatabyuser[$userid]);
 }
 
 /**
@@ -2090,9 +2130,6 @@ function reset_role_capabilities($roleid) {
 
     // Reset any cache of this role, including MUC.
     accesslib_clear_role_cache($roleid);
-
-    // Mark the system context dirty.
-    context_system::instance()->mark_dirty();
 }
 
 /**
@@ -2210,7 +2247,7 @@ function update_capabilities($component = 'moodle') {
     capabilities_cleanup($component, $filecaps);
 
     // reset static caches
-    accesslib_clear_all_caches(false);
+    accesslib_reset_role_cache();
 
     // Flush the cached again, as we have changed DB.
     cache::make('core', 'capabilities')->delete('core_capabilities');
@@ -2374,8 +2411,6 @@ function is_inside_frontpage(context $context) {
  * @return stdClass or null if capability not found
  */
 function get_capability_info($capabilityname) {
-    global $ACCESSLIB_PRIVATE, $DB; // one request per page only
-
     $caps = get_all_capabilities();
 
     if (!isset($caps[$capabilityname])) {
@@ -2539,12 +2574,17 @@ function get_profile_roles(context $context) {
  * Gets the list of roles assigned to this context and up (parents)
  *
  * @param context $context
+ * @param boolean $includeparents, false means without parents.
  * @return array
  */
-function get_roles_used_in_context(context $context) {
+function get_roles_used_in_context(context $context, $includeparents = true) {
     global $DB;
 
-    list($contextlist, $params) = $DB->get_in_or_equal($context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'cl');
+    if ($includeparents === true) {
+        list($contextlist, $params) = $DB->get_in_or_equal($context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'cl');
+    } else {
+        list($contextlist, $params) = $DB->get_in_or_equal($context->id, SQL_PARAMS_NAMED, 'cl');
+    }
 
     if ($coursecontext = $context->get_course_context(false)) {
         $params['coursecontext'] = $coursecontext->id;
@@ -3980,22 +4020,6 @@ function get_user_capability_course($capability, $userid = null, $doanything = t
 }
 
 /**
- * This function finds the roles assigned directly to this context only
- * i.e. no roles in parent contexts
- *
- * @param context $context
- * @return array
- */
-function get_roles_on_exact_context(context $context) {
-    global $DB;
-
-    return $DB->get_records_sql("SELECT r.*
-                                   FROM {role_assignments} ra, {role} r
-                                  WHERE ra.roleid = r.id AND ra.contextid = ?",
-                                array($context->id));
-}
-
-/**
  * Switches the current user to another role for the current session and only
  * in the given context.
  *
@@ -4080,22 +4104,6 @@ function get_capabilities_from_role_on_context($role, context $context) {
                                    FROM {role_capabilities}
                                   WHERE contextid = ? AND roleid = ?",
                                 array($context->id, $role->id));
-}
-
-/**
- * Find out which roles has assignment on this context
- *
- * @param context $context
- * @return array
- *
- */
-function get_roles_with_assignment_on_context(context $context) {
-    global $DB;
-
-    return $DB->get_records_sql("SELECT r.*
-                                   FROM {role_assignments} ra, {role} r
-                                  WHERE ra.roleid = r.id AND ra.contextid = ?",
-                                array($context->id));
 }
 
 /**
@@ -4612,7 +4620,6 @@ function role_change_permission($roleid, $context, $capname, $permission) {
 
     if ($permission == CAP_INHERIT) {
         unassign_capability($capname, $roleid, $context->id);
-        $context->mark_dirty();
         return;
     }
 
@@ -4645,7 +4652,6 @@ function role_change_permission($roleid, $context, $capname, $permission) {
                 // permission already set in parent context or parent - just unset in this context
                 // we do this because we want as few overrides as possible for performance reasons
                 unassign_capability($capname, $roleid, $context->id);
-                $context->mark_dirty();
                 return;
             }
         }
@@ -4659,9 +4665,6 @@ function role_change_permission($roleid, $context, $capname, $permission) {
 
     // assign the needed capability
     assign_capability($capname, $permission, $roleid, $context->id, true);
-
-    // force cap reloading
-    $context->mark_dirty();
 }
 
 
@@ -5086,8 +5089,6 @@ abstract class context extends stdClass implements IteratorAggregate {
 
         $trans = $DB->start_delegated_transaction();
 
-        $this->mark_dirty();
-
         $setdepth = '';
         if (($newparent->depth +1) != $this->_depth) {
             $diff = $newparent->depth - $this->_depth + 1;
@@ -5175,15 +5176,23 @@ abstract class context extends stdClass implements IteratorAggregate {
         require_once($CFG->dirroot.'/grade/grading/lib.php');
         grading_manager::delete_all_for_context($this->_id);
 
-        $ids = $DB->get_fieldset_select('role_capabilities', 'DISTINCT roleid', 'contextid = ?', array($this->_id));
-
         // now delete stuff from role related tables, role_unassign_all
         // and unenrol should be called earlier to do proper cleanup
         $DB->delete_records('role_assignments', array('contextid'=>$this->_id));
-        $DB->delete_records('role_capabilities', array('contextid'=>$this->_id));
         $DB->delete_records('role_names', array('contextid'=>$this->_id));
+        $this->delete_capabilities();
+    }
 
+    /**
+     * Unassign all capabilities from a context.
+     */
+    public function delete_capabilities() {
+        global $DB;
+
+        $ids = $DB->get_fieldset_select('role_capabilities', 'DISTINCT roleid', 'contextid = ?', array($this->_id));
         if ($ids) {
+            $DB->delete_records('role_capabilities', array('contextid' => $this->_id));
+
             // Reset any cache of these roles, including MUC.
             accesslib_clear_role_cache($ids);
         }
@@ -5209,11 +5218,6 @@ abstract class context extends stdClass implements IteratorAggregate {
         $DB->delete_records('context', array('id'=>$this->_id));
         // purge static context cache if entry present
         context::cache_remove($this);
-
-        // do not mark dirty contexts if parents unknown
-        if (!is_null($this->_path) and $this->_depth > 0) {
-            $this->mark_dirty();
-        }
     }
 
     // ====== context level related methods ======
@@ -5317,7 +5321,7 @@ abstract class context extends stdClass implements IteratorAggregate {
      * Returns parent contexts of this context in reversed order, i.e. parent first,
      * then grand parent, etc.
      *
-     * @param bool $includeself tre means include self too
+     * @param bool $includeself true means include self too
      * @return array of context instances
      */
     public function get_parent_contexts($includeself = false) {
@@ -5335,10 +5339,10 @@ abstract class context extends stdClass implements IteratorAggregate {
     }
 
     /**
-     * Returns parent contexts of this context in reversed order, i.e. parent first,
+     * Returns parent context ids of this context in reversed order, i.e. parent first,
      * then grand parent, etc.
      *
-     * @param bool $includeself tre means include self too
+     * @param bool $includeself true means include self too
      * @return array of context ids
      */
     public function get_parent_context_ids($includeself = false) {
@@ -5353,6 +5357,35 @@ abstract class context extends stdClass implements IteratorAggregate {
         }
 
         return array_reverse($parentcontexts);
+    }
+
+    /**
+     * Returns parent context paths of this context.
+     *
+     * @param bool $includeself true means include self too
+     * @return array of context paths
+     */
+    public function get_parent_context_paths($includeself = false) {
+        if (empty($this->_path)) {
+            return array();
+        }
+
+        $contextids = explode('/', $this->_path);
+
+        $path = '';
+        $paths = array();
+        foreach ($contextids as $contextid) {
+            if ($contextid) {
+                $path .= '/' . $contextid;
+                $paths[$contextid] = $path;
+            }
+        }
+
+        if (!$includeself) {
+            unset($paths[$this->_id]);
+        }
+
+        return $paths;
     }
 
     /**
@@ -5432,23 +5465,42 @@ abstract class context extends stdClass implements IteratorAggregate {
                 $ACCESSLIB_PRIVATE->dirtycontexts = array();
             }
         } else {
+            if (!isset($USER->access['time'])) {
+                // Nothing has been loaded yet, so we do not need to check dirty flags now.
+                return;
+            }
+
+            // From skodak: No idea why -2 is there, server cluster time difference maybe...
+            $changedsince = $USER->access['time'] - 2;
+
             if (!isset($ACCESSLIB_PRIVATE->dirtycontexts)) {
-                if (!isset($USER->access['time'])) {
-                    // nothing was loaded yet, we do not need to check dirty contexts now
-                    return;
-                }
-                // no idea why -2 is there, server cluster time difference maybe... (skodak)
-                $ACCESSLIB_PRIVATE->dirtycontexts = get_cache_flags('accesslib/dirtycontexts', $USER->access['time']-2);
+                $ACCESSLIB_PRIVATE->dirtycontexts = get_cache_flags('accesslib/dirtycontexts', $changedsince);
+            }
+
+            if (!isset($ACCESSLIB_PRIVATE->dirtyusers[$USER->id])) {
+                $ACCESSLIB_PRIVATE->dirtyusers[$USER->id] = get_cache_flag('accesslib/dirtyusers', $USER->id, $changedsince);
             }
         }
 
-        foreach ($ACCESSLIB_PRIVATE->dirtycontexts as $path=>$unused) {
-            if ($path === $this->_path or strpos($this->_path, $path.'/') === 0) {
-                // reload all capabilities of USER and others - preserving loginas, roleswitches, etc
-                // and then cleanup any marks of dirtyness... at least from our short term memory! :-)
-                reload_all_capabilities();
-                break;
+        $dirty = false;
+
+        if (!empty($ACCESSLIB_PRIVATE->dirtyusers[$USER->id])) {
+            $dirty = true;
+        } else if (!empty($ACCESSLIB_PRIVATE->dirtycontexts)) {
+            $paths = $this->get_parent_context_paths(true);
+
+            foreach ($paths as $path) {
+                if (isset($ACCESSLIB_PRIVATE->dirtycontexts[$path])) {
+                    $dirty = true;
+                    break;
+                }
             }
+        }
+
+        if ($dirty) {
+            // Reload all capabilities of USER and others - preserving loginas, roleswitches, etc.
+            // Then cleanup any marks of dirtyness... at least from our short term memory!
+            reload_all_capabilities();
         }
     }
 

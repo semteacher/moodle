@@ -458,6 +458,29 @@ class core_questionlib_testcase extends advanced_testcase {
         $this->assertEquals(0, $DB->count_records('question_categories', $criteria));
     }
 
+    /**
+     * This function tests the question_save_from_deletion function when it is supposed to make a new category and
+     * move question categories to that new category.
+     */
+    public function test_question_save_from_deletion() {
+        global $DB;
+        $this->resetAfterTest(true);
+        $this->setAdminUser();
+
+        list($category, $course, $quiz, $qcat, $questions) = $this->setup_quiz_and_questions();
+
+        $context = context::instance_by_id($qcat->contextid);
+
+        $newcat = question_save_from_deletion(array_column($questions, 'id'),
+                $context->get_parent_context()->id, $context->get_context_name());
+
+        // Verify that the newcat itself is not a tep level category.
+        $this->assertNotEquals(0, $newcat->parent);
+
+        // Verify there is just a single top-level category.
+        $this->assertEquals(1, $DB->count_records('question_categories', ['contextid' => $qcat->contextid, 'parent' => 0]));
+    }
+
     public function test_question_remove_stale_questions_from_category() {
         global $DB;
         $this->resetAfterTest(true);
@@ -1646,7 +1669,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $context->id);
         }
-        $context->mark_dirty();
 
         $this->setUser($user);
 
@@ -1696,7 +1718,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $context->id);
         }
-        $context->mark_dirty();
 
         // Create the question.
         $qtype = 'truefalse';
@@ -1748,7 +1769,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $context->id);
         }
-        $context->mark_dirty();
 
         // Create the question.
         $qtype = 'truefalse';
@@ -1800,7 +1820,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $context->id);
         }
-        $context->mark_dirty();
 
         // Create the question.
         $qtype = 'truefalse';
@@ -1858,8 +1877,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $newcontext->id);
         }
-        $context->mark_dirty();
-        $newcontext->mark_dirty();
 
         // Create the question.
         $qtype = 'truefalse';
@@ -1915,7 +1932,6 @@ class core_questionlib_testcase extends advanced_testcase {
         foreach ($capabilities as $capname => $capvalue) {
             assign_capability($capname, $capvalue, $roleid, $context->id);
         }
-        $context->mark_dirty();
 
         // Create the question.
         $question = $questiongenerator->create_question('truefalse', null, [
@@ -1962,5 +1978,26 @@ class core_questionlib_testcase extends advanced_testcase {
         $this->expectException('coding_exception');
         $this->expectExceptionMessage('$questionorid parameter needs to be an integer or an object.');
         question_has_capability_on('one', 'tag');
+    }
+
+    /**
+     * Test of question_categorylist_parents function.
+     */
+    public function test_question_categorylist_parents() {
+        $this->resetAfterTest();
+        $generator = $this->getDataGenerator();
+        $questiongenerator = $generator->get_plugin_generator('core_question');
+        $category = $generator->create_category();
+        $context = context_coursecat::instance($category->id);
+        // Create a top category.
+        $cat0 = question_get_top_category($context->id, true);
+        // Add sub-categories.
+        $cat1 = $questiongenerator->create_question_category(['parent' => $cat0->id]);
+        $cat2 = $questiongenerator->create_question_category(['parent' => $cat1->id]);
+        // Test the 'get parents' function.
+        $parentcategories = question_categorylist_parents($cat2->id);
+        $this->assertEquals($cat0->id, $parentcategories[0]);
+        $this->assertEquals($cat1->id, $parentcategories[1]);
+        $this->assertCount(2, $parentcategories);
     }
 }

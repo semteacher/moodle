@@ -196,7 +196,6 @@ class core_accesslib_testcase extends advanced_testcase {
 
         // Prevent the capability for this user role.
         assign_capability($capability, CAP_PROHIBIT, $role->id, $coursecontext);
-        $coursecontext->mark_dirty();
         $this->assertFalse(has_capability($capability, $coursecontext, $user->id));
 
         // Again, we seed the cache first by checking initial enrolment,
@@ -1806,6 +1805,74 @@ class core_accesslib_testcase extends advanced_testcase {
     }
 
     /**
+     * Test that the caching in get_role_definitions() and get_role_definitions_uncached()
+     * works as intended.
+     */
+    public function test_role_definition_caching() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        // Get some role ids.
+        $authenticatedrole = $DB->get_record('role', array('shortname' => 'user'), '*', MUST_EXIST);
+        $studentrole = $DB->get_record('role', array('shortname' => 'student'), '*', MUST_EXIST);
+        $emptyroleid = create_role('No capabilities', 'empty', 'A role with no capabilties');
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+
+        // Instantiate the cache instance, since that does DB queries (get_config)
+        // and we don't care about those.
+        cache::make('core', 'roledefs');
+
+        // One database query is not necessarily one database read, it seems. Find out how many.
+        $startdbreads = $DB->perf_get_reads();
+        $rs = $DB->get_recordset('user');
+        $rs->close();
+        $readsperquery = $DB->perf_get_reads() - $startdbreads;
+
+        // Now load some role definitions, and check when it queries the database.
+
+        // Load the capabilities for two roles. Should be one query.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id]);
+        $this->assertEquals(1 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+
+        // Load the capabilities for same two roles. Should not query the DB.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id]);
+        $this->assertEquals(0 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+
+        // Include a third role. Should do one DB query.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id, $emptyroleid]);
+        $this->assertEquals(1 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+
+        // Repeat call. No DB queries.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id, $emptyroleid]);
+        $this->assertEquals(0 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+
+        // Alter a role.
+        role_change_permission($studentrole->id, $coursecontext, 'moodle/course:tag', CAP_ALLOW);
+
+        // Should now know to do one query.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id]);
+        $this->assertEquals(1 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+
+        // Now clear the in-memory cache, and verify that it does not query the DB.
+        // Cannot use accesslib_clear_all_caches_for_unit_testing since that also
+        // clears the MUC cache.
+        global $ACCESSLIB_PRIVATE;
+        $ACCESSLIB_PRIVATE->cacheroledefs = array();
+
+        // Get all roles. Should not need the DB.
+        $startdbreads = $DB->perf_get_reads();
+        get_role_definitions([$authenticatedrole->id, $studentrole->id, $emptyroleid]);
+        $this->assertEquals(0 * $readsperquery, $DB->perf_get_reads() - $startdbreads);
+    }
+
+    /**
      * Tests get_user_capability_course() which checks a capability across all courses.
      */
     public function test_get_user_capability_course() {
@@ -2267,6 +2334,40 @@ class core_accesslib_testcase extends advanced_testcase {
 
     }
 
+    /**
+     * Test that enrolled users SQL does not return any values for users
+     * without a group when $context is not a valid course context.
+     */
+    public function test_get_enrolled_sql_userswithoutgroup() {
+        global $DB;
+
+        $this->resetAfterTest();
+
+        $systemcontext = context_system::instance();
+        $course = $this->getDataGenerator()->create_course();
+        $coursecontext = context_course::instance($course->id);
+        $user1 = $this->getDataGenerator()->create_user();
+        $user2 = $this->getDataGenerator()->create_user();
+
+        $this->getDataGenerator()->enrol_user($user1->id, $course->id);
+        $this->getDataGenerator()->enrol_user($user2->id, $course->id);
+
+        $group = $this->getDataGenerator()->create_group(array('courseid' => $course->id));
+        groups_add_member($group, $user1);
+
+        $enrolled   = get_enrolled_users($coursecontext);
+        $this->assertCount(2, $enrolled);
+
+        // Get users without any group on the course context.
+        $enrolledwithoutgroup = get_enrolled_users($coursecontext, '', USERSWITHOUTGROUP);
+        $this->assertCount(1, $enrolledwithoutgroup);
+        $this->assertFalse(isset($enrolledwithoutgroup[$user1->id]));
+
+        // Get users without any group on the system context (it should throw an exception).
+        $this->expectException('coding_exception');
+        get_enrolled_users($systemcontext, '', USERSWITHOUTGROUP);
+    }
+
     public function get_enrolled_sql_provider() {
         return array(
             array(
@@ -2666,12 +2767,17 @@ class core_accesslib_testcase extends advanced_testcase {
         $this->assertEquals(array($systemcontext->id=>$systemcontext), $systemcontext->get_parent_contexts(true));
         $this->assertEquals(array(), $systemcontext->get_parent_context_ids());
         $this->assertEquals(array($systemcontext->id), $systemcontext->get_parent_context_ids(true));
+        $this->assertEquals(array(), $systemcontext->get_parent_context_paths());
+        $this->assertEquals(array($systemcontext->id => $systemcontext->path), $systemcontext->get_parent_context_paths(true));
 
         $this->assertEquals($systemcontext, $frontpagecontext->get_parent_context());
         $this->assertEquals(array($systemcontext->id=>$systemcontext), $frontpagecontext->get_parent_contexts());
         $this->assertEquals(array($frontpagecontext->id=>$frontpagecontext, $systemcontext->id=>$systemcontext), $frontpagecontext->get_parent_contexts(true));
         $this->assertEquals(array($systemcontext->id), $frontpagecontext->get_parent_context_ids());
         $this->assertEquals(array($frontpagecontext->id, $systemcontext->id), $frontpagecontext->get_parent_context_ids(true));
+        $this->assertEquals(array($systemcontext->id => $systemcontext->path), $frontpagecontext->get_parent_context_paths());
+        $expected = array($systemcontext->id => $systemcontext->path, $frontpagecontext->id => $frontpagecontext->path);
+        $this->assertEquals($expected, $frontpagecontext->get_parent_context_paths(true));
 
         $this->assertFalse($systemcontext->get_parent_context());
         $frontpagecontext = context_course::instance($SITE->id);
@@ -3144,7 +3250,7 @@ class core_accesslib_testcase extends advanced_testcase {
         $context = context_course::instance($course->id);
         $this->assertEquals($categorycontext, $context->get_parent_context());
         $dirty = get_cache_flags('accesslib/dirtycontexts', time()-2);
-        $this->assertTrue(isset($dirty[$oldpath]));
+        $this->assertFalse(isset($dirty[$oldpath]));
         $this->assertTrue(isset($dirty[$context->path]));
 
 
@@ -3170,7 +3276,7 @@ class core_accesslib_testcase extends advanced_testcase {
         $DB->delete_records('cache_flags', array());
         $context->delete(); // Should delete also linked blocks.
         $dirty = get_cache_flags('accesslib/dirtycontexts', time()-2);
-        $this->assertTrue(isset($dirty[$context->path]));
+        $this->assertFalse(isset($dirty[$context->path]));
         $this->assertFalse($DB->record_exists('context', array('id'=>$context->id)));
         $this->assertFalse($DB->record_exists('context', array('id'=>$bicontext->id)));
         $this->assertFalse($DB->record_exists('context', array('contextlevel'=>CONTEXT_MODULE, 'instanceid'=>$testpages[4])));
@@ -3190,7 +3296,7 @@ class core_accesslib_testcase extends advanced_testcase {
         $DB->delete_records('cache_flags', array());
         context_helper::delete_instance(CONTEXT_COURSE, $lastcourse);
         $dirty = get_cache_flags('accesslib/dirtycontexts', time()-2);
-        $this->assertTrue(isset($dirty[$coursecontext->path]));
+        $this->assertFalse(isset($dirty[$coursecontext->path]));
         $this->assertEquals(0, context_inspection::test_context_cache_size());
         $this->assertFalse($DB->record_exists('context', array('contextlevel'=>CONTEXT_COURSE, 'instanceid'=>$lastcourse)));
         context_course::instance($lastcourse);

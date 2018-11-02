@@ -1465,16 +1465,14 @@ class core_moodlelib_testcase extends advanced_testcase {
         $this->assertNull(get_user_preferences('test_pref'));
     }
 
-    public function test_get_extra_user_fields() {
+    /**
+     * Test essential features implementation of {@link get_extra_user_fields()} as the admin user with all capabilities.
+     */
+    public function test_get_extra_user_fields_essentials() {
         global $CFG, $USER, $DB;
         $this->resetAfterTest();
 
         $this->setAdminUser();
-
-        // It would be really nice if there were a way to 'mock' has_capability
-        // checks (either to return true or false) but as there is not, this
-        // test doesn't test the capability check. Presumably, anyone running
-        // unit tests will have the capability.
         $context = context_system::instance();
 
         // No fields.
@@ -1500,6 +1498,121 @@ class core_moodlelib_testcase extends advanced_testcase {
         // Two fields.
         $CFG->showuseridentity = 'frog,zombie';
         $this->assertEquals(array('zombie'), get_extra_user_fields($context, array('frog')));
+    }
+
+    /**
+     * Prepare environment for couple of tests related to permission checks in {@link get_extra_user_fields()}.
+     *
+     * @return stdClass
+     */
+    protected function environment_for_get_extra_user_fields_tests() {
+        global $CFG, $DB;
+
+        $CFG->showuseridentity = 'idnumber,country,city';
+        $CFG->hiddenuserfields = 'country,city';
+
+        $env = new stdClass();
+
+        $env->course = $this->getDataGenerator()->create_course();
+        $env->coursecontext = context_course::instance($env->course->id);
+
+        $env->teacherrole = $DB->get_record('role', array('shortname' => 'teacher'));
+        $env->studentrole = $DB->get_record('role', array('shortname' => 'student'));
+        $env->managerrole = $DB->get_record('role', array('shortname' => 'manager'));
+
+        $env->student = $this->getDataGenerator()->create_user();
+        $env->teacher = $this->getDataGenerator()->create_user();
+        $env->manager = $this->getDataGenerator()->create_user();
+
+        role_assign($env->studentrole->id, $env->student->id, $env->coursecontext->id);
+        role_assign($env->teacherrole->id, $env->teacher->id, $env->coursecontext->id);
+        role_assign($env->managerrole->id, $env->manager->id, SYSCONTEXTID);
+
+        return $env;
+    }
+
+    /**
+     * No identity fields shown to student user (no permission to view identity fields).
+     */
+    public function test_get_extra_user_fields_no_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->student);
+
+        $this->assertEquals(array(), get_extra_user_fields($env->coursecontext));
+        $this->assertEquals(array(), get_extra_user_fields(context_system::instance()));
+    }
+
+    /**
+     * Teacher can see students' identity fields only within the course.
+     */
+    public function test_get_extra_user_fields_course_only_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->teacher);
+
+        $this->assertEquals(array('idnumber', 'country', 'city'), get_extra_user_fields($env->coursecontext));
+        $this->assertEquals(array(), get_extra_user_fields(context_system::instance()));
+    }
+
+    /**
+     * Teacher can be prevented from seeing students' identity fields even within the course.
+     */
+    public function test_get_extra_user_fields_course_prevented_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->teacher);
+
+        assign_capability('moodle/course:viewhiddenuserfields', CAP_PREVENT, $env->teacherrole->id, $env->coursecontext->id);
+        $this->assertEquals(array('idnumber'), get_extra_user_fields($env->coursecontext));
+    }
+
+    /**
+     * Manager can see students' identity fields anywhere.
+     */
+    public function test_get_extra_user_fields_anywhere_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->manager);
+
+        $this->assertEquals(array('idnumber', 'country', 'city'), get_extra_user_fields($env->coursecontext));
+        $this->assertEquals(array('idnumber', 'country', 'city'), get_extra_user_fields(context_system::instance()));
+    }
+
+    /**
+     * Manager can be prevented from seeing hidden fields outside the course.
+     */
+    public function test_get_extra_user_fields_schismatic_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->manager);
+
+        assign_capability('moodle/user:viewhiddendetails', CAP_PREVENT, $env->managerrole->id, SYSCONTEXTID, true);
+        $this->assertEquals(array('idnumber'), get_extra_user_fields(context_system::instance()));
+        // Note that inside the course, the manager can still see the hidden identifiers as this is currently
+        // controlled by a separate capability for legacy reasons.
+        $this->assertEquals(array('idnumber', 'country', 'city'), get_extra_user_fields($env->coursecontext));
+    }
+
+    /**
+     * Two capabilities must be currently set to prevent manager from seeing hidden fields.
+     */
+    public function test_get_extra_user_fields_hard_to_prevent_access() {
+
+        $this->resetAfterTest();
+        $env = $this->environment_for_get_extra_user_fields_tests();
+        $this->setUser($env->manager);
+
+        assign_capability('moodle/user:viewhiddendetails', CAP_PREVENT, $env->managerrole->id, SYSCONTEXTID, true);
+        assign_capability('moodle/course:viewhiddenuserfields', CAP_PREVENT, $env->managerrole->id, SYSCONTEXTID, true);
+
+        $this->assertEquals(array('idnumber'), get_extra_user_fields(context_system::instance()));
+        $this->assertEquals(array('idnumber'), get_extra_user_fields($env->coursecontext));
     }
 
     public function test_get_extra_user_fields_sql() {
@@ -1601,73 +1714,85 @@ class core_moodlelib_testcase extends advanced_testcase {
                 'time' => '1309514400',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => '0.0', // No dst offset.
-                'expectedoutput' => 'Friday, 1 July 2011, 10:00 AM'
+                'expectedoutput' => 'Friday, 1 July 2011, 10:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-07-01T07:00:00-03:00">Friday, 1 July 2011, 10:00 AM</time>'
             ),
             array(
                 'time' => '1309514400',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => '99', // Dst offset and timezone offset.
-                'expectedoutput' => 'Friday, 1 July 2011, 7:00 AM'
+                'expectedoutput' => 'Friday, 1 July 2011, 7:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-07-01T07:00:00-03:00">Friday, 1 July 2011, 7:00 AM</time>'
             ),
             array(
                 'time' => '1309514400',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => 'America/Moncton', // Dst offset and timezone offset.
-                'expectedoutput' => 'Friday, 1 July 2011, 7:00 AM'
+                'expectedoutput' => 'Friday, 1 July 2011, 7:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-07-01t07:00:00-03:00">Friday, 1 July 2011, 7:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => '0.0', // No dst offset.
-                'expectedoutput' => 'Saturday, 1 January 2011, 10:00 AM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 10:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T06:00:00-04:00">Saturday, 1 January 2011, 10:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => '99', // No dst offset in jan, so just timezone offset.
-                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 AM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T06:00:00-04:00">Saturday, 1 January 2011, 6:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => 'America/Moncton',
                 'timezone' => 'America/Moncton', // No dst offset in jan.
-                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 AM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T06:00:00-04:00">Saturday, 1 January 2011, 6:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '2',
                 'timezone' => '99', // Take user timezone.
-                'expectedoutput' => 'Saturday, 1 January 2011, 12:00 PM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 12:00 PM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T12:00:00+02:00">Saturday, 1 January 2011, 12:00 PM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '-2',
                 'timezone' => '99', // Take user timezone.
-                'expectedoutput' => 'Saturday, 1 January 2011, 8:00 AM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 8:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T08:00:00-02:00">Saturday, 1 January 2011, 8:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '-10',
                 'timezone' => '2', // Take this timezone.
-                'expectedoutput' => 'Saturday, 1 January 2011, 12:00 PM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 12:00 PM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T00:00:00-10:00">Saturday, 1 January 2011, 12:00 PM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '-10',
                 'timezone' => '-2', // Take this timezone.
-                'expectedoutput' => 'Saturday, 1 January 2011, 8:00 AM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 8:00 AM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T00:00:00-10:00">Saturday, 1 January 2011, 8:00 AM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '-10',
                 'timezone' => 'random/time', // This should show server time.
-                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 PM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 PM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T00:00:00-10:00">Saturday, 1 January 2011, 6:00 PM</time>'
             ),
             array(
                 'time' => '1293876000 ',
                 'usertimezone' => '20', // Fallback to server time zone.
                 'timezone' => '99',     // This should show user time.
-                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 PM'
+                'expectedoutput' => 'Saturday, 1 January 2011, 6:00 PM',
+                'expectedoutputhtml' => '<time datetime="2011-01-01T18:00:00+08:00">Saturday, 1 January 2011, 6:00 PM</time>'
             ),
         );
 
@@ -1678,13 +1803,18 @@ class core_moodlelib_testcase extends advanced_testcase {
         foreach ($testvalues as $vals) {
             $USER->timezone = $vals['usertimezone'];
             $actualoutput = userdate($vals['time'], '%A, %d %B %Y, %I:%M %p', $vals['timezone']);
+            $actualoutputhtml = userdate_htmltime($vals['time'], '%A, %d %B %Y, %I:%M %p', $vals['timezone']);
 
             // On different systems case of AM PM changes so compare case insensitive.
             $vals['expectedoutput'] = core_text::strtolower($vals['expectedoutput']);
+            $vals['expectedoutputhtml'] = core_text::strtolower($vals['expectedoutputhtml']);
             $actualoutput = core_text::strtolower($actualoutput);
+            $actualoutputhtml = core_text::strtolower($actualoutputhtml);
 
             $this->assertSame($vals['expectedoutput'], $actualoutput,
                 "Expected: {$vals['expectedoutput']} => Actual: {$actualoutput} \ndata: " . var_export($vals, true));
+            $this->assertSame($vals['expectedoutputhtml'], $actualoutputhtml,
+                "Expected: {$vals['expectedoutputhtml']} => Actual: {$actualoutputhtml} \ndata: " . var_export($vals, true));
         }
     }
 
@@ -3949,6 +4079,59 @@ class core_moodlelib_testcase extends advanced_testcase {
             'mixed' => [
                 ['a', 1, null, (object) [], []],
                 5,
+            ],
+        ];
+    }
+
+    /**
+     * Test that {@link get_callable_name()} describes the callable as expected.
+     *
+     * @dataProvider callable_names_provider
+     * @param callable $callable
+     * @param string $expectedname
+     */
+    public function test_get_callable_name($callable, $expectedname) {
+        $this->assertSame($expectedname, get_callable_name($callable));
+    }
+
+    /**
+     * Provides a set of callables and their human readable names.
+     *
+     * @return array of (string)case => [(mixed)callable, (string|bool)expected description]
+     */
+    public function callable_names_provider() {
+        return [
+            'integer' => [
+                386,
+                false,
+            ],
+            'boolean' => [
+                true,
+                false,
+            ],
+            'static_method_as_literal' => [
+                'my_foobar_class::my_foobar_method',
+                'my_foobar_class::my_foobar_method',
+            ],
+            'static_method_of_literal_class' => [
+                ['my_foobar_class', 'my_foobar_method'],
+                'my_foobar_class::my_foobar_method',
+            ],
+            'static_method_of_object' => [
+                [$this, 'my_foobar_method'],
+                'core_moodlelib_testcase::my_foobar_method',
+            ],
+            'method_of_object' => [
+                [new lang_string('parentlanguage', 'core_langconfig'), 'my_foobar_method'],
+                'lang_string::my_foobar_method',
+            ],
+            'function_as_literal' => [
+                'my_foobar_callback',
+                'my_foobar_callback',
+            ],
+            'function_as_closure' => [
+                function($a) { return $a; },
+                'Closure::__invoke',
             ],
         ];
     }
