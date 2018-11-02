@@ -795,6 +795,7 @@ class page_requirements_manager {
                                                         array('dndenabled_inbox', 'moodle'), array('fileexists', 'moodle'), array('maxbytesfile', 'error'),
                                                         array('sizegb', 'moodle'), array('sizemb', 'moodle'), array('sizekb', 'moodle'), array('sizeb', 'moodle'),
                                                         array('maxareabytesreached', 'moodle'), array('serverconnection', 'error'),
+                                                        array('changesmadereallygoaway', 'moodle')
                                                     ));
                     break;
             }
@@ -1589,6 +1590,8 @@ class page_requirements_manager {
             $logconfig->level = 'trace';
         }
         $this->js_call_amd('core/log', 'setConfig', array($logconfig));
+        // Add any global JS that needs to run on all pages.
+        $this->js_call_amd('core/page_global', 'init');
 
         // Call amd init functions.
         $output .= $this->get_amd_footercode();

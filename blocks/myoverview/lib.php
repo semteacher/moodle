@@ -15,38 +15,74 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Contains functions called by core.
+ * Library functions for overview.
  *
- * @package    block_myoverview
- * @copyright  2017 Mark Nelson <markn@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @package   block_myoverview
+ * @copyright 2018 Peter Dias
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
 /**
- * The timeline view.
+ * Constants for the user preferences grouping options
  */
-define('BLOCK_MYOVERVIEW_TIMELINE_VIEW', 'timeline');
+define('BLOCK_MYOVERVIEW_GROUPING_ALL', 'all');
+define('BLOCK_MYOVERVIEW_GROUPING_INPROGRESS', 'inprogress');
+define('BLOCK_MYOVERVIEW_GROUPING_FUTURE', 'future');
+define('BLOCK_MYOVERVIEW_GROUPING_PAST', 'past');
+define('BLOCK_MYOVERVIEW_GROUPING_FAVOURITES', 'favourites');
 
 /**
- * The courses view.
+ * Constants for the user preferences sorting options
+ * timeline
  */
-define('BLOCK_MYOVERVIEW_COURSES_VIEW', 'courses');
+define('BLOCK_MYOVERVIEW_SORTING_TITLE', 'title');
+define('BLOCK_MYOVERVIEW_SORTING_LASTACCESSED', 'lastaccessed');
 
 /**
- * Returns the name of the user preferences as well as the details this plugin uses.
+ * Constants for the user preferences view options
+ */
+define('BLOCK_MYOVERVIEW_VIEW_CARD', 'cards');
+define('BLOCK_MYOVERVIEW_VIEW_LIST', 'list');
+define('BLOCK_MYOVERVIEW_VIEW_SUMMARY', 'summary');
+
+/**
+ * Get the current user preferences that are available
  *
- * @return array
+ * @return mixed Array representing current options along with defaults
  */
 function block_myoverview_user_preferences() {
-    $preferences = array();
-    $preferences['block_myoverview_last_tab'] = array(
-        'type' => PARAM_ALPHA,
+    $preferences['block_myoverview_user_grouping_preference'] = array(
         'null' => NULL_NOT_ALLOWED,
-        'default' => BLOCK_MYOVERVIEW_TIMELINE_VIEW,
-        'choices' => array(BLOCK_MYOVERVIEW_TIMELINE_VIEW, BLOCK_MYOVERVIEW_COURSES_VIEW)
+        'default' => BLOCK_MYOVERVIEW_GROUPING_ALL,
+        'type' => PARAM_ALPHA,
+        'choices' => array(
+            BLOCK_MYOVERVIEW_GROUPING_ALL,
+            BLOCK_MYOVERVIEW_GROUPING_INPROGRESS,
+            BLOCK_MYOVERVIEW_GROUPING_FUTURE,
+            BLOCK_MYOVERVIEW_GROUPING_PAST,
+            BLOCK_MYOVERVIEW_GROUPING_FAVOURITES
+        )
     );
-
+    $preferences['block_myoverview_user_sort_preference'] = array(
+        'null' => NULL_NOT_ALLOWED,
+        'default' => BLOCK_MYOVERVIEW_SORTING_TITLE,
+        'type' => PARAM_ALPHA,
+        'choices' => array(
+            BLOCK_MYOVERVIEW_SORTING_TITLE,
+            BLOCK_MYOVERVIEW_SORTING_LASTACCESSED
+        )
+    );
+    $preferences['block_myoverview_user_view_preference'] = array(
+        'null' => NULL_NOT_ALLOWED,
+        'default' => BLOCK_MYOVERVIEW_VIEW_CARD,
+        'type' => PARAM_ALPHA,
+        'choices' => array(
+            BLOCK_MYOVERVIEW_VIEW_CARD,
+            BLOCK_MYOVERVIEW_VIEW_LIST,
+            BLOCK_MYOVERVIEW_VIEW_SUMMARY
+        )
+    );
     return $preferences;
 }

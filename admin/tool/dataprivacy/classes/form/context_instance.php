@@ -27,6 +27,7 @@ defined('MOODLE_INTERNAL') || die();
 
 use tool_dataprivacy\api;
 use tool_dataprivacy\data_registry;
+use tool_dataprivacy\purpose;
 
 /**
  * Context instance data form.
@@ -144,12 +145,12 @@ class context_instance extends \core\form\persistent {
             $persistent->set('contextid', $context->id);
         }
 
-        $purposeoptions = \tool_dataprivacy\output\data_registry_page::purpose_options(
-            api::get_purposes()
-        );
-        $categoryoptions = \tool_dataprivacy\output\data_registry_page::category_options(
-            api::get_categories()
-        );
+        $purposes = [];
+        foreach (api::get_purposes() as $purpose) {
+            $purposes[$purpose->get('id')] = $purpose;
+        }
+        $purposeoptions = \tool_dataprivacy\output\data_registry_page::purpose_options($purposes);
+        $categoryoptions = \tool_dataprivacy\output\data_registry_page::category_options(api::get_categories());
 
         $customdata = [
             'context' => $context,
@@ -167,9 +168,14 @@ class context_instance extends \core\form\persistent {
                 $context);
 
             $customdata['purposeretentionperiods'] = [];
-            foreach ($purposeoptions as $optionvalue => $unused) {
-                // Get the effective purpose if $optionvalue would be the selected value.
-                $purpose = api::get_effective_context_purpose($context, $optionvalue);
+            foreach (array_keys($purposeoptions) as $optionvalue) {
+
+                if (isset($purposes[$optionvalue])) {
+                    $purpose = $purposes[$optionvalue];
+                } else {
+                    // Get the effective purpose if $optionvalue would be the selected value.
+                    $purpose = api::get_effective_context_purpose($context, $optionvalue);
+                }
 
                 $retentionperiod = self::get_retention_display_text(
                     $purpose,
@@ -186,12 +192,12 @@ class context_instance extends \core\form\persistent {
     /**
      * Returns the purpose display text.
      *
-     * @param \tool_dataprivacy\purpose $effectivepurpose
+     * @param purpose $effectivepurpose
      * @param int $retentioncontextlevel
      * @param \context $context The context, just for displaying (filters) purposes.
      * @return string
      */
-    protected static function get_retention_display_text(\tool_dataprivacy\purpose $effectivepurpose, $retentioncontextlevel, \context $context) {
+    protected static function get_retention_display_text(purpose $effectivepurpose, $retentioncontextlevel, \context $context) {
         global $PAGE;
 
         $renderer = $PAGE->get_renderer('tool_dataprivacy');

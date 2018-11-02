@@ -66,6 +66,14 @@ $functions = array(
         'ajax'          => true,
         'loginrequired' => false,
     ),
+    'core_auth_resend_confirmation_email' => array(
+        'classname'   => 'core_auth_external',
+        'methodname'  => 'resend_confirmation_email',
+        'description' => 'Resend confirmation email.',
+        'type'        => 'write',
+        'ajax'          => true,
+        'loginrequired' => false,
+    ),
     'core_badges_get_user_badges' => array(
         'classname'     => 'core_badges_external',
         'methodname'    => 'get_user_badges',
@@ -73,6 +81,24 @@ $functions = array(
         'type'          => 'read',
         'capabilities'  => 'moodle/badges:viewotherbadges',
         'services'      => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_blog_get_entries' => array(
+        'classname'   => 'core_blog\external',
+        'methodname'  => 'get_entries',
+        'description' => 'Returns blog entries.',
+        'type'        => 'read',
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+        'ajax'          => true,
+        'loginrequired' => false,
+    ),
+    'core_blog_view_entries' => array(
+        'classname'   => 'core_blog\external',
+        'methodname'  => 'view_entries',
+        'description' => 'Trigger the blog_entries_viewed event.',
+        'type'        => 'read',
+        'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+        'ajax'          => true,
+        'loginrequired' => false,
     ),
     'core_calendar_get_calendar_monthly_view' => array(
         'classname' => 'core_calendar_external',
@@ -510,6 +536,14 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_course_get_enrolled_courses_by_timeline_classification' => array(
+        'classname' => 'core_course_external',
+        'methodname' => 'get_enrolled_courses_by_timeline_classification',
+        'classpath' => 'course/externallib.php',
+        'description' => 'List of enrolled courses for the given timeline classification (past, inprogress, or future).',
+        'type' => 'read',
+        'ajax' => true
+    ),
     'core_enrol_get_course_enrolment_methods' => array(
         'classname' => 'core_enrol_external',
         'methodname' => 'get_course_enrolment_methods',
@@ -764,6 +798,7 @@ $functions = array(
         'classpath' => 'group/externallib.php',
         'description' => 'Returns all groups in specified course.',
         'type' => 'read',
+        'ajax' => true,
         'capabilities' => 'moodle/course:managegroups'
     ),
     'core_group_get_course_user_groups' => array(
@@ -812,11 +847,21 @@ $functions = array(
         'description' => 'Updates existing groupings',
         'type' => 'write',
     ),
+    'core_message_block_user' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'block_user',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Blocks a user',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'core_message_block_contacts' => array(
         'classname' => 'core_message_external',
         'methodname' => 'block_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Block contacts',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Block contacts',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
@@ -825,11 +870,47 @@ $functions = array(
         'classname' => 'core_message_external',
         'methodname' => 'create_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Add contacts to the contact list',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Add contacts to the contact list',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_get_contact_requests' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'get_contact_requests',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Returns contact requests for a user',
+        'type' => 'read',
         'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_create_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'create_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Creates a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_confirm_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'confirm_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Confirms a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_decline_contact_request' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'decline_contact_request',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Declines a contact request',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'core_message_delete_contacts' => array(
         'classname' => 'core_message_external',
@@ -839,13 +920,23 @@ $functions = array(
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
-        'ajax' => true,
     ),
     'core_message_delete_conversation' => array(
         'classname' => 'core_message_external',
         'methodname' => 'delete_conversation',
         'classpath' => 'message/externallib.php',
-        'description' => 'Deletes a conversation.',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Deletes a conversation.',
+        'type' => 'write',
+        'capabilities' => 'moodle/site:deleteownmessage',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_delete_conversations_by_id' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'delete_conversations_by_id',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Deletes a list of conversations.',
         'type' => 'write',
         'capabilities' => 'moodle/site:deleteownmessage',
         'ajax' => true,
@@ -976,7 +1067,17 @@ $functions = array(
         'classname' => 'core_message_external',
         'methodname' => 'mark_all_messages_as_read',
         'classpath' => 'message/externallib.php',
-        'description' => 'Mark all messages as read for a given user',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                          Mark all messages as read for a given user',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_mark_all_conversation_messages_as_read' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'mark_all_conversation_messages_as_read',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Mark all conversation messages as read for a given user',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
@@ -1034,11 +1135,30 @@ $functions = array(
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
+    'core_message_get_conversation_messages' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'get_conversation_messages',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Retrieve the conversation messages and relevant member information',
+        'type' => 'read',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_unblock_user' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'unblock_user',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Unblocks a user',
+        'type' => 'write',
+        'ajax' => true,
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
     'core_message_unblock_contacts' => array(
         'classname' => 'core_message_external',
         'methodname' => 'unblock_contacts',
         'classpath' => 'message/externallib.php',
-        'description' => 'Unblock contacts',
+        'description' => '** DEPRECATED ** Please do not call this function any more.
+                         Unblock contacts',
         'type' => 'write',
         'ajax' => true,
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
@@ -1059,6 +1179,22 @@ $functions = array(
         'description' => 'Get the message preferences for a given user.',
         'type' => 'read',
         'capabilities' => 'moodle/user:editownmessageprofile',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_set_favourite_conversations' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'set_favourite_conversations',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Mark a conversation or group of conversations as favourites/starred conversations.',
+        'type' => 'write',
+        'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_message_unset_favourite_conversations' => array(
+        'classname' => 'core_message_external',
+        'methodname' => 'unset_favourite_conversations',
+        'classpath' => 'message/externallib.php',
+        'description' => 'Unset a conversation or group of conversations as favourites/starred conversations.',
+        'type' => 'write',
         'services' => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
     'core_notes_create_notes' => array(
@@ -1353,6 +1489,7 @@ $functions = array(
         'description' => 'Set user preferences.',
         'type' => 'write',
         'capabilities' => 'moodle/site:config',
+        'ajax' => true
     ),
     'core_user_agree_site_policy' => array(
         'classname' => 'core_user_external',
@@ -2131,6 +2268,15 @@ $functions = array(
         'services'      => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
     ),
 
+    'core_block_get_dashboard_blocks' => array(
+        'classname'     => 'core_block_external',
+        'methodname'    => 'get_dashboard_blocks',
+        'description'   => 'Returns blocks information for the given user dashboard.',
+        'type'          => 'read',
+        'capabilities'  => '',
+        'services'      => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+
     // Filters functions.
     'core_filters_get_available_in_context' => array(
         'classname'   => 'core_filters\external',
@@ -2138,6 +2284,14 @@ $functions = array(
         'description' => 'Returns the filters available in the given contexts.',
         'type'        => 'read',
         'services'    => array(MOODLE_OFFICIAL_MOBILE_SERVICE),
+    ),
+    'core_course_set_favourite_courses' => array(
+        'classname' => 'core_course_external',
+        'methodname' => 'set_favourite_courses',
+        'classpath' => 'course/externallib.php',
+        'description' => 'Add a list of courses to the list of favourite courses.',
+        'type' => 'read',
+        'ajax' => true
     )
 );
 

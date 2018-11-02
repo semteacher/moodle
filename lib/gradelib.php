@@ -252,6 +252,7 @@ function grade_update($source, $courseid, $itemtype, $itemmodule, $iteminstance,
         $rawgrade       = false;
         $feedback       = false;
         $feedbackformat = FORMAT_MOODLE;
+        $feedbackfiles = [];
         $usermodified   = $USER->id;
         $datesubmitted  = null;
         $dategraded     = null;
@@ -268,6 +269,10 @@ function grade_update($source, $courseid, $itemtype, $itemmodule, $iteminstance,
             $feedbackformat = $grade['feedbackformat'];
         }
 
+        if (array_key_exists('feedbackfiles', $grade)) {
+            $feedbackfiles = $grade['feedbackfiles'];
+        }
+
         if (array_key_exists('usermodified', $grade)) {
             $usermodified = $grade['usermodified'];
         }
@@ -281,7 +286,8 @@ function grade_update($source, $courseid, $itemtype, $itemmodule, $iteminstance,
         }
 
         // update or insert the grade
-        if (!$grade_item->update_raw_grade($userid, $rawgrade, $source, $feedback, $feedbackformat, $usermodified, $dategraded, $datesubmitted, $grade_grade)) {
+        if (!$grade_item->update_raw_grade($userid, $rawgrade, $source, $feedback, $feedbackformat, $usermodified,
+                $dategraded, $datesubmitted, $grade_grade, $feedbackfiles)) {
             $failed = true;
         }
     }
@@ -537,7 +543,17 @@ function grade_get_grades($courseid, $itemtype, $itemmodule, $iteminstance, $use
                         if (is_null($grade->feedback)) {
                             $grade->str_feedback = '';
                         } else {
-                            $grade->str_feedback = format_text($grade->feedback, $grade->feedbackformat);
+                            $feedback = file_rewrite_pluginfile_urls(
+                                $grade->feedback,
+                                'pluginfile.php',
+                                $grade_grades[$userid]->get_context()->id,
+                                GRADE_FILE_COMPONENT,
+                                GRADE_FEEDBACK_FILEAREA,
+                                $grade_grades[$userid]->id
+                            );
+
+                            $grade->str_feedback = format_text($feedback, $grade->feedbackformat,
+                                ['context' => $grade_grades[$userid]->get_context()]);
                         }
 
                         $item->grades[$userid] = $grade;
@@ -1401,7 +1417,7 @@ function remove_grade_letters($context, $showfeedback) {
 
     $records = $DB->get_records('grade_letters', array('contextid' => $context->id));
     foreach ($records as $record) {
-        $DB->delete_record('grade_letters', array('id' => $record->id));
+        $DB->delete_records('grade_letters', array('id' => $record->id));
         // Trigger the letter grade deleted event.
         $event = \core\event\grade_letter_deleted::create(array(
             'objectid' => $record->id,
@@ -1473,7 +1489,7 @@ function grade_course_category_delete($categoryid, $newparentid, $showfeedback) 
     $context = context_coursecat::instance($categoryid);
     $records = $DB->get_records('grade_letters', array('contextid' => $context->id));
     foreach ($records as $record) {
-        $DB->delete_record('grade_letters', array('id' => $record->id));
+        $DB->delete_records('grade_letters', array('id' => $record->id));
         // Trigger the letter grade deleted event.
         $event = \core\event\grade_letter_deleted::create(array(
             'objectid' => $record->id,

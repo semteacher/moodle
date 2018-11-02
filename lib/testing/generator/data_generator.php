@@ -289,12 +289,9 @@ EOD;
      * Create a test course category
      * @param array|stdClass $record
      * @param array $options
-     * @return coursecat course category record
+     * @return core_course_category course category record
      */
     public function create_category($record=null, array $options=null) {
-        global $DB, $CFG;
-        require_once("$CFG->libdir/coursecatlib.php");
-
         $this->categorycount++;
         $i = $this->categorycount;
 
@@ -312,7 +309,7 @@ EOD;
             $record['idnumber'] = '';
         }
 
-        return coursecat::create($record);
+        return core_course_category::create($record);
     }
 
     /**
@@ -1162,5 +1159,25 @@ EOD;
         $event->create($record);
 
         return $event->properties();
+    }
+
+    /**
+     * Create a new user, and enrol them in the specified course as the supplied role.
+     *
+     * @param   \stdClass   $course The course to enrol in
+     * @param   string      $role The role to give within the course
+     * @param   \stdClass   $userparams User parameters
+     * @return  \stdClass   The created user
+     */
+    public function create_and_enrol($course, $role = 'student', $userparams = null, $enrol = 'manual',
+            $timestart = 0, $timeend = 0, $status = null) {
+        global $DB;
+
+        $user = $this->create_user($userparams);
+        $roleid = $DB->get_field('role', 'id', ['shortname' => $role ]);
+
+        $this->enrol_user($user->id, $course->id, $roleid, $enrol, $timestart, $timeend, $status);
+
+        return $user;
     }
 }

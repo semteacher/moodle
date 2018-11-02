@@ -70,11 +70,24 @@ class metadata_registry {
                     $internaldata['compliant'] = false;
                 }
                 // Check to see if we are an external plugin.
-                $componentshortname = explode('_', $component);
+                // Plugin names can contain _ characters, limit to 2 to just remove initial plugintype.
+                $componentshortname = explode('_', $component, 2);
                 $shortname = array_pop($componentshortname);
                 if (isset($contributedplugins[$plugintype][$shortname])) {
                     $internaldata['external'] = true;
                 }
+
+                // Check if the interface is deprecated.
+                if (!$manager->is_empty_subsystem($component)) {
+                    $classname = $manager->get_provider_classname_for_component($component);
+                    if (class_exists($classname)) {
+                        $componentclass = new $classname();
+                        if ($componentclass instanceof \core_privacy\local\deprecated) {
+                            $internaldata['deprecated'] = true;
+                        }
+                    }
+                }
+
                 return $internaldata;
             }, $leaves['plugins']);
             $fullyrichtree[$branch]['plugin_type_raw'] = $plugintype;

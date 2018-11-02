@@ -242,7 +242,8 @@ class core_calendar_external extends external_api {
             $categories = [];
 
             if (!empty($params['events']['categoryids'])) {
-                $catobjs = \coursecat::get_many(array_merge($params['events']['categoryids'], array_keys($coursecategories)));
+                $catobjs = \core_course_category::get_many(
+                    array_merge($params['events']['categoryids'], array_keys($coursecategories)));
                 foreach ($catobjs as $catobj) {
                     if (isset($coursecategories[$catobj->id]) ||
                             has_capability('moodle/category:manage', $catobj->get_context())) {
@@ -267,7 +268,7 @@ class core_calendar_external extends external_api {
                     $categories = array_flip($categories);
                 } else {
                     $categories = [];
-                    foreach (\coursecat::get_all() as $category) {
+                    foreach (\core_course_category::get_all() as $category) {
                         if (isset($coursecategories[$category->id]) ||
                                 has_capability('moodle/category:manage', $category->get_context(), $USER, false)) {
                             // If the user has access to a course in this category or can manage the category,
@@ -865,15 +866,31 @@ class core_calendar_external extends external_api {
         self::validate_context($context);
         parse_str($params['formdata'], $data);
 
+        $eventtype = isset($data['eventtype']) ? $data['eventtype'] : null;
+        $coursekey = ($eventtype == 'group') ? 'groupcourseid' : 'courseid';
+        $courseid = (!empty($data[$coursekey])) ? $data[$coursekey] : null;
+        $editoroptions = \core_calendar\local\event\forms\create::build_editor_options($context);
+        $formoptions = ['editoroptions' => $editoroptions, 'courseid' => $courseid];
+        if ($courseid) {
+            require_once($CFG->libdir . '/grouplib.php');
+            $groupcoursedata = groups_get_course_data($courseid);
+            if (!empty($groupcoursedata->groups)) {
+                $formoptions['groups'] = [];
+                foreach ($groupcoursedata->groups as $groupid => $groupdata) {
+                    $formoptions['groups'][$groupid] = $groupdata->name;
+                }
+            }
+        }
+
         if (!empty($data['id'])) {
             $eventid = clean_param($data['id'], PARAM_INT);
             $legacyevent = calendar_event::load($eventid);
             $legacyevent->count_repeats();
-            $formoptions = ['event' => $legacyevent];
+            $formoptions['event'] = $legacyevent;
             $mform = new update_event_form(null, $formoptions, 'post', '', null, true, $data);
         } else {
             $legacyevent = null;
-            $mform = new create_event_form(null, null, 'post', '', null, true, $data);
+            $mform = new create_event_form(null, $formoptions, 'post', '', null, true, $data);
         }
 
         if ($validateddata = $mform->get_data()) {
