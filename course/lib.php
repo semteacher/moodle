@@ -26,6 +26,7 @@ defined('MOODLE_INTERNAL') || die;
 
 require_once($CFG->libdir.'/completionlib.php');
 require_once($CFG->libdir.'/filelib.php');
+require_once($CFG->libdir.'/datalib.php');
 require_once($CFG->dirroot.'/course/format/lib.php');
 
 define('COURSE_MAX_LOGS_PER_PAGE', 1000);       // Records.
@@ -60,6 +61,7 @@ define('COURSE_TIMELINE_PAST', 'past');
 define('COURSE_TIMELINE_INPROGRESS', 'inprogress');
 define('COURSE_TIMELINE_FUTURE', 'future');
 define('COURSE_FAVOURITES', 'favourites');
+define('COURSE_TIMELINE_HIDDEN', 'hidden');
 define('COURSE_DB_QUERY_LIMIT', 1000);
 
 function make_log_url($module, $url) {
@@ -3664,6 +3666,8 @@ function course_view($context, $sectionnumber = 0) {
 
     $event = \core\event\course_viewed::create($eventdata);
     $event->trigger();
+
+    user_accesstime_log($context->instanceid);
 }
 
 /**
@@ -4190,6 +4194,8 @@ function course_classify_courses_for_timeline(array $courses) {
  * @param string|null $sort SQL string for sorting
  * @param string|null $fields SQL string for fields to be returned
  * @param int $dbquerylimit The number of records to load per DB request
+ * @param array $includecourses courses ids to be restricted
+ * @param array $hiddencourses courses ids to be excluded
  * @return Generator
  */
 function course_get_enrolled_courses_for_logged_in_user(
@@ -4197,14 +4203,16 @@ function course_get_enrolled_courses_for_logged_in_user(
     int $offset = 0,
     string $sort = null,
     string $fields = null,
-    int $dbquerylimit = COURSE_DB_QUERY_LIMIT
+    int $dbquerylimit = COURSE_DB_QUERY_LIMIT,
+    array $includecourses = [],
+    array $hiddencourses = []
 ) : Generator {
 
     $haslimit = !empty($limit);
     $recordsloaded = 0;
     $querylimit = (!$haslimit || $limit > $dbquerylimit) ? $dbquerylimit : $limit;
 
-    while ($courses = enrol_get_my_courses($fields, $sort, $querylimit, [], false, $offset)) {
+    while ($courses = enrol_get_my_courses($fields, $sort, $querylimit, $includecourses, false, $offset, $hiddencourses)) {
         yield from $courses;
 
         $recordsloaded += $querylimit;
@@ -4242,7 +4250,8 @@ function course_filter_courses_by_timeline_classification(
 ) : array {
 
     if (!in_array($classification,
-            [COURSE_TIMELINE_ALL, COURSE_TIMELINE_PAST, COURSE_TIMELINE_INPROGRESS, COURSE_TIMELINE_FUTURE])) {
+            [COURSE_TIMELINE_ALL, COURSE_TIMELINE_PAST, COURSE_TIMELINE_INPROGRESS,
+                COURSE_TIMELINE_FUTURE, COURSE_TIMELINE_HIDDEN])) {
         $message = 'Classification must be one of COURSE_TIMELINE_ALL, COURSE_TIMELINE_PAST, '
             . 'COURSE_TIMELINE_INPROGRESS or COURSE_TIMELINE_FUTURE';
         throw new moodle_exception($message);
@@ -4254,8 +4263,11 @@ function course_filter_courses_by_timeline_classification(
 
     foreach ($courses as $course) {
         $numberofcoursesprocessed++;
+        $pref = get_user_preferences('block_myoverview_hidden_course_' . $course->id, 0);
 
-        if ($classification == COURSE_TIMELINE_ALL || $classification == course_classify_for_timeline($course)) {
+        // Added as of MDL-63457 toggle viewability for each user.
+        if (($classification == COURSE_TIMELINE_HIDDEN && $pref) ||
+            (($classification == COURSE_TIMELINE_ALL || $classification == course_classify_for_timeline($course)) && !$pref)) {
             $filteredcourses[] = $course;
             $filtermatches++;
         }
@@ -4493,4 +4505,103 @@ function can_download_from_backup_filearea($filearea, \context $context, stdClas
 
     }
     return $candownload;
+}
+
+/**
+ * Get a list of hidden courses
+ *
+ * @param int|object|null $user User override to get the filter from. Defaults to current user
+ * @return array $ids List of hidden courses
+ * @throws coding_exception
+ */
+function get_hidden_courses_on_timeline($user = null) {
+    global $USER;
+
+    if (empty($user)) {
+        $user = $USER->id;
+    }
+
+    $preferences = get_user_preferences(null, null, $user);
+    $ids = [];
+    foreach ($preferences as $key => $value) {
+        if (preg_match('/block_myoverview_hidden_course_(\d)+/', $key)) {
+            $id = preg_split('/block_myoverview_hidden_course_/', $key);
+            $ids[] = $id[1];
+        }
+    }
+
+    return $ids;
+}
+
+/**
+ * Returns a list of the most recently courses accessed by a user
+ *
+ * @param int $userid User id from which the courses will be obtained
+ * @param int $limit Restrict result set to this amount
+ * @param int $offset Skip this number of records from the start of the result set
+ * @param string|null $sort SQL string for sorting
+ * @return array
+ */
+function course_get_recent_courses(int $userid = null, int $limit = 0, int $offset = 0, string $sort = null) {
+
+    global $CFG, $USER, $DB;
+
+    if (empty($userid)) {
+        $userid = $USER->id;
+    }
+
+    $basefields = array('id', 'idnumber', 'summary', 'summaryformat', 'startdate', 'enddate', 'category',
+            'shortname', 'fullname', 'timeaccess', 'component');
+
+    $sort = trim($sort);
+    if (empty($sort)) {
+        $sort = 'timeaccess DESC';
+    } else {
+        $rawsorts = explode(',', $sort);
+        $sorts = array();
+        foreach ($rawsorts as $rawsort) {
+            $rawsort = trim($rawsort);
+            $sorts[] = trim($rawsort);
+        }
+        $sort = implode(',', $sorts);
+    }
+
+    $orderby = "ORDER BY $sort";
+
+    $ctxfields = context_helper::get_preload_record_columns_sql('ctx');
+
+    $coursefields = 'c.' .join(',', $basefields);
+
+    $sql = "SELECT $ctxfields, $coursefields
+              FROM {course} c
+              JOIN {context} ctx
+                   ON ctx.contextlevel = :contextlevel
+                   AND ctx.instanceid = c.id
+              JOIN {user_lastaccess} ul
+                   ON ul.courseid = c.id
+         LEFT JOIN {favourite} f
+                   ON f.component = 'core_course'
+                   AND f.itemtype = 'courses'
+                   AND f.userid = ul.userid
+                   AND f.itemid = ul.courseid
+             WHERE ul.userid = :userid
+          $orderby";
+    $params = ['userid' => $userid, 'contextlevel' => CONTEXT_COURSE];
+
+    $recentcourses = $DB->get_records_sql($sql, $params, $offset, $limit);
+
+    // Filter courses if last access field is hidden.
+    $hiddenfields = array_flip(explode(',', $CFG->hiddenuserfields));
+
+    if ($userid != $USER->id && isset($hiddenfields['lastaccess'])) {
+        $recentcourses = array_filter($recentcourses, function($course) {
+            context_helper::preload_from_record($course);
+            $context = context_course::instance($course->id, IGNORE_MISSING);
+            // If last access was a hidden field, a user requesting info about another user would need permission to view hidden
+            // fields.
+            return has_capability('moodle/course:viewhiddenuserfields', $context);
+        });
+    }
+
+    return $recentcourses;
 }

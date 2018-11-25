@@ -29,6 +29,7 @@ defined('MOODLE_INTERNAL') || die;
 use core_course\external\course_summary_exporter;
 
 require_once("$CFG->libdir/externallib.php");
+require_once("lib.php");
 
 /**
  * Course external functions
@@ -3698,6 +3699,8 @@ class core_course_external extends external_api {
                 break;
             case COURSE_FAVOURITES:
                 break;
+            case COURSE_TIMELINE_HIDDEN:
+                break;
             default:
                 throw new invalid_parameter_exception('Invalid classification');
         }
@@ -3706,7 +3709,17 @@ class core_course_external extends external_api {
 
         $requiredproperties = course_summary_exporter::define_properties();
         $fields = join(',', array_keys($requiredproperties));
-        $courses = course_get_enrolled_courses_for_logged_in_user(0, $offset, $sort, $fields);
+        $hiddencourses = get_hidden_courses_on_timeline();
+        $courses = [];
+
+        // If the timeline requires the hidden courses then restrict the result to only $hiddencourses else exclude.
+        if ($classification == COURSE_TIMELINE_HIDDEN) {
+            $courses = course_get_enrolled_courses_for_logged_in_user(0, $offset, $sort, $fields,
+                COURSE_DB_QUERY_LIMIT, $hiddencourses);
+        } else {
+            $courses = course_get_enrolled_courses_for_logged_in_user(0, $offset, $sort, $fields,
+                COURSE_DB_QUERY_LIMIT, [], $hiddencourses);
+        }
 
         $favouritecourseids = [];
         $ufservice = \core_favourites\service_factory::get_service_for_user_context(\context_user::instance($USER->id));
@@ -3725,7 +3738,6 @@ class core_course_external extends external_api {
                 $favouritecourseids,
                 $limit
             );
-
         } else {
             list($filteredcourses, $processedcount) = course_filter_courses_by_timeline_classification(
                 $courses,
@@ -3811,12 +3823,14 @@ class core_course_external extends external_api {
 
             $warning = [];
 
-            $favouriteexists = $ufservice->favourite_exists('core_course', 'courses', $course['id'], \context_system::instance());
+            $favouriteexists = $ufservice->favourite_exists('core_course', 'courses', $course['id'],
+                    \context_course::instance($course['id']));
 
             if ($course['favourite']) {
                 if (!$favouriteexists) {
                     try {
-                        $ufservice->create_favourite('core_course', 'courses', $course['id'], \context_system::instance());
+                        $ufservice->create_favourite('core_course', 'courses', $course['id'],
+                                \context_course::instance($course['id']));
                     } catch (Exception $e) {
                         $warning['courseid'] = $course['id'];
                         if ($e instanceof moodle_exception) {
@@ -3837,7 +3851,8 @@ class core_course_external extends external_api {
             } else {
                 if ($favouriteexists) {
                     try {
-                        $ufservice->delete_favourite('core_course', 'courses', $course['id'], \context_system::instance());
+                        $ufservice->delete_favourite('core_course', 'courses', $course['id'],
+                                \context_course::instance($course['id']));
                     } catch (Exception $e) {
                         $warning['courseid'] = $course['id'];
                         if ($e instanceof moodle_exception) {
@@ -3874,5 +3889,86 @@ class core_course_external extends external_api {
                 'warnings' => new external_warnings()
             )
         );
+    }
+
+    /**
+     * Returns description of method parameters
+     *
+     * @return external_function_parameters
+     * @since Moodle 3.6
+     */
+    public static function get_recent_courses_parameters() {
+        return new external_function_parameters(
+            array(
+                'userid' => new external_value(PARAM_INT, 'id of the user, default to current user', VALUE_DEFAULT, 0),
+                'limit' => new external_value(PARAM_INT, 'result set limit', VALUE_DEFAULT, 0),
+                'offset' => new external_value(PARAM_INT, 'Result set offset', VALUE_DEFAULT, 0),
+                'sort' => new external_value(PARAM_TEXT, 'Sort string', VALUE_DEFAULT, null)
+            )
+        );
+    }
+
+    /**
+     * Get last accessed courses adding additional course information like images.
+     *
+     * @param int $userid User id from which the courses will be obtained
+     * @param int $limit Restrict result set to this amount
+     * @param int $offset Skip this number of records from the start of the result set
+     * @param string|null $sort SQL string for sorting
+     * @return array List of courses
+     * @throws  invalid_parameter_exception
+     */
+    public static function get_recent_courses(int $userid = 0, int $limit = 0, int $offset = 0, string $sort = null) {
+        global $USER, $PAGE;
+
+        if (empty($userid)) {
+            $userid = $USER->id;
+        }
+
+        $params = self::validate_parameters(self::get_recent_courses_parameters(),
+            array(
+                'userid' => $userid,
+                'limit' => $limit,
+                'offset' => $offset,
+                'sort' => $sort
+            )
+        );
+
+        $userid = $params['userid'];
+        $limit = $params['limit'];
+        $offset = $params['offset'];
+        $sort = $params['sort'];
+
+        $usercontext = context_user::instance($userid);
+
+        self::validate_context($usercontext);
+
+        if ($userid != $USER->id and !has_capability('moodle/user:viewdetails', $usercontext)) {
+            return array();
+        }
+
+        $courses = course_get_recent_courses($userid, $limit, $offset, $sort);
+
+        $renderer = $PAGE->get_renderer('core');
+
+        $recentcourses = array_map(function($course) use ($renderer) {
+            context_helper::preload_from_record($course);
+            $context = context_course::instance($course->id);
+            $isfavourite = !empty($course->component);
+            $exporter = new course_summary_exporter($course, ['context' => $context, 'isfavourite' => $isfavourite]);
+            return $exporter->export($renderer);
+        }, $courses);
+
+        return $recentcourses;
+    }
+
+    /**
+     * Returns description of method result value
+     *
+     * @return external_description
+     * @since Moodle 3.6
+     */
+    public static function get_recent_courses_returns() {
+        return new external_multiple_structure(course_summary_exporter::get_read_structure(), 'Courses');
     }
 }
