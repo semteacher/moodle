@@ -111,7 +111,7 @@ class user_favourite_service_testcase extends advanced_testcase {
                         return $fakerow;
                     }
                 }
-                throw new \moodle_exception("Item not found");
+                throw new \dml_missing_record_exception("Item not found");
             })
         );
         $mockrepo->expects($this->any())
@@ -127,16 +127,17 @@ class user_favourite_service_testcase extends advanced_testcase {
             })
         );
         $mockrepo->expects($this->any())
-            ->method('exists_by')
+            ->method('count_by')
             ->will($this->returnCallback(function(array $criteria) use (&$mockstore) {
+                $count = 0;
                 // Check the mockstore for all objects with properties matching the key => val pairs in $criteria.
                 foreach ($mockstore as $index => $mockrow) {
                     $mockrowarr = (array)$mockrow;
                     if (array_diff($criteria, $mockrowarr) == []) {
-                        return true;
+                        $count++;
                     }
                 }
-                return false;
+                return $count;
             })
         );
         $mockrepo->expects($this->any())
@@ -147,6 +148,19 @@ class user_favourite_service_testcase extends advanced_testcase {
                         unset($mockstore[$id]);
                     }
                 }
+            })
+        );
+        $mockrepo->expects($this->any())
+            ->method('exists_by')
+            ->will($this->returnCallback(function(array $criteria) use (&$mockstore) {
+                // Check the mockstore for all objects with properties matching the key => val pairs in $criteria.
+                foreach ($mockstore as $index => $mockrow) {
+                    $mockrowarr = (array)$mockrow;
+                    if (array_diff($criteria, $mockrowarr) == []) {
+                        return true;
+                    }
+                }
+                return false;
             })
         );
         return $mockrepo;
@@ -351,5 +365,99 @@ class user_favourite_service_testcase extends advanced_testcase {
                 $course1context
             )
         );
+    }
+
+    /**
+     * Test confirming the behaviour of the get_favourite() method.
+     */
+    public function test_get_favourite() {
+        list($user1context, $user2context, $course1context, $course2context) = $this->setup_users_and_courses();
+
+        // Get a user_favourite_service for the user.
+        $repo = $this->get_mock_repository([]);
+        $service = new \core_favourites\local\service\user_favourite_service($user1context, $repo);
+
+        // Favourite a course.
+        $fav1 = $service->create_favourite('core_course', 'course', $course1context->instanceid, $course1context);
+
+        $result = $service->get_favourite(
+            'core_course',
+            'course',
+            $course1context->instanceid,
+            $course1context
+        );
+        // Verify we can get the favourite.
+        $this->assertEquals($fav1->id, $result->id);
+
+        // And one that we know doesn't exist.
+        $this->assertNull(
+            $service->get_favourite(
+                'core_course',
+                'someothertype',
+                $course1context->instanceid,
+                $course1context
+            )
+        );
+    }
+
+    /**
+     * Test confirming the behaviour of the count_favourites_by_type() method.
+     */
+    public function test_count_favourites_by_type() {
+        list($user1context, $user2context, $course1context, $course2context) = $this->setup_users_and_courses();
+
+        // Get a user_favourite_service for the user.
+        $repo = $this->get_mock_repository([]);
+        $service = new \core_favourites\local\service\user_favourite_service($user1context, $repo);
+
+        $this->assertEquals(0, $service->count_favourites_by_type('core_course', 'course', $course1context));
+        // Favourite a course.
+        $service->create_favourite('core_course', 'course', $course1context->instanceid, $course1context);
+
+        $this->assertEquals(1, $service->count_favourites_by_type('core_course', 'course', $course1context));
+
+        // Favourite another course.
+        $service->create_favourite('core_course', 'course', $course2context->instanceid, $course1context);
+
+        $this->assertEquals(2, $service->count_favourites_by_type('core_course', 'course', $course1context));
+
+        // Favourite a course in another context.
+        $service->create_favourite('core_course', 'course', $course2context->instanceid, $course2context);
+
+        // Doesn't affect original context.
+        $this->assertEquals(2, $service->count_favourites_by_type('core_course', 'course', $course1context));
+        // Gets counted if we include all contexts.
+        $this->assertEquals(3, $service->count_favourites_by_type('core_course', 'course'));
+    }
+
+    /**
+     * Verify that the join sql generated by get_join_sql_by_type is valid and can be used to include favourite information.
+     */
+    public function test_get_join_sql_by_type() {
+        global $DB;
+        list($user1context, $user2context, $course1context, $course2context) = $this->setup_users_and_courses();
+
+        // Get a user_favourite_service for the user.
+        // We need to use a real (DB) repository, as we want to run the SQL.
+        $repo = new \core_favourites\local\repository\favourite_repository();
+        $service = new \core_favourites\local\service\user_favourite_service($user1context, $repo);
+
+        // Favourite the first course only.
+        $service->create_favourite('core_course', 'course', $course1context->instanceid, $course1context);
+
+        // Generate the join snippet.
+        list($favsql, $favparams) = $service->get_join_sql_by_type('core_course', 'course', 'favalias', 'c.id');
+
+        // Join against a simple select, including the 2 courses only.
+        $params = ['courseid1' => $course1context->instanceid, 'courseid2' => $course2context->instanceid];
+        $params = $params + $favparams;
+        $records = $DB->get_records_sql("SELECT c.id, favalias.component
+                                           FROM {course} c $favsql
+                                          WHERE c.id = :courseid1 OR c.id = :courseid2", $params);
+
+        // Verify the favourite information is returned, but only for the favourited course.
+        $this->assertCount(2, $records);
+        $this->assertEquals('core_course', $records[$course1context->instanceid]->component);
+        $this->assertEmpty($records[$course2context->instanceid]->component);
     }
 }

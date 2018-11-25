@@ -37,7 +37,10 @@ class helper {
     /**
      * Helper function to retrieve the messages between two users
      *
-     * @deprecated since 3.6
+     * TODO: This function should be removed once the new group messaging UI is in place and the old messaging UI is removed.
+     * For now we are not removing/deprecating this function for backwards compatibility with messaging UI.
+     * Followup: MDL-63915
+     *
      * @param int $userid the current user
      * @param int $otheruserid the other user
      * @param int $timedeleted the time the message was deleted
@@ -50,9 +53,6 @@ class helper {
      */
     public static function get_messages($userid, $otheruserid, $timedeleted = 0, $limitfrom = 0, $limitnum = 0,
                                         $sort = 'timecreated ASC', $timefrom = 0, $timeto = 0) {
-        debugging('\core_message\helper::get_messages() is deprecated, please use ' .
-            '\core_message\helper::get_conversation_messages() instead.', DEBUG_DEVELOPER);
-
         global $DB;
 
         $hash = self::get_conversation_hash([$userid, $otheruserid]);
@@ -218,10 +218,13 @@ class helper {
         $memberids = array_unique(array_map(function($message) {
             return $message->useridfrom;
         }, $messages));
-        // Get members information.
-        $arrmembers = self::get_member_info($userid, $memberids);
-        // Add the members to the conversation.
-        $conversation['members'] = $arrmembers;
+
+        if (!empty($memberids)) {
+            // Get members information.
+            $conversation['members'] = self::get_member_info($userid, $memberids);
+        } else {
+            $conversation['members'] = array();
+        }
 
         return $conversation;
     }
@@ -229,15 +232,15 @@ class helper {
     /**
      * Helper function to return an array of messages.
      *
-     * @deprecated since 3.6
+     * TODO: This function should be removed once the new group messaging UI is in place and the old messaging UI is removed.
+     * For now we are not removing/deprecating this function for backwards compatibility with messaging UI.
+     * Followup: MDL-63915
+     *
      * @param int $userid
      * @param array $messages
      * @return array
      */
     public static function create_messages($userid, $messages) {
-        debugging('\core_message\helper::create_messages() is deprecated, please use ' .
-            '\core_message\helper::create_conversation_messages() instead.', DEBUG_DEVELOPER);
-
         // Store the messages.
         $arrmessages = array();
 
@@ -303,23 +306,27 @@ class helper {
         // Store the message if we have it.
         $data->ismessaging = false;
         $data->lastmessage = null;
+        $data->lastmessagedate = null;
         $data->messageid = null;
         if (isset($contact->smallmessage)) {
             $data->ismessaging = true;
             // Strip the HTML tags from the message for displaying in the contact area.
             $data->lastmessage = clean_param($contact->smallmessage, PARAM_NOTAGS);
+            $data->lastmessagedate = $contact->timecreated;
             $data->useridfrom = $contact->useridfrom;
             if (isset($contact->messageid)) {
                 $data->messageid = $contact->messageid;
             }
         }
         $data->isonline = null;
-        if (self::show_online_status($userfields)) {
+        $user = \core_user::get_user($data->userid);
+        if (self::show_online_status($user)) {
             $data->isonline = self::is_online($userfields->lastaccess);
         }
         $data->isblocked = isset($contact->blocked) ? (bool) $contact->blocked : false;
         $data->isread = isset($contact->isread) ? (bool) $contact->isread : false;
         $data->unreadcount = isset($contact->unreadcount) ? $contact->unreadcount : null;
+        $data->conversationid = $contact->conversationid ?? null;
 
         return $data;
     }
@@ -482,24 +489,32 @@ class helper {
      *
      * @param int $referenceuserid the id of the user which check contact and blocked status.
      * @param array $userids
+     * @param bool $includecontactrequests Do we want to include contact requests with this data?
+     * @param bool $includeprivacyinfo Do we want to include whether the user can message another, and if the user
+     *             requires a contact.
      * @return array the array of objects containing member info, indexed by userid.
      * @throws \coding_exception
      * @throws \dml_exception
      */
-    public static function get_member_info(int $referenceuserid, array $userids) : array {
+    public static function get_member_info(int $referenceuserid, array $userids, bool $includecontactrequests = false,
+                                           bool $includeprivacyinfo = false) : array {
         global $DB, $PAGE;
+
+        // Prevent exception being thrown when array is empty.
+        if (empty($userids)) {
+            return [];
+        }
 
         list($useridsql, $usersparams) = $DB->get_in_or_equal($userids);
         $userfields = \user_picture::fields('u', array('lastaccess'));
-        $userssql = "SELECT $userfields, mc.id AS contactid, mub.id AS blockedid
+        $userssql = "SELECT $userfields, u.deleted, mc.id AS contactid, mub.id AS blockedid
                        FROM {user} u
                   LEFT JOIN {message_contacts} mc
-                         ON (mc.userid = ? AND mc.contactid = u.id)
+                         ON ((mc.userid = ? AND mc.contactid = u.id) OR (mc.userid = u.id AND mc.contactid = ?))
                   LEFT JOIN {message_users_blocked} mub
                          ON (mub.userid = ? AND mub.blockeduserid = u.id)
-                      WHERE u.id $useridsql
-                        AND u.deleted = 0";
-        $usersparams = array_merge([$referenceuserid, $referenceuserid], $usersparams);
+                      WHERE u.id $useridsql";
+        $usersparams = array_merge([$referenceuserid, $referenceuserid, $referenceuserid], $usersparams);
         $otherusers = $DB->get_records_sql($userssql, $usersparams);
 
         $members = [];
@@ -517,15 +532,97 @@ class helper {
             $data->profileimageurlsmall = $userpicture->get_url($PAGE)->out(false);
 
             // Set online status indicators.
-            $data->isonline = self::show_online_status($member) ? self::is_online($member->lastaccess) : null;
-            $data->showonlinestatus = is_null($data->isonline) ? false : true;
+            $data->isonline = false;
+            $data->showonlinestatus = false;
+            if (!$member->deleted) {
+                $data->isonline = self::show_online_status($member) ? self::is_online($member->lastaccess) : null;
+                $data->showonlinestatus = is_null($data->isonline) ? false : true;
+            }
 
             // Set contact and blocked status indicators.
             $data->iscontact = ($member->contactid) ? true : false;
             $data->isblocked = ($member->blockedid) ? true : false;
 
+            $data->isdeleted = ($member->deleted) ? true : false;
+
+            $data->requirescontact = null;
+            $data->canmessage = null;
+            if ($includeprivacyinfo) {
+                $privacysetting = api::get_user_privacy_messaging_preference($member->id);
+                $data->requirescontact = $privacysetting == api::MESSAGE_PRIVACY_ONLYCONTACTS;
+
+                $recipient = new \stdClass();
+                $recipient->id = $member->id;
+
+                $sender = new \stdClass();
+                $sender->id = $referenceuserid;
+
+                $data->canmessage = !$data->isdeleted && api::can_post_message($recipient, $sender);
+            }
+
+            // Populate the contact requests, even if we don't need them.
+            $data->contactrequests = [];
+
             $members[$data->id] = $data;
         }
+
+        // Check if we want to include contact requests as well.
+        if (!empty($members) && $includecontactrequests) {
+            list($useridsql, $usersparams) = $DB->get_in_or_equal($userids);
+
+            $wheresql = "(userid $useridsql AND requesteduserid = ?) OR (userid = ? AND requesteduserid $useridsql)";
+            $params = array_merge($usersparams, [$referenceuserid, $referenceuserid], $usersparams);
+            if ($contactrequests = $DB->get_records_select('message_contact_requests', $wheresql, $params,
+                    'timecreated ASC, id ASC')) {
+                foreach ($contactrequests as $contactrequest) {
+                    if (isset($members[$contactrequest->userid])) {
+                        $members[$contactrequest->userid]->contactrequests[] = $contactrequest;
+                    }
+                    if (isset($members[$contactrequest->requesteduserid])) {
+                        $members[$contactrequest->requesteduserid]->contactrequests[] = $contactrequest;
+                    }
+                }
+            }
+        }
+
         return $members;
+    }
+
+    /**
+     * Backwards compatibility formatter, transforming the new output of get_conversations() into the old format.
+     *
+     * @param array $conversations the array of conversations, which must come from get_conversations().
+     * @return array the array of conversations, formatted in the legacy style.
+     */
+    public static function get_conversations_legacy_formatter(array $conversations) : array {
+        // Transform new data format back into the old format, just for BC during the deprecation life cycle.
+        $tmp = [];
+        foreach ($conversations as $id => $conv) {
+            // Only individual conversations were supported in legacy messaging.
+            if ($conv->type != \core_message\api::MESSAGE_CONVERSATION_TYPE_INDIVIDUAL) {
+                continue;
+            }
+            $data = new \stdClass();
+            // The logic for the 'other user' is as follows:
+            // If a conversation is of type 'individual', the other user is always the member who is not the current user.
+            // If the conversation is of type 'group', the other user is always the sender of the most recent message.
+            // The get_conversations method already follows this logic, so we just need the first member.
+            $otheruser = reset($conv->members);
+            $data->userid = $otheruser->id;
+            $data->useridfrom = $conv->messages[0]->useridfrom ?? null;
+            $data->fullname = $conv->members[$otheruser->id]->fullname;
+            $data->profileimageurl = $conv->members[$otheruser->id]->profileimageurl;
+            $data->profileimageurlsmall = $conv->members[$otheruser->id]->profileimageurlsmall;
+            $data->ismessaging = isset($conv->messages[0]->text) ? true : false;
+            $data->lastmessage = $conv->messages[0]->text ? clean_param($conv->messages[0]->text, PARAM_NOTAGS) : null;
+            $data->lastmessagedate = $conv->messages[0]->timecreated ?? null;
+            $data->messageid = $conv->messages[0]->id ?? null;
+            $data->isonline = $conv->members[$otheruser->id]->isonline ?? null;
+            $data->isblocked = $conv->members[$otheruser->id]->isblocked ?? null;
+            $data->isread = $conv->isread;
+            $data->unreadcount = $conv->unreadcount;
+            $tmp[$data->userid] = $data;
+        }
+        return $tmp;
     }
 }

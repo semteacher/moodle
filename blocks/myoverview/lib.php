@@ -32,6 +32,7 @@ define('BLOCK_MYOVERVIEW_GROUPING_INPROGRESS', 'inprogress');
 define('BLOCK_MYOVERVIEW_GROUPING_FUTURE', 'future');
 define('BLOCK_MYOVERVIEW_GROUPING_PAST', 'past');
 define('BLOCK_MYOVERVIEW_GROUPING_FAVOURITES', 'favourites');
+define('BLOCK_MYOVERVIEW_GROUPING_HIDDEN', 'hidden');
 
 /**
  * Constants for the user preferences sorting options
@@ -48,6 +49,13 @@ define('BLOCK_MYOVERVIEW_VIEW_LIST', 'list');
 define('BLOCK_MYOVERVIEW_VIEW_SUMMARY', 'summary');
 
 /**
+ * Constants for the user paging preferences
+ */
+define('BLOCK_MYOVERVIEW_PAGING_12', 12);
+define('BLOCK_MYOVERVIEW_PAGING_24', 24);
+define('BLOCK_MYOVERVIEW_PAGING_48', 48);
+
+/**
  * Get the current user preferences that are available
  *
  * @return mixed Array representing current options along with defaults
@@ -62,7 +70,8 @@ function block_myoverview_user_preferences() {
             BLOCK_MYOVERVIEW_GROUPING_INPROGRESS,
             BLOCK_MYOVERVIEW_GROUPING_FUTURE,
             BLOCK_MYOVERVIEW_GROUPING_PAST,
-            BLOCK_MYOVERVIEW_GROUPING_FAVOURITES
+            BLOCK_MYOVERVIEW_GROUPING_FAVOURITES,
+            BLOCK_MYOVERVIEW_GROUPING_HIDDEN
         )
     );
     $preferences['block_myoverview_user_sort_preference'] = array(
@@ -84,5 +93,25 @@ function block_myoverview_user_preferences() {
             BLOCK_MYOVERVIEW_VIEW_SUMMARY
         )
     );
+
+    $preferences['/^block_myoverview_hidden_course_(\d)+$/'] = array(
+        'isregex' => true,
+        'choices' => array(0, 1),
+        'type' => PARAM_INT,
+        'null' => NULL_NOT_ALLOWED,
+        'default' => 'none'
+    );
+
+    $preferences['block_myoverview_user_paging_preference'] = array(
+        'null' => NULL_NOT_ALLOWED,
+        'default' => BLOCK_MYOVERVIEW_PAGING_12,
+        'type' => PARAM_INT,
+        'choices' => array(
+            BLOCK_MYOVERVIEW_PAGING_12,
+            BLOCK_MYOVERVIEW_PAGING_24,
+            BLOCK_MYOVERVIEW_PAGING_48
+        )
+    );
+
     return $preferences;
 }

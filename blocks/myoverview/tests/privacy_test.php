@@ -50,14 +50,17 @@ class block_myoverview_privacy_testcase extends \core_privacy\tests\provider_tes
      *
      * @dataProvider user_preference_provider
      */
-    public function test_export_user_preferences($type, $value) {
+    public function test_export_user_preferences($type, $value, $expected) {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
         set_user_preference($type, $value, $user);
         provider::export_user_preferences($user->id);
         $writer = writer::with_context(\context_system::instance());
         $blockpreferences = $writer->get_user_preferences('block_myoverview');
-        $this->assertEquals(get_string($value, 'block_myoverview'), $blockpreferences->{$type}->value);
+        if (!$expected) {
+            $expected = get_string($value, 'block_myoverview');
+        }
+        $this->assertEquals($expected, $blockpreferences->{$type}->value);
     }
 
     /**
@@ -67,15 +70,35 @@ class block_myoverview_privacy_testcase extends \core_privacy\tests\provider_tes
      */
     public function user_preference_provider() {
         return array(
-            array('block_myoverview_user_sort_preference', 'lastaccessed'),
-            array('block_myoverview_user_sort_preference', 'title'),
-            array('block_myoverview_user_grouping_preference', 'all'),
-            array('block_myoverview_user_grouping_preference', 'inprogress'),
-            array('block_myoverview_user_grouping_preference', 'future'),
-            array('block_myoverview_user_grouping_preference', 'past'),
-            array('block_myoverview_user_view_preference', 'card'),
-            array('block_myoverview_user_view_preference', 'list'),
-            array('block_myoverview_user_view_preference', 'summary')
+            array('block_myoverview_user_sort_preference', 'lastaccessed', ''),
+            array('block_myoverview_user_sort_preference', 'title', ''),
+            array('block_myoverview_user_grouping_preference', 'all', ''),
+            array('block_myoverview_user_grouping_preference', 'inprogress', ''),
+            array('block_myoverview_user_grouping_preference', 'future', ''),
+            array('block_myoverview_user_grouping_preference', 'past', ''),
+            array('block_myoverview_user_view_preference', 'card', ''),
+            array('block_myoverview_user_view_preference', 'list', ''),
+            array('block_myoverview_user_view_preference', 'summary', ''),
+            array('block_myoverview_user_paging_preference', 12, 12)
+        );
+    }
+
+    public function test_export_user_preferences_with_hidden_courses() {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $name = "block_myoverview_hidden_course_1";
+
+        set_user_preference($name, 1, $user);
+        provider::export_user_preferences($user->id);
+        $writer = writer::with_context(\context_system::instance());
+        $blockpreferences = $writer->get_user_preferences('block_myoverview');
+
+        $this->assertEquals(
+            get_string("privacy:request:preference:set", 'block_myoverview', (object) [
+                'name' => $name,
+                'value' => 1,
+            ]),
+            $blockpreferences->{$name}->description
         );
     }
 }
