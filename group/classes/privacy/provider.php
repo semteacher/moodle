@@ -51,7 +51,9 @@ class provider implements
         \core_privacy\local\request\subsystem\plugin_provider,
 
         // This plugin is capable of determining which users have data within it.
-        \core_privacy\local\request\core_userlist_provider {
+        \core_privacy\local\request\core_userlist_provider,
+        \core_privacy\local\request\shared_userlist_provider
+    {
 
     /**
      * Returns meta data about this system.
@@ -306,7 +308,7 @@ class provider implements
     }
 
     /**
-     * Get the list of contexts that contain user information for the specified user.
+     * Get the list of users who have data within a context.
      *
      * @param   userlist    $userlist   The userlist containing the list of users who have data in this context/plugin combination.
      */
