@@ -1686,8 +1686,7 @@ class core_message_api_testcase extends core_message_messagelib_testcase {
         $conversations = \core_message\api::get_conversations($user3->id);
         $this->assertEquals(2, $conversations[0]->membercount);
         $this->assertEquals($course1->shortname, $conversations[0]->subname);
-        $groupimageurl = get_group_picture_url($group2, $group2->courseid, true);
-        $this->assertEquals($groupimageurl, $conversations[0]->imageurl);
+        $this->assertEquals('https://www.example.com/moodle/theme/image.php/_s/boost/core/1/g/g1', $conversations[0]->imageurl);
 
         // Now, disable the conversation linked to the group and verify it's no longer returned.
         $DB->set_field('message_conversations', 'enabled', 0, ['id' => $conversations[0]->id]);
@@ -3041,6 +3040,44 @@ class core_message_api_testcase extends core_message_messagelib_testcase {
 
         // Check the amount for the second user.
         $this->assertEquals(1, core_message\api::count_unread_conversations($user2));
+    }
+
+    /**
+     * Tests counting unread conversations where one conversation is disabled.
+     */
+    public function test_count_unread_conversations_disabled() {
+        $this->resetAfterTest(true);
+
+        // Create some users.
+        $user1 = self::getDataGenerator()->create_user();
+        $user2 = self::getDataGenerator()->create_user();
+        $user3 = self::getDataGenerator()->create_user();
+        $user4 = self::getDataGenerator()->create_user();
+
+        // The person wanting the conversation count.
+        $this->setUser($user1);
+
+        // Send some messages back and forth, have some different conversations with different users.
+        $this->send_fake_message($user1, $user2, 'Yo!');
+        $this->send_fake_message($user2, $user1, 'Sup mang?');
+        $this->send_fake_message($user1, $user2, 'Writing PHPUnit tests!');
+        $this->send_fake_message($user2, $user1, 'Word.');
+
+        $this->send_fake_message($user1, $user3, 'Booyah');
+        $this->send_fake_message($user3, $user1, 'Whaaat?');
+        $this->send_fake_message($user1, $user3, 'Nothing.');
+        $this->send_fake_message($user3, $user1, 'Cool.');
+
+        $this->send_fake_message($user1, $user4, 'Hey mate, you see the new messaging UI in Moodle?');
+        $this->send_fake_message($user4, $user1, 'Yah brah, it\'s pretty rad.');
+        $this->send_fake_message($user1, $user4, 'Dope.');
+
+        // Let's disable the last conversation.
+        $conversationid = core_message\api::get_conversation_between_users([$user1->id, $user4->id]);
+        core_message\api::disable_conversation($conversationid);
+
+        // Check that the disabled conversation was not included.
+        $this->assertEquals(2, core_message\api::count_unread_conversations());
     }
 
     /**
