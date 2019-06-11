@@ -997,12 +997,12 @@ function scorm_print_launch ($user, $scorm, $action, $cm) {
         if ($scorm->hidebrowse == 0) {
             print_string('mode', 'scorm');
             echo ': '.html_writer::empty_tag('input', array('type' => 'radio', 'id' => 'b', 'name' => 'mode',
-                    'value' => 'browse', 'class' => 'm-r-1')).
+                    'value' => 'browse', 'class' => 'mr-1')).
                         html_writer::label(get_string('browse', 'scorm'), 'b');
             echo html_writer::empty_tag('input', array('type' => 'radio',
                                                         'id' => 'n', 'name' => 'mode',
                                                         'value' => 'normal', 'checked' => 'checked',
-                                                        'class' => 'm-x-1')).
+                                                        'class' => 'mx-1')).
                     html_writer::label(get_string('normal', 'scorm'), 'n');
 
         } else {
@@ -2122,10 +2122,11 @@ function scorm_check_launchable_sco($scorm, $scoid) {
  * @param  stdClass  $scorm            SCORM record
  * @param  boolean $checkviewreportcap Check the scorm:viewreport cap
  * @param  stdClass  $context          Module context, required if $checkviewreportcap is set to true
+ * @param  int  $userid                User id override
  * @return array                       status (available or not and possible warnings)
  * @since  Moodle 3.0
  */
-function scorm_get_availability_status($scorm, $checkviewreportcap = false, $context = null) {
+function scorm_get_availability_status($scorm, $checkviewreportcap = false, $context = null, $userid = null) {
     $open = true;
     $closed = false;
     $warnings = array();
@@ -2139,7 +2140,7 @@ function scorm_get_availability_status($scorm, $checkviewreportcap = false, $con
     }
 
     if (!$open or $closed) {
-        if ($checkviewreportcap and !empty($context) and has_capability('mod/scorm:viewreport', $context)) {
+        if ($checkviewreportcap and !empty($context) and has_capability('mod/scorm:viewreport', $context, $userid)) {
             return array(true, $warnings);
         }
 
