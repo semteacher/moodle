@@ -762,7 +762,7 @@ function print_course_request_buttons($context) {
         echo $OUTPUT->single_button(new moodle_url('/course/request.php'), get_string('requestcourse'), 'get');
     }
     /// Print a button to manage pending requests
-    if ($context->contextlevel == CONTEXT_SYSTEM && has_capability('moodle/site:approvecourse', $context)) {
+    if (has_capability('moodle/site:approvecourse', $context)) {
         $disabled = !$DB->record_exists('course_request', array());
         echo $OUTPUT->single_button(new moodle_url('/course/pending.php'), get_string('coursespending'), 'get', array('disabled' => $disabled));
     }
@@ -1891,7 +1891,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
     if ($hasmanageactivities) {
         $actions['update'] = new action_menu_link_secondary(
             new moodle_url($baseurl, array('update' => $mod->id)),
-            new pix_icon('t/edit', $str->editsettings, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon('t/edit', '', 'moodle', array('class' => 'iconsmall')),
             $str->editsettings,
             array('class' => 'editing_update', 'data-action' => 'update')
         );
@@ -1917,7 +1917,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
         }
         $actions['moveright'] = new action_menu_link_secondary(
             new moodle_url($baseurl, array('id' => $mod->id, 'indent' => '1')),
-            new pix_icon($rightarrow, $str->moveright, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon($rightarrow, '', 'moodle', array('class' => 'iconsmall')),
             $str->moveright,
             array('class' => 'editing_moveright ' . $enabledclass, 'data-action' => 'moveright',
                 'data-keepopen' => true, 'data-sectionreturn' => $sr)
@@ -1930,7 +1930,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
         }
         $actions['moveleft'] = new action_menu_link_secondary(
             new moodle_url($baseurl, array('id' => $mod->id, 'indent' => '-1')),
-            new pix_icon($leftarrow, $str->moveleft, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon($leftarrow, '', 'moodle', array('class' => 'iconsmall')),
             $str->moveleft,
             array('class' => 'editing_moveleft ' . $enabledclass, 'data-action' => 'moveleft',
                 'data-keepopen' => true, 'data-sectionreturn' => $sr)
@@ -1953,7 +1953,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
         if ($displayedoncoursepage) {
             $actions['hide'] = new action_menu_link_secondary(
                 new moodle_url($baseurl, array('hide' => $mod->id)),
-                new pix_icon('t/hide', $str->modhide, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+                new pix_icon('t/hide', '', 'moodle', array('class' => 'iconsmall')),
                 $str->modhide,
                 array('class' => 'editing_hide', 'data-action' => 'hide')
             );
@@ -1961,7 +1961,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             // Offer to "show" only if the section is visible.
             $actions['show'] = new action_menu_link_secondary(
                 new moodle_url($baseurl, array('show' => $mod->id)),
-                new pix_icon('t/show', $str->modshow, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+                new pix_icon('t/show', '', 'moodle', array('class' => 'iconsmall')),
                 $str->modshow,
                 array('class' => 'editing_show', 'data-action' => 'show')
             );
@@ -1971,7 +1971,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             // When making the "stealth" module unavailable we perform the same action as hiding the visible module.
             $actions['hide'] = new action_menu_link_secondary(
                 new moodle_url($baseurl, array('hide' => $mod->id)),
-                new pix_icon('t/unblock', $str->makeunavailable, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+                new pix_icon('t/unblock', '', 'moodle', array('class' => 'iconsmall')),
                 $str->makeunavailable,
                 array('class' => 'editing_makeunavailable', 'data-action' => 'hide', 'data-sectionreturn' => $sr)
             );
@@ -1982,7 +1982,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             $action = $sectionvisible ? 'stealth' : 'show';
             $actions[$action] = new action_menu_link_secondary(
                 new moodle_url($baseurl, array($action => $mod->id)),
-                new pix_icon('t/block', $str->makeavailable, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+                new pix_icon('t/block', '', 'moodle', array('class' => 'iconsmall')),
                 $str->makeavailable,
                 array('class' => 'editing_makeavailable', 'data-action' => $action, 'data-sectionreturn' => $sr)
             );
@@ -1995,7 +1995,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
             course_allowed_module($mod->get_course(), $mod->modname)) {
         $actions['duplicate'] = new action_menu_link_secondary(
             new moodle_url($baseurl, array('duplicate' => $mod->id)),
-            new pix_icon('t/copy', $str->duplicate, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon('t/copy', '', 'moodle', array('class' => 'iconsmall')),
             $str->duplicate,
             array('class' => 'editing_duplicate', 'data-action' => 'duplicate', 'data-sectionreturn' => $sr)
         );
@@ -2003,7 +2003,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
 
     // Groupmode.
     if ($hasmanageactivities && !$mod->coursegroupmodeforce) {
-        if (plugin_supports('mod', $mod->modname, FEATURE_GROUPS, 0)) {
+        if (plugin_supports('mod', $mod->modname, FEATURE_GROUPS, false)) {
             if ($mod->effectivegroupmode == SEPARATEGROUPS) {
                 $nextgroupmode = VISIBLEGROUPS;
                 $grouptitle = $str->groupsseparate;
@@ -2026,7 +2026,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
 
             $actions[$actionname] = new action_menu_link_primary(
                 new moodle_url($baseurl, array('id' => $mod->id, 'groupmode' => $nextgroupmode)),
-                new pix_icon($groupimage, $grouptitle, 'moodle', array('class' => 'iconsmall')),
+                new pix_icon($groupimage, '', 'moodle', array('class' => 'iconsmall')),
                 $grouptitle,
                 array('class' => 'editing_'. $actionname, 'data-action' => $nextactionname,
                     'aria-live' => 'assertive', 'data-sectionreturn' => $sr)
@@ -2040,7 +2040,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
     if (has_capability('moodle/role:assign', $modcontext)){
         $actions['assign'] = new action_menu_link_secondary(
             new moodle_url('/admin/roles/assign.php', array('contextid' => $modcontext->id)),
-            new pix_icon('t/assignroles', $str->assign, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon('t/assignroles', '', 'moodle', array('class' => 'iconsmall')),
             $str->assign,
             array('class' => 'editing_assign', 'data-action' => 'assignroles', 'data-sectionreturn' => $sr)
         );
@@ -2050,7 +2050,7 @@ function course_get_cm_edit_actions(cm_info $mod, $indent = -1, $sr = null) {
     if ($hasmanageactivities) {
         $actions['delete'] = new action_menu_link_secondary(
             new moodle_url($baseurl, array('delete' => $mod->id)),
-            new pix_icon('t/delete', $str->delete, 'moodle', array('class' => 'iconsmall', 'title' => '')),
+            new pix_icon('t/delete', '', 'moodle', array('class' => 'iconsmall')),
             $str->delete,
             array('class' => 'editing_delete', 'data-action' => 'delete', 'data-sectionreturn' => $sr)
         );
@@ -2488,6 +2488,15 @@ function create_course($data, $editoroptions = NULL) {
         core_tag_tag::set_item_tags('core', 'course', $course->id, context_course::instance($course->id), $data->tags);
     }
 
+    // Save custom fields if there are any of them in the form.
+    $handler = core_course\customfield\course_handler::create();
+    // Make sure to set the handler's parent context first.
+    $coursecatcontext = context_coursecat::instance($category->id);
+    $handler->set_parent_context($coursecatcontext);
+    // Save the custom field data.
+    $data->id = $course->id;
+    $handler->instance_form_save($data, true);
+
     return $course;
 }
 
@@ -2571,6 +2580,10 @@ function update_course($data, $editoroptions = NULL) {
             $data->newsitems = 0;
         }
     }
+
+    // Update custom fields if there are any of them in the form.
+    $handler = core_course\customfield\course_handler::create();
+    $handler->instance_form_save($data);
 
     // Update with the new data
     $DB->update_record('course', $data);
@@ -3420,6 +3433,13 @@ function duplicate_module($course, $cm) {
     $rc = new restore_controller($backupid, $course->id,
             backup::INTERACTIVE_NO, backup::MODE_IMPORT, $USER->id, backup::TARGET_CURRENT_ADDING);
 
+    // Make sure that the restore_general_groups setting is always enabled when duplicating an activity.
+    $plan = $rc->get_plan();
+    $groupsetting = $plan->get_setting('groups');
+    if (empty($groupsetting->get_value())) {
+        $groupsetting->set_value(true);
+    }
+
     $cmcontext = context_module::instance($cm->id);
     if (!$rc->execute_precheck()) {
         $precheckresults = $rc->get_precheck_results();
@@ -3974,7 +3994,7 @@ function course_get_user_administration_options($course, $context) {
         $options->outcomes = !empty($CFG->enableoutcomes) && has_capability('moodle/course:update', $context);
         $options->badges = !empty($CFG->enablebadges);
         $options->import = has_capability('moodle/restore:restoretargetimport', $context);
-        $options->publish = has_capability('moodle/course:publish', $context);
+        $options->publish = !empty($CFG->enablecoursepublishing) && has_capability('moodle/course:publish', $context);
         $options->reset = has_capability('moodle/course:reset', $context);
         $options->roles = has_capability('moodle/role:switchroles', $context);
     } else {
@@ -4572,21 +4592,40 @@ function course_get_recent_courses(int $userid = null, int $limit = 0, int $offs
 
     $coursefields = 'c.' .join(',', $basefields);
 
-    $sql = "SELECT $ctxfields, $coursefields
+    // Ask the favourites service to give us the join SQL for favourited courses,
+    // so we can include favourite information in the query.
+    $usercontext = \context_user::instance($userid);
+    $favservice = \core_favourites\service_factory::get_service_for_user_context($usercontext);
+    list($favsql, $favparams) = $favservice->get_join_sql_by_type('core_course', 'courses', 'fav', 'ul.courseid');
+
+    $sql = "SELECT $coursefields, $ctxfields
               FROM {course} c
               JOIN {context} ctx
                    ON ctx.contextlevel = :contextlevel
                    AND ctx.instanceid = c.id
               JOIN {user_lastaccess} ul
                    ON ul.courseid = c.id
-         LEFT JOIN {favourite} f
-                   ON f.component = 'core_course'
-                   AND f.itemtype = 'courses'
-                   AND f.userid = ul.userid
-                   AND f.itemid = ul.courseid
+            $favsql
              WHERE ul.userid = :userid
-          $orderby";
-    $params = ['userid' => $userid, 'contextlevel' => CONTEXT_COURSE];
+               AND c.visible = :visible
+               AND EXISTS (SELECT e.id
+                             FROM {enrol} e
+                        LEFT JOIN {user_enrolments} ue ON ue.enrolid = e.id
+                            WHERE e.courseid = c.id
+                              AND e.status = :statusenrol
+                              AND ((ue.status = :status
+                                    AND ue.userid = ul.userid
+                                    AND ue.timestart < :now1
+                                    AND (ue.timeend = 0 OR ue.timeend > :now2)
+                                   )
+                                   OR e.enrol = :guestenrol
+                                  )
+                          )
+            $orderby";
+
+    $now = round(time(), -2); // Improves db caching.
+    $params = ['userid' => $userid, 'contextlevel' => CONTEXT_COURSE, 'visible' => 1, 'status' => ENROL_USER_ACTIVE,
+               'statusenrol' => ENROL_INSTANCE_ENABLED, 'guestenrol' => 'guest', 'now1' => $now, 'now2' => $now] + $favparams;
 
     $recentcourses = $DB->get_records_sql($sql, $params, $offset, $limit);
 
