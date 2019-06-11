@@ -629,7 +629,7 @@ class assign_events_testcase extends advanced_testcase {
         );
         $assign->testable_process_save_quick_grades($data);
         $grade = $assign->get_user_grade($student->id, false);
-        $this->assertEquals('60.0', $grade->grade);
+        $this->assertEquals(60.0, $grade->grade);
 
         $events = $sink->get_events();
         $this->assertCount(3, $events);
@@ -655,7 +655,7 @@ class assign_events_testcase extends advanced_testcase {
         $data->grade = '50.0';
         $assign->update_grade($data);
         $grade = $assign->get_user_grade($student->id, false, 0);
-        $this->assertEquals('50.0', $grade->grade);
+        $this->assertEquals(50.0, $grade->grade);
         $events = $sink->get_events();
 
         $this->assertCount(3, $events);
@@ -1353,4 +1353,43 @@ class assign_events_testcase extends advanced_testcase {
         $this->assertInstanceOf('\mod_assign\event\course_module_viewed', $event);
         $this->assertEquals($context, $event->get_context());
     }
+
+    /**
+     * Test that all events generated with blindmarking enabled are anonymous
+     */
+    public function test_anonymous_events() {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $teacher = $this->getDataGenerator()->create_and_enrol($course, 'editingteacher');
+        $student1 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+        $student2 = $this->getDataGenerator()->create_and_enrol($course, 'student');
+
+        $generator = $this->getDataGenerator()->get_plugin_generator('mod_assign');
+        $instance = $generator->create_instance(array('course' => $course->id, 'blindmarking' => 1));
+
+        $cm = get_coursemodule_from_instance('assign', $instance->id, $course->id);
+        $context = context_module::instance($cm->id);
+        $assign = new assign($context, $cm, $course);
+
+        $this->setUser($teacher);
+        $sink = $this->redirectEvents();
+
+        $assign->lock_submission($student1->id);
+
+        $events = $sink->get_events();
+        $event = reset($events);
+
+        $this->assertTrue((bool)$event->anonymous);
+
+        $assign->reveal_identities();
+        $sink = $this->redirectEvents();
+        $assign->lock_submission($student2->id);
+
+        $events = $sink->get_events();
+        $event = reset($events);
+
+        $this->assertFalse((bool)$event->anonymous);
+    }
+
 }
