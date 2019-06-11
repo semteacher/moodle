@@ -348,19 +348,6 @@ function message_post_message($userfrom, $userto, $message, $format) {
 
     $eventdata->fullmessageformat = $format;
     $eventdata->smallmessage     = $message;//store the message unfiltered. Clean up on output.
-
-    $s = new stdClass();
-    $s->sitename = format_string($SITE->shortname, true, array('context' => context_course::instance(SITEID)));
-    $s->url = $CFG->wwwroot.'/message/index.php?user='.$userto->id.'&id='.$userfrom->id;
-
-    $emailtagline = get_string_manager()->get_string('emailtagline', 'message', $s, $userto->lang);
-    if (!empty($eventdata->fullmessage)) {
-        $eventdata->fullmessage .= "\n\n---------------------------------------------------------------------\n".$emailtagline;
-    }
-    if (!empty($eventdata->fullmessagehtml)) {
-        $eventdata->fullmessagehtml .= "<br /><br />---------------------------------------------------------------------<br />".$emailtagline;
-    }
-
     $eventdata->timecreated     = time();
     $eventdata->notification    = 0;
     return message_send($eventdata);
@@ -857,12 +844,23 @@ function core_message_standard_after_main_region_html() {
     // Enter to send.
     $entertosend = get_user_preferences('message_entertosend', false, $USER);
 
+    $notification = '';
+    if (!get_user_preferences('core_message_migrate_data', false)) {
+        $notification = get_string('messagingdatahasnotbeenmigrated', 'message');
+    }
+
     return $renderer->render_from_template('core_message/message_drawer', [
         'contactrequestcount' => $requestcount,
         'loggedinuser' => [
             'id' => $USER->id,
             'midnight' => usergetmidnight(time())
         ],
+        // The starting timeout value for message polling.
+        'messagepollmin' => $CFG->messagingminpoll ?? MESSAGE_DEFAULT_MIN_POLL_IN_SECONDS,
+        // The maximum value that message polling timeout can reach.
+        'messagepollmax' => $CFG->messagingmaxpoll ?? MESSAGE_DEFAULT_MAX_POLL_IN_SECONDS,
+        // The timeout to reset back to after the max polling time has been reached.
+        'messagepollaftermax' => $CFG->messagingtimeoutpoll ?? MESSAGE_DEFAULT_TIMEOUT_POLL_IN_SECONDS,
         'contacts' => [
             'sectioncontacts' => [
                 'placeholders' => array_fill(0, $contactscount > 50 ? 50 : $contactscount, true)
@@ -874,6 +872,9 @@ function core_message_standard_after_main_region_html() {
         'settings' => [
             'privacy' => $choices,
             'entertosend' => $entertosend
+        ],
+        'overview' => [
+            'notification' => $notification
         ]
     ]);
 }
