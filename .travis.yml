@@ -11,17 +11,18 @@ notifications:
 
 language: php
 
+dist: xenial
+
+services:
+    - mysql
+
 php:
     # We only run the highest and lowest supported versions to reduce the load on travis-ci.org.
     - 7.3
-    - 7.1
+    - 7.1.30 # Make this sticky because current default version (7.1.11) has a bug with redis-extension output (MDL-66062)
 
 addons:
   postgresql: "9.6"
-  packages:
-    - mysql-server-5.6
-    - mysql-client-core-5.6
-    - mysql-client-5.6
 
 env:
     # Although we want to run these jobs and see failures as quickly as possible, we also want to get the slowest job to
@@ -69,10 +70,10 @@ install:
         then
             sudo mkdir /mnt/ramdisk
             sudo mount -t tmpfs -o size=1024m tmpfs /mnt/ramdisk
-            sudo stop mysql
+            sudo service mysql stop
             sudo mv /var/lib/mysql /mnt/ramdisk
             sudo ln -s /mnt/ramdisk/mysql /var/lib/mysql
-            sudo start mysql
+            sudo service mysql restart
         fi
     - >
         if [ "$DB" = 'pgsql' ];
@@ -173,7 +174,7 @@ before_script:
           -e "/require_once/i \\define('TEST_CACHESTORE_REDIS_TESTSERVERS', '127.0.0.1');" \
           config.php ;
         # Redis session tests, but not for PHP 7.2 and up. See MDL-60978 for more info.
-        redissession="if (version_compare(PHP_VERSION, '7.2.0', '<')) { define('TEST_SESSION_REDIS_HOST', '127.0.0.1'); }"
+        redissession="define('TEST_SESSION_REDIS_HOST', '127.0.0.1');"
         sed -i \
           -e "/require_once/i \\${redissession}" \
           config.php ;
