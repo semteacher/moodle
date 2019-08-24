@@ -238,6 +238,23 @@ abstract class base {
     }
 
     /**
+     * Instantiate the indicators.
+     *
+     * @return \core_analytics\local\indicator\base[]
+     */
+    public function instantiate_indicators() {
+        foreach ($this->indicators as $key => $indicator) {
+            $this->indicators[$key] = call_user_func(array($indicator, 'instance'));
+        }
+
+        // Free memory ASAP.
+        gc_collect_cycles();
+        gc_mem_caches();
+
+        return $this->indicators;
+    }
+
+    /**
      * Samples data this analyser provides.
      *
      * @return string[]

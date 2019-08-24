@@ -1664,7 +1664,7 @@ function enrol_get_course_users($courseid = false, $onlyactive = false, $usersfi
 
     $sql = "SELECT ue.id AS ueid, ue.status AS uestatus, ue.enrolid AS ueenrolid, ue.timestart AS uetimestart,
              ue.timeend AS uetimeend, ue.modifierid AS uemodifierid, ue.timecreated AS uetimecreated,
-             ue.timemodified AS uetimemodified,
+             ue.timemodified AS uetimemodified, e.status AS estatus,
              u.* FROM {user_enrolments} ue
               JOIN {enrol} e ON e.id = ue.enrolid
               JOIN {user} u ON ue.userid = u.id
@@ -1699,6 +1699,33 @@ function enrol_get_course_users($courseid = false, $onlyactive = false, $usersfi
     }
 
     return $DB->get_records_sql($sql . ' ' . implode(' AND ', $conditions), $params);
+}
+
+/**
+ * Get the list of options for the enrolment period dropdown
+ *
+ * @return array List of options for the enrolment period dropdown
+ */
+function enrol_get_period_list() {
+    $periodmenu = [];
+    $periodmenu[''] = get_string('unlimited');
+    for ($i = 1; $i <= 365; $i++) {
+        $seconds = $i * DAYSECS;
+        $periodmenu[$seconds] = get_string('numdays', '', $i);
+    }
+    return $periodmenu;
+}
+
+/**
+ * Calculate duration base on start time and end time
+ *
+ * @param int $timestart Time start
+ * @param int $timeend Time end
+ * @return float|int Calculated duration
+ */
+function enrol_calculate_duration($timestart, $timeend) {
+    $duration = floor(($timeend - $timestart) / DAYSECS) * DAYSECS;
+    return $duration;
 }
 
 /**

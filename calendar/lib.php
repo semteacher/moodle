@@ -1651,9 +1651,9 @@ function calendar_top_controls($type, $data) {
 
     switch ($type) {
         case 'frontpage':
-            $prevlink = calendar_get_link_previous(get_string('monthprev', 'access'), $urlbase, false, false, false,
+            $prevlink = calendar_get_link_previous(get_string('monthprev', 'calendar'), $urlbase, false, false, false,
                 true, $prevmonthtime);
-            $nextlink = calendar_get_link_next(get_string('monthnext', 'access'), $urlbase, false, false, false, true,
+            $nextlink = calendar_get_link_next(get_string('monthnext', 'calendar'), $urlbase, false, false, false, true,
                 $nextmonthtime);
             $calendarlink = calendar_get_link_href(new \moodle_url(CALENDAR_URL . 'view.php', array('view' => 'month')),
                 false, false, false, $time);
@@ -1675,9 +1675,9 @@ function calendar_top_controls($type, $data) {
 
             break;
         case 'course':
-            $prevlink = calendar_get_link_previous(get_string('monthprev', 'access'), $urlbase, false, false, false,
+            $prevlink = calendar_get_link_previous(get_string('monthprev', 'calendar'), $urlbase, false, false, false,
                 true, $prevmonthtime);
-            $nextlink = calendar_get_link_next(get_string('monthnext', 'access'), $urlbase, false, false, false,
+            $nextlink = calendar_get_link_next(get_string('monthnext', 'calendar'), $urlbase, false, false, false,
                 true, $nextmonthtime);
             $calendarlink = calendar_get_link_href(new \moodle_url(CALENDAR_URL . 'view.php', array('view' => 'month')),
                 false, false, false, $time);
@@ -3429,9 +3429,11 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
         $month->set_initialeventsloaded(!$skipevents);
         $month->set_showcoursefilter($view == "month");
         $data = $month->export($renderer);
+        $data->viewingmonth = true;
     } else if ($view == "day") {
         $day = new \core_calendar\external\calendar_day_exporter($calendar, $related);
         $data = $day->export($renderer);
+        $data->viewingday = true;
         $template = 'core_calendar/calendar_day';
     } else if ($view == "upcoming" || $view == "upcoming_mini") {
         $upcoming = new \core_calendar\external\calendar_upcoming_exporter($calendar, $related);
@@ -3439,6 +3441,7 @@ function calendar_get_view(\calendar_information $calendar, $view, $includenavig
 
         if ($view == "upcoming") {
             $template = 'core_calendar/calendar_upcoming';
+            $data->viewingupcoming = true;
         } else if ($view == "upcoming_mini") {
             $template = 'core_calendar/calendar_upcoming_mini';
         }
@@ -3479,6 +3482,9 @@ function calendar_output_fragment_event_form($args) {
     if ($starttime) {
         $formoptions['starttime'] = $starttime;
     }
+    // Let's check first which event types user can add.
+    $eventtypes = calendar_get_allowed_event_types($courseid);
+    $formoptions['eventtypes'] = $eventtypes;
 
     if (is_null($eventid)) {
         if (!empty($courseid)) {
@@ -3488,6 +3494,7 @@ function calendar_output_fragment_event_form($args) {
                 $formoptions['groups'][$groupid] = $groupdata->name;
             }
         }
+
         $mform = new \core_calendar\local\event\forms\create(
             null,
             $formoptions,
@@ -3498,11 +3505,8 @@ function calendar_output_fragment_event_form($args) {
             $data
         );
 
-        // Let's check first which event types user can add.
-        $eventtypes = calendar_get_allowed_event_types($courseid);
-
         // If the user is on course context and is allowed to add course events set the event type default to course.
-        if ($courseid != SITEID && !empty($eventtypes['course'])) {
+        if (!empty($courseid) && !empty($eventtypes['course'])) {
             $data['eventtype'] = 'course';
             $data['courseid'] = $courseid;
             $data['groupcourseid'] = $courseid;
@@ -3688,7 +3692,7 @@ function calendar_get_allowed_event_types(int $courseid = null) {
 
         $types['user'] = has_capability('moodle/calendar:manageownentries', $context);
 
-        if (has_capability('moodle/calendar:manageentries', $context) || !empty($CFG->calendar_adminseesall)) {
+        if (has_capability('moodle/calendar:manageentries', $context)) {
             $types['course'] = true;
 
             $types['group'] = (!empty($groups) && has_capability('moodle/site:accessallgroups', $context))

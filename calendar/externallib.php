@@ -870,11 +870,17 @@ class core_calendar_external extends external_api {
         self::validate_context($context);
         parse_str($params['formdata'], $data);
 
+        if (WS_SERVER) {
+            // Request via WS, ignore sesskey checks in form library.
+            $USER->ignoresesskey = true;
+        }
+
         $eventtype = isset($data['eventtype']) ? $data['eventtype'] : null;
         $coursekey = ($eventtype == 'group') ? 'groupcourseid' : 'courseid';
         $courseid = (!empty($data[$coursekey])) ? $data[$coursekey] : null;
         $editoroptions = \core_calendar\local\event\forms\create::build_editor_options($context);
         $formoptions = ['editoroptions' => $editoroptions, 'courseid' => $courseid];
+        $formoptions['eventtypes'] = calendar_get_allowed_event_types($courseid);
         if ($courseid) {
             require_once($CFG->libdir . '/grouplib.php');
             $groupcoursedata = groups_get_course_data($courseid);
@@ -1021,8 +1027,8 @@ class core_calendar_external extends external_api {
     public static function get_calendar_monthly_view_parameters() {
         return new external_function_parameters(
             [
-                'year' => new external_value(PARAM_INT, 'Month to be viewed', VALUE_REQUIRED),
-                'month' => new external_value(PARAM_INT, 'Year to be viewed', VALUE_REQUIRED),
+                'year' => new external_value(PARAM_INT, 'Year to be viewed', VALUE_REQUIRED),
+                'month' => new external_value(PARAM_INT, 'Month to be viewed', VALUE_REQUIRED),
                 'courseid' => new external_value(PARAM_INT, 'Course being viewed', VALUE_DEFAULT, SITEID, NULL_ALLOWED),
                 'categoryid' => new external_value(PARAM_INT, 'Category being viewed', VALUE_DEFAULT, null, NULL_ALLOWED),
                 'includenavigation' => new external_value(
