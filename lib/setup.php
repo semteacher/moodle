@@ -534,6 +534,9 @@ global $FULLSCRIPT;
  */
 global $SCRIPT;
 
+// The httpswwwroot has been deprecated, we keep it as an alias for backwards compatibility with plugins only.
+$CFG->httpswwwroot = $CFG->wwwroot;
+
 require_once($CFG->libdir .'/setuplib.php');        // Functions that MUST be loaded first
 
 if (NO_OUTPUT_BUFFERING) {
@@ -1036,4 +1039,16 @@ if (false) {
     $DB = new moodle_database();
     $OUTPUT = new core_renderer(null, null);
     $PAGE = new moodle_page();
+}
+
+// Allow plugins to callback as soon possible after setup.php is loaded.
+$pluginswithfunction = get_plugins_with_function('after_config', 'lib.php');
+foreach ($pluginswithfunction as $plugins) {
+    foreach ($plugins as $function) {
+        try {
+            $function();
+        } catch (Exception $e) {
+            debugging("Exception calling '$function'", DEBUG_DEVELOPER, $e->getTrace());
+        }
+    }
 }
