@@ -2285,6 +2285,11 @@ function send_headers($contenttype, $cacheable = true) {
     if (empty($CFG->allowframembedding) && !core_useragent::is_moodle_app()) {
         @header('X-Frame-Options: sameorigin');
     }
+
+    // If referrer policy is set, add a referrer header.
+    if (!empty($CFG->referrerpolicy) && ($CFG->referrerpolicy !== 'default')) {
+        @header('Referrer-Policy: ' . $CFG->referrerpolicy);
+    }
 }
 
 /**
@@ -2949,6 +2954,9 @@ function redirect($url, $message='', $delay=null, $messagetype = \core\output\no
     \core\session\manager::write_close();
 
     if ($delay == 0 && !$debugdisableredirect && !headers_sent()) {
+        // This helps when debugging redirect issues like loops and it is not clear
+        // which layer in the stack sent the redirect header.
+        @header('X-Redirect-By: Moodle');
         // 302 might not work for POST requests, 303 is ignored by obsolete clients.
         @header($_SERVER['SERVER_PROTOCOL'] . ' 303 See Other');
         @header('Location: '.$url);

@@ -292,6 +292,7 @@ class core_message_external extends external_api {
      * Create contacts.
      *
      * @deprecated since Moodle 3.6
+     * TODO: MDL-63261
      * @param array $userids array of user IDs.
      * @param int $userid The id of the user we are creating the contacts for
      * @return external_description
@@ -323,7 +324,7 @@ class core_message_external extends external_api {
 
         $warnings = array();
         foreach ($params['userids'] as $id) {
-            if (!message_add_contact($id, 0, $params['userid'])) {
+            if (!\core_message\api::create_contact_request($params['userid'], $id)) {
                 $warnings[] = array(
                     'item' => 'user',
                     'itemid' => $id,
@@ -682,6 +683,7 @@ class core_message_external extends external_api {
      * Block contacts.
      *
      * @deprecated since Moodle 3.6
+     * TODO: MDL-63261
      * @param array $userids array of user IDs.
      * @param int $userid The id of the user we are blocking the contacts for
      * @return external_description
@@ -713,7 +715,7 @@ class core_message_external extends external_api {
 
         $warnings = array();
         foreach ($params['userids'] as $id) {
-            if (!message_block_contact($id, $params['userid'])) {
+            if (!\core_message\api::block_user($params['userid'], $id)) {
                 $warnings[] = array(
                     'item' => 'user',
                     'itemid' => $id,
@@ -798,7 +800,7 @@ class core_message_external extends external_api {
         }
 
         foreach ($params['userids'] as $id) {
-            message_unblock_contact($id, $params['userid']);
+            core_message\api::unblock_user($params['userid'], $id);
         }
 
         return null;
@@ -3255,6 +3257,9 @@ class core_message_external extends external_api {
                 'useridfrom' => new external_value(
                     PARAM_INT, 'the user id who send the message, 0 for any user. -10 or -20 for no-reply or support user',
                     VALUE_DEFAULT, 0),
+                'timecreatedto' => new external_value(
+                    PARAM_INT, 'mark messages created before this time as read, 0 for all messages',
+                    VALUE_DEFAULT, 0),
             )
         );
     }
@@ -3267,9 +3272,10 @@ class core_message_external extends external_api {
      * @throws moodle_exception
      * @param  int      $useridto       the user id who received the message
      * @param  int      $useridfrom     the user id who send the message. -10 or -20 for no-reply or support user
+     * @param  int      $timecreatedto  mark message created before this time as read, 0 for all messages
      * @return external_description
      */
-    public static function mark_all_notifications_as_read($useridto, $useridfrom) {
+    public static function mark_all_notifications_as_read($useridto, $useridfrom, $timecreatedto = 0) {
         global $USER;
 
         $params = self::validate_parameters(
@@ -3277,6 +3283,7 @@ class core_message_external extends external_api {
             array(
                 'useridto' => $useridto,
                 'useridfrom' => $useridfrom,
+                'timecreatedto' => $timecreatedto,
             )
         );
 
@@ -3285,6 +3292,7 @@ class core_message_external extends external_api {
 
         $useridto = $params['useridto'];
         $useridfrom = $params['useridfrom'];
+        $timecreatedto = $params['timecreatedto'];
 
         if (!empty($useridto)) {
             if (core_user::is_real_user($useridto)) {
@@ -3306,7 +3314,7 @@ class core_message_external extends external_api {
             throw new moodle_exception('accessdenied', 'admin');
         }
 
-        \core_message\api::mark_all_notifications_as_read($useridto, $useridfrom);
+        \core_message\api::mark_all_notifications_as_read($useridto, $useridfrom, $timecreatedto);
 
         return true;
     }
@@ -3619,11 +3627,6 @@ class core_message_external extends external_api {
      */
     public static function mark_notification_read($notificationid, $timeread) {
         global $CFG, $DB, $USER;
-
-        // Check if private messaging between users is allowed.
-        if (empty($CFG->messaging)) {
-            throw new moodle_exception('disabled', 'message');
-        }
 
         // Warnings array, it can be empty at the end but is mandatory.
         $warnings = array();
