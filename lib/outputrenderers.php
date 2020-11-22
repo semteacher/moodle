@@ -1053,7 +1053,7 @@ class core_renderer extends renderer_base {
         $course = $this->page->course;
         if (\core\session\manager::is_loggedinas()) {
             $realuser = \core\session\manager::get_realuser();
-            $fullname = fullname($realuser, true);
+            $fullname = fullname($realuser);
             if ($withlinks) {
                 $loginastitle = get_string('loginas');
                 $realuserinfo = " [<a href=\"$CFG->wwwroot/course/loginas.php?id=$course->id&amp;sesskey=".sesskey()."\"";
@@ -1074,7 +1074,7 @@ class core_renderer extends renderer_base {
         } else if (isloggedin()) {
             $context = context_course::instance($course->id);
 
-            $fullname = fullname($USER, true);
+            $fullname = fullname($USER);
             // Since Moodle 2.0 this link always goes to the public profile page (not the course profile page)
             if ($withlinks) {
                 $linktitle = get_string('viewprofile');
@@ -2709,7 +2709,7 @@ $iconprogress
 EOD;
         if ($options->env != 'url') {
             $html .= <<<EOD
-    <div id="file_info_{$client_id}" class="mdl-left filepicker-filelist border" style="position: relative">
+    <div id="file_info_{$client_id}" class="mdl-left filepicker-filelist" style="position: relative">
     <div class="filepicker-filename">
         <div class="filepicker-container">$currentfile<div class="dndupload-message">$strdndenabled <br/><div class="dndupload-arrow"></div></div></div>
         <div class="dndupload-progressbars"></div>
