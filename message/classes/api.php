@@ -1980,6 +1980,10 @@ class api {
 
         $messageid = message_send($eventdata);
 
+        if (!$messageid) {
+            throw new \moodle_exception('messageundeliveredbynotificationsettings', 'moodle');
+        }
+
         $messagerecord = $DB->get_record('messages', ['id' => $messageid], 'id, useridfrom, fullmessage,
                 timecreated, fullmessagetrust');
         $message = (object) [
@@ -2629,14 +2633,15 @@ class api {
         $userto = \core_user::get_user($requesteduserid);
         $url = new \moodle_url('/message/index.php', ['view' => 'contactrequests']);
 
-        $subject = get_string('messagecontactrequestsubject', 'core_message', (object) [
+        $subject = get_string_manager()->get_string('messagecontactrequestsubject', 'core_message', (object) [
             'sitename' => format_string($SITE->fullname, true, ['context' => \context_system::instance()]),
             'user' => $userfromfullname,
-        ]);
-        $fullmessage = get_string('messagecontactrequest', 'core_message', (object) [
+        ], $userto->lang);
+
+        $fullmessage = get_string_manager()->get_string('messagecontactrequest', 'core_message', (object) [
             'url' => $url->out(),
             'user' => $userfromfullname,
-        ]);
+        ], $userto->lang);
 
         $message = new \core\message\message();
         $message->courseid = SITEID;
