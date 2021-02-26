@@ -170,10 +170,12 @@ $card-gutter : $card-deck-margin * 2;
             padding: 0.8rem;
         }
     }
-
-    &.fixed-width-cards {
-        .dashboard-card {
-            width: 300px;
+    @include media-breakpoint-up(sm) {
+        &.fixed-width-cards {
+            .dashboard-card {
+                width: 300px;
+                max-width: 100%;
+            }
         }
     }
 }
@@ -362,4 +364,13 @@ body.drawer-open-left #region-main.has-blocks {
         border-left: 0;
         border-right: 0;
     }
+}
+
+.block_social_activities li a.movehere,
+.block_site_main_menu li a.movehere {
+    display: block;
+    width: 100%;
+    height: 2rem;
+    border: 2px dashed $gray-800;
+    margin: 4px 0;
 }

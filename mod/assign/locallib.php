@@ -2539,7 +2539,8 @@ class assign {
         // Only ever send a max of one days worth of updates.
         $yesterday = time() - (24 * 3600);
         $timenow   = time();
-        $lastruntime = $DB->get_field('task_scheduled', 'lastruntime', array('component' => 'mod_assign'));
+        $task = \core\task\manager::get_scheduled_task(mod_assign\task\cron_task::class);
+        $lastruntime = $task->get_last_run_time();
 
         // Collect all submissions that require mailing.
         // Submissions are included if all are true:
@@ -5129,16 +5130,31 @@ class assign {
         require_once($CFG->dirroot . '/mod/assign/submissionconfirmform.php');
 
         // Check that all of the submission plugins are ready for this submission.
+        // Also check whether there is something to be submitted as well against atleast one.
         $notifications = array();
         $submission = $this->get_user_submission($USER->id, false);
+        if ($this->get_instance()->teamsubmission) {
+            $submission = $this->get_group_submission($USER->id, 0, false);
+        }
+
         $plugins = $this->get_submission_plugins();
+        $hassubmission = false;
         foreach ($plugins as $plugin) {
             if ($plugin->is_enabled() && $plugin->is_visible()) {
                 $check = $plugin->precheck_submission($submission);
                 if ($check !== true) {
                     $notifications[] = $check;
                 }
+
+                if (is_object($submission) && !$plugin->is_empty($submission)) {
+                    $hassubmission = true;
+                }
             }
+        }
+
+        // If there are no submissions and no existing notifications to be displayed the stop.
+        if (!$hassubmission && !$notifications) {
+            $notifications[] = get_string('addsubmission_help', 'assign');
         }
 
         $data = new stdClass();
@@ -5338,10 +5354,20 @@ class assign {
                     $gradefordisplay = $this->display_grade($gradebookgrade->grade, false);
                 }
                 $gradeddate = $gradebookgrade->dategraded;
-                if (isset($grade->grader) && $grade->grader > 0) {
-                    $grader = $DB->get_record('user', array('id' => $grade->grader));
-                } else if (isset($gradebookgrade->usermodified) && $gradebookgrade->usermodified > 0) {
-                    $grader = $DB->get_record('user', array('id' => $gradebookgrade->usermodified));
+
+                // Only display the grader if it is in the right state.
+                if (in_array($gradingstatus, [ASSIGN_GRADING_STATUS_GRADED, ASSIGN_MARKING_WORKFLOW_STATE_RELEASED])){
+                    if (isset($grade->grader) && $grade->grader > 0) {
+                        $grader = $DB->get_record('user', array('id' => $grade->grader));
+                    } else if (isset($gradebookgrade->usermodified)
+                        && $gradebookgrade->usermodified > 0
+                        && has_capability('mod/assign:grade', $this->get_context(), $gradebookgrade->usermodified)) {
+                        // Grader not provided. Check that usermodified is a user who can grade.
+                        // Case 1: When an assignment is reopened an empty assign_grade is created so the feedback
+                        // plugin can know which attempt it's referring to. In this case, usermodifed is a student.
+                        // Case 2: When an assignment's grade is overrided via the gradebook, usermodified is a grader
+                        $grader = $DB->get_record('user', array('id' => $gradebookgrade->usermodified));
+                    }
                 }
             }
 
@@ -7714,7 +7740,9 @@ class assign {
             $gradingstatus = $this->get_grading_status($userid);
             if ($gradingstatus != ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
                 if ($grade->grade && $grade->grade != -1) {
-                    $assigngradestring = html_writer::span(grade_floatval($grade->grade), 'currentgrade');
+                    $assigngradestring = html_writer::span(
+                        make_grades_menu($settings->grade)[grade_floatval($grade->grade)], 'currentgrade'
+                    );
                     $label = get_string('currentassigngrade', 'assign');
                     $mform->addElement('static', 'currentassigngrade', $label, $assigngradestring);
                 }
