@@ -24,6 +24,6 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version  = 2020061500;
+$plugin->version  = 2020061502;
 $plugin->requires = 2020060900;
 $plugin->component = 'quiz_overview';
