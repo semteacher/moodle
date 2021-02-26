@@ -145,7 +145,7 @@ $filemanagercontext = $editoroptions['context'];
 $filemanageroptions = array('maxbytes'       => $CFG->maxbytes,
                              'subdirs'        => 0,
                              'maxfiles'       => 1,
-                             'accepted_types' => 'web_image');
+                             'accepted_types' => 'optimised_image');
 file_prepare_draft_area($draftitemid, $filemanagercontext->id, 'user', 'newicon', 0, $filemanageroptions);
 $user->imagefile = $draftitemid;
 // Create form.
@@ -306,11 +306,11 @@ if ($userform->is_cancelled()) {
             // Somebody double clicked when editing admin user during install.
             redirect("$CFG->wwwroot/$CFG->admin/");
         } else {
-            redirect($returnurl);
+            redirect($returnurl, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
         }
     } else {
         \core\session\manager::gc(); // Remove stale sessions.
-        redirect("$CFG->wwwroot/$CFG->admin/user.php");
+        redirect("$CFG->wwwroot/$CFG->admin/user.php", get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
     // Never reached..
 }

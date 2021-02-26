@@ -84,7 +84,7 @@ function quiz_add_instance($quiz) {
     $cmid = $quiz->coursemodule;
 
     // Process the options from the form.
-    $quiz->created = time();
+    $quiz->timecreated = time();
     $result = quiz_process_options($quiz);
     if ($result && is_string($result)) {
         return $result;
@@ -561,8 +561,8 @@ function quiz_user_complete($course, $user, $mod, $quiz) {
                 } else {
                     echo get_string('hidden', 'grades');
                 }
+                echo ' - '.userdate($attempt->timefinish).'<br />';
             }
-            echo ' - '.userdate($attempt->timemodified).'<br />';
         }
     } else {
         print_string('noattempts', 'quiz');
@@ -1645,16 +1645,10 @@ function quiz_num_attempt_summary($quiz, $cm, $returnzero = false, $currentgroup
  */
 function quiz_attempt_summary_link_to_reports($quiz, $cm, $context, $returnzero = false,
         $currentgroup = 0) {
-    global $CFG;
-    $summary = quiz_num_attempt_summary($quiz, $cm, $returnzero, $currentgroup);
-    if (!$summary) {
-        return '';
-    }
+    global $PAGE;
 
-    require_once($CFG->dirroot . '/mod/quiz/report/reportlib.php');
-    $url = new moodle_url('/mod/quiz/report.php', array(
-            'id' => $cm->id, 'mode' => quiz_report_default_report($context)));
-    return html_writer::link($url, $summary);
+    return $PAGE->get_renderer('mod_quiz')->quiz_attempt_summary_link_to_reports(
+            $quiz, $cm, $context, $returnzero, $currentgroup);
 }
 
 /**
@@ -1716,7 +1710,7 @@ function quiz_extend_settings_navigation($settings, $quiznode) {
         $beforekey = $keys[$i + 1];
     }
 
-    if (has_capability('mod/quiz:manageoverrides', $PAGE->cm->context)) {
+    if (has_any_capability(['mod/quiz:manageoverrides', 'mod/quiz:viewoverrides'], $PAGE->cm->context)) {
         $url = new moodle_url('/mod/quiz/overrides.php', array('cmid'=>$PAGE->cm->id));
         $node = navigation_node::create(get_string('groupoverrides', 'quiz'),
                 new moodle_url($url, array('mode'=>'group')),

@@ -752,7 +752,7 @@ class core_plugin_manager {
     public function all_plugins_ok($moodleversion, &$failedplugins = array(), $branch = null) {
         global $CFG;
         if (empty($branch)) {
-            $branch = $CFG->branch;
+            $branch = $CFG->branch ?? '';
             if (empty($branch)) {
                 // During initial install there is no branch set.
                 require($CFG->dirroot . '/version.php');
@@ -1853,7 +1853,7 @@ class core_plugin_manager {
             'enrol' => array(
                 'category', 'cohort', 'database', 'flatfile',
                 'guest', 'imsenterprise', 'ldap', 'lti', 'manual', 'meta', 'mnet',
-                'paypal', 'self'
+                'paypal', 'self', 'fee',
             ),
 
             'filter' => array(
@@ -1923,6 +1923,10 @@ class core_plugin_manager {
                 'quiz', 'resource', 'scorm', 'survey', 'url', 'wiki', 'workshop'
             ),
 
+            'paygw' => [
+                'paypal',
+            ],
+
             'plagiarism' => array(
             ),
 
@@ -1966,8 +1970,8 @@ class core_plugin_manager {
 
             'report' => array(
                 'backups', 'competency', 'completion', 'configlog', 'courseoverview', 'eventlist',
-                'insights', 'log', 'loglive', 'outline', 'participation', 'progress', 'questioninstances',
-                'security', 'stats', 'status', 'performance', 'usersessions'
+                'infectedfiles', 'insights', 'log', 'loglive', 'outline', 'participation', 'progress',
+                'questioninstances', 'security', 'stats', 'status', 'performance', 'usersessions'
             ),
 
             'repository' => array(

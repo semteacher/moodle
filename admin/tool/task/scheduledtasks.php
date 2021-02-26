@@ -53,7 +53,7 @@ if ($task) {
 
 $renderer = $PAGE->get_renderer('tool_task');
 
-if ($mform && ($mform->is_cancelled() || !empty($CFG->preventscheduledtaskchanges))) {
+if ($mform && ($mform->is_cancelled() || !empty($CFG->preventscheduledtaskchanges) || $task->is_overridden())) {
     redirect($nexturl);
 } else if ($action == 'edit' && empty($CFG->preventscheduledtaskchanges)) {
 
@@ -95,6 +95,9 @@ if ($mform && ($mform->is_cancelled() || !empty($CFG->preventscheduledtaskchange
 
 } else {
     echo $OUTPUT->header();
+    if (!get_config('core', 'cron_enabled')) {
+        echo $renderer->cron_disabled();
+    }
     $tasks = core\task\manager::get_all_scheduled_tasks();
     echo $renderer->scheduled_tasks_table($tasks, $lastchanged);
     echo $OUTPUT->footer();

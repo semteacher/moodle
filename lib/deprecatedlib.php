@@ -49,7 +49,7 @@ function events_trigger() {
 /**
  * List all core subsystems and their location
  *
- * This is a whitelist of components that are part of the core and their
+ * This is a list of components that are part of the core and their
  * language strings are defined in /lang/en/<<subsystem>>.php. If a given
  * plugin is not listed here and it does not have proper plugintype prefix,
  * then it is considered as course activity module.
@@ -2753,77 +2753,20 @@ function message_get_contact() {
 }
 
 /**
- * Returns list of courses, for whole site, or category
- *
- * Similar to get_courses, but allows paging
- * Important: Using c.* for fields is extremely expensive because
- *            we are using distinct. You almost _NEVER_ need all the fields
- *            in such a large SELECT
- *
  * @deprecated since Moodle 3.7
- * @todo The final deprecation of this function will take place in Moodle 41 - see MDL-65319.
- *
- * @param string|int $categoryid Either a category id or 'all' for everything
- * @param string $sort A field and direction to sort by
- * @param string $fields The additional fields to return
- * @param int $totalcount Reference for the number of courses
- * @param string $limitfrom The course to start from
- * @param string $limitnum The number of courses to limit to
- * @return array Array of courses
  */
-function get_courses_page($categoryid="all", $sort="c.sortorder ASC", $fields="c.*",
-                          &$totalcount, $limitfrom="", $limitnum="") {
-    debugging('Function get_courses_page() is deprecated. Please use core_course_category::get_courses() ' .
-        'or core_course_category::search_courses()', DEBUG_DEVELOPER);
-    global $USER, $CFG, $DB;
-
-    $params = array();
-
-    $categoryselect = "";
-    if ($categoryid !== "all" && is_numeric($categoryid)) {
-        $categoryselect = "WHERE c.category = :catid";
-        $params['catid'] = $categoryid;
-    } else {
-        $categoryselect = "";
-    }
-
-    $ccselect = ', ' . context_helper::get_preload_record_columns_sql('ctx');
-    $ccjoin = "LEFT JOIN {context} ctx ON (ctx.instanceid = c.id AND ctx.contextlevel = :contextlevel)";
-    $params['contextlevel'] = CONTEXT_COURSE;
-
-    $totalcount = 0;
-    if (!$limitfrom) {
-        $limitfrom = 0;
-    }
-    $visiblecourses = array();
-
-    $sql = "SELECT $fields $ccselect
-              FROM {course} c
-              $ccjoin
-           $categoryselect
-          ORDER BY $sort";
-
-    // Pull out all course matching the cat.
-    $rs = $DB->get_recordset_sql($sql, $params);
-    // Iteration will have to be done inside loop to keep track of the limitfrom and limitnum.
-    foreach ($rs as $course) {
-        context_helper::preload_from_record($course);
-        if (core_course_category::can_view_course_info($course)) {
-            $totalcount++;
-            if ($totalcount > $limitfrom && (!$limitnum or count($visiblecourses) < $limitnum)) {
-                $visiblecourses [$course->id] = $course;
-            }
-        }
-    }
-    $rs->close();
-    return $visiblecourses;
+function get_courses_page() {
+    throw new coding_exception(
+        'Function get_courses_page() has been removed. Please use core_course_category::get_courses() ' .
+        'or core_course_category::search_courses()'
+    );
 }
 
 /**
  * Returns the models that generated insights in the provided context.
  *
  * @deprecated since Moodle 3.8 MDL-66091 - please do not use this function any more.
- * @todo MDL-65799 This will be deleted in Moodle 4.2
+ * @todo MDL-65799 This will be deleted in Moodle 4.0
  * @see \core_analytics\manager::cached_models_with_insights
  * @param  \context $context
  * @return int[]
@@ -2944,7 +2887,7 @@ function get_module_metadata($course, $modnames, $sectionreturn = null) {
  * with other processing (other than displaying the rest of the page) after using this function!
  *
  * @deprecated since Moodle 3.9 MDL-63580. Please use the \core\task\manager::run_from_cli($task).
- * @todo final deprecation. To be removed in Moodle 4.3 MDL-63594.
+ * @todo final deprecation. To be removed in Moodle 4.1 MDL-63594.
  * @param \core\task\scheduled_task $task Task to run
  * @return bool True if cron run successful
  */
@@ -2962,7 +2905,7 @@ function cron_run_single_task(\core\task\scheduled_task $task) {
  *   and 'Finished (whatever)' lines, otherwise does not display
  *
  * @deprecated since Moodle 3.9 MDL-52846. Please use new task API.
- * @todo MDL-61165 This will be deleted in Moodle 4.3.
+ * @todo MDL-61165 This will be deleted in Moodle 4.1.
  */
 function cron_execute_plugin_type($plugintype, $description = null) {
     global $DB;
@@ -3036,7 +2979,7 @@ function cron_execute_plugin_type($plugintype, $description = null) {
  *   looking in the older location
  *
  * @deprecated since Moodle 3.9 MDL-52846. Please use new task API.
- * @todo MDL-61165 This will be deleted in Moodle 4.3.
+ * @todo MDL-61165 This will be deleted in Moodle 4.1.
  */
 function cron_bc_hack_plugin_functions($plugintype, $plugins) {
     global $CFG; // Mandatory in case it is referenced by include()d PHP script.
@@ -3357,8 +3300,8 @@ function user_get_participants($courseid, $groupid = 0, $accesssince, $roleid, $
  *
  * Calls {@see core_course_category::make_categories_list()} to build the list.
  *
- * @deprecated since Moodle 4.0
- * @todo This will be finally removed for Moodle 4.4 as part of MDL-69124.
+ * @deprecated since Moodle 3.10
+ * @todo This will be finally removed for Moodle 4.2 as part of MDL-69124.
  * @return array array mapping course category id to the display name
  */
 function make_categories_options() {
