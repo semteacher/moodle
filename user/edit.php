@@ -165,7 +165,7 @@ $filemanagercontext = $editoroptions['context'];
 $filemanageroptions = array('maxbytes'       => $CFG->maxbytes,
                              'subdirs'        => 0,
                              'maxfiles'       => 1,
-                             'accepted_types' => 'web_image');
+                             'accepted_types' => 'optimised_image');
 file_prepare_draft_area($draftitemid, $filemanagercontext->id, 'user', 'newicon', 0, $filemanageroptions);
 $user->imagefile = $draftitemid;
 // Create form.
@@ -299,7 +299,7 @@ if ($userform->is_cancelled()) {
     }
 
     if (!$emailchanged || !$CFG->emailchangeconfirmation) {
-        redirect($returnurl);
+        redirect($returnurl, get_string('changessaved'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
 

@@ -43,7 +43,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
     /**
      * Tests set up
      */
-    protected function setUp() {
+    protected function setUp(): void {
         global $CFG;
         require_once($CFG->dirroot . '/calendar/externallib.php');
     }
@@ -157,8 +157,6 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
 
     /**
      * Test delete_calendar_events
-     *
-     * @expectedException moodle_exception
      */
     public function test_delete_calendar_events() {
         global $DB, $USER;
@@ -282,6 +280,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
             array('eventid' => $userevent->id, 'repeat' => 0),
             array('eventid' => $groupevent->id, 'repeat' => 0)
         );
+        $this->expectException(moodle_exception::class);
         core_calendar_external::delete_calendar_events($events);
     }
 
@@ -375,7 +374,7 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         foreach ($events['events'] as $event) {
             if (!empty($event['description'])) {
                 $withdescription++;
-                $this->assertContains($expectedurl, $event['description']);
+                $this->assertStringContainsString($expectedurl, $event['description']);
             }
         }
         $this->assertEquals(2, $withdescription);
@@ -540,6 +539,42 @@ class core_calendar_externallib_testcase extends externallib_advanced_testcase {
         $this->assertEquals($category->id, $events['events'][0]['categoryid']);
         $this->assertEquals($catevent2->id, $events['events'][1]['id']);
         $this->assertEquals($category2->id, $events['events'][1]['categoryid']);
+    }
+
+    /**
+     * Test get_calendar_events with mathjax in the name.
+     */
+    public function test_get_calendar_events_with_mathjax() {
+        global $USER;
+
+        $this->resetAfterTest(true);
+        set_config('calendar_adminseesall', 1);
+        $this->setAdminUser();
+
+        // Enable MathJax filter in content and headings.
+        $this->configure_filters([
+            ['name' => 'mathjaxloader', 'state' => TEXTFILTER_ON, 'move' => -1, 'applytostrings' => true],
+        ]);
+
+        // Create a site event with mathjax in the name and description.
+        $siteevent = $this->create_calendar_event('Site Event $$(a+b)=2$$', $USER->id, 'site', 0, time(),
+                ['description' => 'Site Event Description $$(a+b)=2$$']);
+
+        // Now call the WebService.
+        $events = core_calendar_external::get_calendar_events();
+        $events = external_api::clean_returnvalue(core_calendar_external::get_calendar_events_returns(), $events);
+
+        // Format the original data.
+        $sitecontext = context_system::instance();
+        $siteevent->name = $siteevent->format_external_name();
+        list($siteevent->description, $siteevent->descriptionformat) = $siteevent->format_external_text();
+
+        // Check that the event data is formatted.
+        $this->assertCount(1, $events['events']);
+        $this->assertStringContainsString('<span class="filter_mathjaxloader_equation">', $events['events'][0]['name']);
+        $this->assertStringContainsString('<span class="filter_mathjaxloader_equation">', $events['events'][0]['description']);
+        $this->assertEquals($siteevent->name, $events['events'][0]['name']);
+        $this->assertEquals($siteevent->description, $events['events'][0]['description']);
     }
 
     /**

@@ -115,7 +115,16 @@ class framework implements \H5PFrameworkInterface {
      * @param string $url
      */
     public function setLibraryTutorialUrl($libraryname, $url) {
-        // Tutorial url is currently not being used or stored in libraries.
+        global $DB;
+
+        $sql = 'UPDATE {h5p_libraries}
+                   SET tutorial = :tutorial
+                 WHERE machinename = :machinename';
+        $params = [
+            'tutorial' => $url,
+            'machinename' => $libraryname,
+        ];
+        $DB->execute($sql, $params);
     }
 
     /**
@@ -568,7 +577,7 @@ class framework implements \H5PFrameworkInterface {
     }
 
     /**
-     * Get file extension whitelist.
+     * Get allowed file extension list.
      * Implements getWhitelist.
      *
      * The default extension list is part of h5p, but admins should be allowed to modify it.
@@ -685,6 +694,9 @@ class framework implements \H5PFrameworkInterface {
      *                           - dropLibraryCss(optional): list of associative arrays containing:
      *                             - machineName: machine name for the librarys that are to drop their css
      *                           - semantics(optional): Json describing the content structure for the library
+     *                           - metadataSettings(optional): object containing:
+     *                             - disable: 1 if metadata is disabled completely
+     *                             - disableExtraTitleField: 1 if the title field is hidden in the form
      * @param bool $new Whether it is a new or existing library.
      */
     public function saveLibraryData(&$librarydata, $new = true) {
@@ -722,6 +734,7 @@ class framework implements \H5PFrameworkInterface {
             'addto' => isset($librarydata['addTo']) ? json_encode($librarydata['addTo']) : null,
             'coremajor' => isset($librarydata['coreApi']['majorVersion']) ? $librarydata['coreApi']['majorVersion'] : null,
             'coreminor' => isset($librarydata['coreApi']['majorVersion']) ? $librarydata['coreApi']['minorVersion'] : null,
+            'metadatasettings' => isset($librarydata['metadataSettings']) ? $librarydata['metadataSettings'] : null,
         );
 
         if ($new) {
@@ -1089,20 +1102,10 @@ class framework implements \H5PFrameworkInterface {
      * @param int $minorversion The library's minor version
      */
     public function alterLibrarySemantics(&$semantics, $name, $majorversion, $minorversion) {
-        global $DB;
+        global $PAGE;
 
-        $library = $DB->get_record('h5p_libraries',
-            array(
-                'machinename' => $name,
-                'majorversion' => $majorversion,
-                'minorversion' => $minorversion,
-            )
-        );
-
-        if ($library) {
-            $library->semantics = json_encode($semantics);
-            $DB->update_record('h5p_libraries', $library);
-        }
+        $renderer = $PAGE->get_renderer('core_h5p');
+        $renderer->h5p_alter_semantics($semantics, $name, $majorversion, $minorversion);
     }
 
     /**
