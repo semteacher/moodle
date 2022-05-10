@@ -395,7 +395,7 @@ class pdf extends TcpdfFpdi {
      * @param string $imagefolder - Folder containing stamp images.
      * @return bool true if successful (always)
      */
-    public function add_annotation($sx, $sy, $ex, $ey, $colour = 'yellow', $type = 'line', $path, $imagefolder) {
+    public function add_annotation($sx, $sy, $ex, $ey, $colour, $type, $path, $imagefolder) {
         global $CFG;
         if (!$this->filename) {
             return false;
@@ -824,13 +824,14 @@ class pdf extends TcpdfFpdi {
         $this->currentpage++;
         $template = $this->importPage($this->currentpage);
         $size = $this->getTemplateSize($template);
-
+        $orientation = 'P';
         if ($imageinfo["width"] > $imageinfo["height"]) {
             if ($size['width'] < $size['height']) {
                 $temp = $size['width'];
                 $size['width'] = $size['height'];
                 $size['height'] = $temp;
             }
+            $orientation = 'L';
         } else if ($imageinfo["width"] < $imageinfo["height"]) {
             if ($size['width'] > $size['height']) {
                 $temp = $size['width'];
@@ -838,7 +839,7 @@ class pdf extends TcpdfFpdi {
                 $size['height'] = $temp;
             }
         }
-        $orientation = $size['orientation'];
+
         $this->SetHeaderMargin(0);
         $this->SetFooterMargin(0);
         $this->SetMargins(0, 0, 0, true);
@@ -847,7 +848,7 @@ class pdf extends TcpdfFpdi {
 
         $this->AddPage($orientation, $size);
         $this->SetAutoPageBreak(false, 0);
-        $this->Image('@' . $imagecontent, 0, 0, $size['w'], $size['h'],
+        $this->Image('@' . $imagecontent, 0, 0, $size['width'], $size['height'],
             '', '', '', false, null, '', false, false, 0);
     }
 }

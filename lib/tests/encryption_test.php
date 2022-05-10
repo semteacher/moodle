@@ -31,7 +31,7 @@ namespace core;
  * @copyright 2020 The Open University
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class encryption_testcase extends \basic_testcase {
+class encryption_test extends \basic_testcase {
 
     /**
      * Clear junk created by tests.
@@ -216,7 +216,7 @@ class encryption_testcase extends \basic_testcase {
 
         switch ($method) {
             case encryption::METHOD_SODIUM:
-                $this->expectExceptionMessage('key size should be');
+                $this->expectExceptionMessageMatches('/(should|must) be SODIUM_CRYPTO_SECRETBOX_KEYBYTES bytes/');
                 break;
 
             case encryption::METHOD_OPENSSL:

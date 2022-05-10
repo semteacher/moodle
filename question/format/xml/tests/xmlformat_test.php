@@ -57,8 +57,7 @@ class qformat_xml_test extends question_testcase {
         $q->penalty = 0.3333333;
         $q->length = 1;
         $q->stamp = make_unique_id_code();
-        $q->version = make_unique_id_code();
-        $q->hidden = 0;
+        $q->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $q->timecreated = time();
         $q->timemodified = time();
         $q->createdby = $USER->id;
@@ -169,11 +168,11 @@ class qformat_xml_test extends question_testcase {
         $exporter = new qformat_xml();
         $xml = $exporter->writequestion($q);
 
-        $this->assertRegExp('|<hint format=\"moodle_auto_format\">\s*<text>\s*' .
+        $this->assertMatchesRegularExpression('|<hint format=\"moodle_auto_format\">\s*<text>\s*' .
                 'This is the first hint\.\s*</text>\s*</hint>|', $xml);
-        $this->assertNotRegExp('|<shownumcorrect/>|', $xml);
-        $this->assertNotRegExp('|<clearwrong/>|', $xml);
-        $this->assertNotRegExp('|<options>|', $xml);
+        $this->assertDoesNotMatchRegularExpression('|<shownumcorrect/>|', $xml);
+        $this->assertDoesNotMatchRegularExpression('|<clearwrong/>|', $xml);
+        $this->assertDoesNotMatchRegularExpression('|<options>|', $xml);
     }
 
     public function test_write_hint_with_parts() {
@@ -204,16 +203,16 @@ class qformat_xml_test extends question_testcase {
         $exporter = new qformat_xml();
         $xml = $exporter->writequestion($q);
 
-        $this->assertRegExp(
+        $this->assertMatchesRegularExpression(
                 '|<hint format=\"html\">\s*<text>\s*This is the first hint\.\s*</text>|', $xml);
-        $this->assertRegExp(
+        $this->assertMatchesRegularExpression(
                 '|<hint format=\"html\">\s*<text>\s*This is the second hint\.\s*</text>|', $xml);
         list($ignored, $hint1, $hint2) = explode('<hint', $xml);
-        $this->assertNotRegExp('|<shownumcorrect/>|', $hint1);
-        $this->assertRegExp('|<clearwrong/>|', $hint1);
-        $this->assertRegExp('|<shownumcorrect/>|', $hint2);
-        $this->assertNotRegExp('|<clearwrong/>|', $hint2);
-        $this->assertNotRegExp('|<options>|', $xml);
+        $this->assertDoesNotMatchRegularExpression('|<shownumcorrect/>|', $hint1);
+        $this->assertMatchesRegularExpression('|<clearwrong/>|', $hint1);
+        $this->assertMatchesRegularExpression('|<shownumcorrect/>|', $hint2);
+        $this->assertDoesNotMatchRegularExpression('|<clearwrong/>|', $hint2);
+        $this->assertDoesNotMatchRegularExpression('|<options>|', $xml);
     }
 
     public function test_import_hints_no_parts() {
@@ -342,7 +341,7 @@ END;
         $qdata->defaultmark = 0;
         $qdata->length = 0;
         $qdata->penalty = 0;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $exporter = new qformat_xml();
@@ -407,7 +406,9 @@ END;
         $expectedq->responserequired = 1;
         $expectedq->responsefieldlines = 15;
         $expectedq->minwordlimit = null;
+        $expectedq->minwordenabled = false;
         $expectedq->maxwordlimit = null;
+        $expectedq->maxwordenabled = false;
         $expectedq->attachments = 0;
         $expectedq->attachmentsrequired = 0;
         $expectedq->maxbytes = 0;
@@ -470,7 +471,9 @@ END;
         $expectedq->responserequired = 0;
         $expectedq->responsefieldlines = 42;
         $expectedq->minwordlimit = null;
+        $expectedq->minwordenabled = false;
         $expectedq->maxwordlimit = null;
+        $expectedq->maxwordenabled = false;
         $expectedq->attachments = -1;
         $expectedq->attachmentsrequired = 1;
         $expectedq->maxbytes = 0;
@@ -537,7 +540,9 @@ END;
         $expectedq->responserequired = 0;
         $expectedq->responsefieldlines = 42;
         $expectedq->minwordlimit = 10;
+        $expectedq->minwordenabled = true;
         $expectedq->maxwordlimit = 20;
+        $expectedq->maxwordenabled = true;
         $expectedq->attachments = -1;
         $expectedq->attachmentsrequired = 1;
         $expectedq->maxbytes = 52428800; // 50MB.
@@ -564,7 +569,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
         $qdata->options = new stdClass();
         $qdata->options->id = 456;
@@ -736,7 +741,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $qdata->options = new stdClass();
@@ -969,7 +974,7 @@ END;
         $qdata->defaultmark = 2;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $qdata->options = new stdClass();
@@ -1126,7 +1131,7 @@ END;
                     'format' => FORMAT_HTML),
             array('text' => 'Completely wrong.',
                     'format' => FORMAT_HTML));
-        $expectedq->tolerance = array(0.001, 1, 0);
+        $expectedq->tolerance = array(0.001, 1, '');
 
         $this->assert(new question_check_specified_fields_expectation($expectedq), $q);
     }
@@ -1146,7 +1151,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.1;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $qdata->options = new stdClass();
@@ -1278,7 +1283,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 0.3333333;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $qdata->options = new stdClass();
@@ -1454,7 +1459,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 1;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = null;
 
         $qdata->options = new stdClass();
@@ -1514,7 +1519,7 @@ END;
         $qdata->defaultmark = 1;
         $qdata->length = 1;
         $qdata->penalty = 1;
-        $qdata->hidden = 0;
+        $qdata->status = \core_question\local\bank\question_version_status::QUESTION_STATUS_READY;
         $qdata->idnumber = 'TestIDNum2';
 
         $qdata->options = new stdClass();

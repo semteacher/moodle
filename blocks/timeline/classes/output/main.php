@@ -102,11 +102,11 @@ class main implements renderable, templatable {
      */
     private function get_filter_offsets() {
 
-        $limit = false;
+        $limit = '';
         if (in_array($this->filter, [BLOCK_TIMELINE_FILTER_BY_NONE, BLOCK_TIMELINE_FILTER_BY_OVERDUE])) {
             $offset = -14;
             if ($this->filter == BLOCK_TIMELINE_FILTER_BY_OVERDUE) {
-                $limit = 0;
+                $limit = 1;
             }
         } else {
             $offset = 0;
@@ -170,9 +170,10 @@ class main implements renderable, templatable {
             'sorttimelinecourses' => $this->order == BLOCK_TIMELINE_SORT_BY_COURSES,
             'selectedfilter' => $this->filter,
             'hasdaysoffset' => true,
-            'hasdayslimit' => $offsets['dayslimit'] !== false ,
-            'nodayslimit' => $offsets['dayslimit'] === false ,
-            'limit' => $this->limit
+            'hasdayslimit' => $offsets['dayslimit'] !== '' ,
+            'nodayslimit' => $offsets['dayslimit'] === '' ,
+            'limit' => $this->limit,
+            'hascourses' => !empty($formattedcourses),
         ];
         return array_merge($contextvariables, $filters, $offsets);
     }

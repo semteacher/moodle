@@ -131,6 +131,8 @@ class core_filterlib_testcase extends advanced_testcase {
     }
 
     public function test_update_reorder_down() {
+        global $DB;
+
         $this->resetAfterTest();
         $this->remove_all_filters_from_config(); // Remove all filters.
         // Setup fixture.
@@ -141,9 +143,19 @@ class core_filterlib_testcase extends advanced_testcase {
         filter_set_global_state('two', TEXTFILTER_ON, -1);
         // Validate.
         $this->assert_global_sort_order(array('two', 'one', 'three'));
+
+        // Check this was logged in config log.
+        $logs = $DB->get_records('config_log', null, 'id DESC', '*', 0, 1);
+        $log = reset($logs);
+        $this->assertEquals('core_filter', $log->plugin);
+        $this->assertEquals('order', $log->name);
+        $this->assertEquals('two, one, three', $log->value);
+        $this->assertEquals('one, two, three', $log->oldvalue);
     }
 
     public function test_update_reorder_up() {
+        global $DB;
+
         $this->resetAfterTest();
         $this->remove_all_filters_from_config(); // Remove all filters.
         // Setup fixture.
@@ -155,6 +167,14 @@ class core_filterlib_testcase extends advanced_testcase {
         filter_set_global_state('two', TEXTFILTER_ON, 1);
         // Validate.
         $this->assert_global_sort_order(array('one', 'three', 'two', 'four'));
+
+        // Check this was logged in config log.
+        $logs = $DB->get_records('config_log', null, 'id DESC', '*', 0, 1);
+        $log = reset($logs);
+        $this->assertEquals('core_filter', $log->plugin);
+        $this->assertEquals('order', $log->name);
+        $this->assertEquals('one, three, two, four', $log->value);
+        $this->assertEquals('one, two, three, four', $log->oldvalue);
     }
 
     public function test_auto_sort_order_change_to_enabled() {
@@ -319,7 +339,7 @@ class core_filterlib_testcase extends advanced_testcase {
     }
 
     protected function setup_available_in_context_tests() {
-        $course = $this->getDataGenerator()->create_course(array('category'=>1));
+        $course = $this->getDataGenerator()->create_course(array('category' => 1));
 
         $childcontext = context_coursecat::instance(1);
         $childcontext2 = context_course::instance($course->id);
@@ -704,7 +724,7 @@ class core_filterlib_testcase extends advanced_testcase {
 
         $this->assertFileExists("$CFG->dirroot/filter/emailprotect"); // Any standard filter.
         $this->assertFileExists("$CFG->dirroot/filter/tidy");         // Any standard filter.
-        $this->assertFileNotExists("$CFG->dirroot/filter/grgrggr");   // Any non-existent filter
+        $this->assertFileDoesNotExist("$CFG->dirroot/filter/grgrggr");   // Any non-existent filter.
 
         // Setup fixture.
         set_config('filterall', 0);

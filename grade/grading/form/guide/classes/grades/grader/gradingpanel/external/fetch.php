@@ -154,8 +154,11 @@ class fetch extends external_api {
         global $USER;
 
         $hasgrade = $gradeitem->user_has_grade($gradeduser);
-        $grade = $gradeitem->get_grade_for_user($gradeduser, $USER);
+        $grade = $gradeitem->get_formatted_grade_for_user($gradeduser, $USER);
         $instance = $gradeitem->get_advanced_grading_instance($USER, $grade);
+        if (!$instance) {
+            throw new moodle_exception('error:gradingunavailable', 'grading');
+        }
         $controller = $instance->get_controller();
         $definition = $controller->get_definition();
         $fillings = $instance->get_guide_filling();
@@ -234,7 +237,7 @@ class fetch extends external_api {
                 'criterion' => $criterion,
                 'hascomments' => !empty($comments),
                 'comments' => $comments,
-                'usergrade' => $grade->grade,
+                'usergrade' => $grade->usergrade,
                 'maxgrade' => $maxgrade,
                 'gradedby' => $gradername,
                 'timecreated' => $grade->timecreated,

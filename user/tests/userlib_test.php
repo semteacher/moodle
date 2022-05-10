@@ -200,10 +200,9 @@ class core_userliblib_testcase extends advanced_testcase {
         $user->lang = 'xy';
         $user->theme = 'somewrongthemename';
         $user->timezone = '30.5';
-        $user->url = 'wwww.somewrong@#$url.com.aus';
         $debugmessages = $this->getDebuggingMessages();
         user_update_user($user, true, false);
-        $this->assertDebuggingCalledCount(6, $debugmessages);
+        $this->assertDebuggingCalledCount(5, $debugmessages);
 
         // Now, with valid user data.
         $user->username = 'johndoe321';
@@ -212,7 +211,6 @@ class core_userliblib_testcase extends advanced_testcase {
         $user->lang = 'en';
         $user->theme = 'classic';
         $user->timezone = 'Australia/Perth';
-        $user->url = 'www.moodle.org';
         user_update_user($user, true, false);
         $this->assertDebuggingNotCalled();
     }
@@ -283,10 +281,9 @@ class core_userliblib_testcase extends advanced_testcase {
         $user['lang'] = 'xy';
         $user['theme'] = 'somewrongthemename';
         $user['timezone'] = '-30.5';
-        $user['url'] = 'wwww.somewrong@#$url.com.aus';
         $debugmessages = $this->getDebuggingMessages();
         $user['id'] = user_create_user($user, true, false);
-        $this->assertDebuggingCalledCount(6, $debugmessages);
+        $this->assertDebuggingCalledCount(5, $debugmessages);
         $dbuser = $DB->get_record('user', array('id' => $user['id']));
         $this->assertEquals($dbuser->country, 0);
         $this->assertEquals($dbuser->lang, 'en');
@@ -299,9 +296,38 @@ class core_userliblib_testcase extends advanced_testcase {
         $user['lang'] = 'en';
         $user['theme'] = 'classic';
         $user['timezone'] = 'Australia/Perth';
-        $user['url'] = 'www.moodle.org';
         user_create_user($user, true, false);
         $this->assertDebuggingNotCalled();
+    }
+
+    /**
+     * Test that creating users populates default values
+     *
+     * @covers ::user_create_user
+     */
+    public function test_user_create_user_default_values(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+
+        // Update default values for city/country (both initially empty).
+        set_config('defaultcity', 'Nadi');
+        set_config('country', 'FJ');
+
+        $userid = user_create_user((object) [
+            'username' => 'newuser',
+        ], false, false);
+
+        $user = core_user::get_user($userid);
+        $this->assertEquals($CFG->calendartype, $user->calendartype);
+        $this->assertEquals($CFG->defaultpreference_maildisplay, $user->maildisplay);
+        $this->assertEquals($CFG->defaultpreference_mailformat, $user->mailformat);
+        $this->assertEquals($CFG->defaultpreference_maildigest, $user->maildigest);
+        $this->assertEquals($CFG->defaultpreference_autosubscribe, $user->autosubscribe);
+        $this->assertEquals($CFG->defaultpreference_trackforums, $user->trackforums);
+        $this->assertEquals($CFG->lang, $user->lang);
+        $this->assertEquals($CFG->defaultcity, $user->city);
+        $this->assertEquals($CFG->country, $user->country);
     }
 
     /**
@@ -587,15 +613,13 @@ class core_userliblib_testcase extends advanced_testcase {
 
         $PAGE->set_url('/');
         $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
         $opts = user_get_user_navigation_info($user, $PAGE, array('avatarsize' => $testsize));
         $avatarhtml = $opts->metadata['useravatar'];
 
         $matches = [];
-        preg_match('/(?:.*width=")(\d*)(?:" height=")(\d*)(?:".*\/>)/', $avatarhtml, $matches);
-        $this->assertCount(3, $matches);
-
-        $this->assertEquals(intval($matches[1]), $testsize);
-        $this->assertEquals(intval($matches[2]), $testsize);
+        preg_match('/size-100/', $avatarhtml, $matches);
+        $this->assertCount(1, $matches);
     }
 
     /**

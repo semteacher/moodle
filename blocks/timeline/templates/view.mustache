@@ -43,7 +43,9 @@
         "next6months": false,
         "daysoffset": -14,
         "dayslimit": false,
-        "limit": 0
+        "limit": 0,
+        "hascourses": true,
+        "overdue": false
     }
 }}
 <div data-region="timeline-view">
@@ -58,8 +60,9 @@
             data-limit="2"
             data-offset="0"
             data-days-limit="{{dayslimit}}"
-            data-days-offset="0"
+            data-days-offset="{{daysoffset}}"
             data-no-events-url="{{urls.noevents}}"
+            {{#overdue}}data-filter-overdue="{{overdue}}"{{/overdue}}
             id="view_courses_{{uniqid}}"
         >
             {{> block_timeline/view-courses }}

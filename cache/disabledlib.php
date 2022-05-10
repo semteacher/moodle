@@ -61,14 +61,27 @@ class cache_disabled extends cache {
      * Gets a key from the cache.
      *
      * @param int|string $key
+     * @param int $requiredversion Minimum required version of the data or cache::VERSION_NONE
      * @param int $strictness Unused.
+     * @param mixed &$actualversion If specified, will be set to the actual version number retrieved
      * @return bool
      */
-    public function get($key, $strictness = IGNORE_MISSING) {
-        if ($this->get_datasource() !== false) {
-            return $this->get_datasource()->load_for_cache($key);
+    protected function get_implementation($key, int $requiredversion, int $strictness, &$actualversion = null) {
+        $datasource = $this->get_datasource();
+        if ($datasource !== false) {
+            if ($requiredversion === cache::VERSION_NONE) {
+                return $datasource->load_for_cache($key);
+            } else {
+                if (!$datasource instanceof cache_data_source_versionable) {
+                    throw new \coding_exception('Data source is not versionable');
+                }
+                $result = $datasource->load_for_cache_versioned($key, $requiredversion, $actualversion);
+                if ($result && $actualversion < $requiredversion) {
+                    throw new \coding_exception('Data source returned outdated version');
+                }
+                return $result;
+            }
         }
-
         return false;
     }
 
@@ -91,10 +104,12 @@ class cache_disabled extends cache {
      * Sets a key value pair in the cache.
      *
      * @param int|string $key Unused.
+     * @param int $version Unused.
      * @param mixed $data Unused.
+     * @param bool $setparents Unused.
      * @return bool
      */
-    public function set($key, $data) {
+    protected function set_implementation($key, int $version, $data, bool $setparents = true): bool {
         return false;
     }
 
@@ -313,13 +328,13 @@ class cache_factory_disabled extends cache_factory {
             self::set_state(self::STATE_INITIALISING);
             if ($class === 'cache_config_disabled') {
                 $configuration = $class::create_default_configuration();
+                $this->configs[$class] = new $class;
             } else {
                 $configuration = false;
-                if (!cache_config::config_file_exists()) {
-                    cache_config_writer::create_default_configuration(true);
-                }
+                // If we need a writer, we should get the classname from the generic factory.
+                // This is so alternative classes can be used if a different writer is required.
+                $this->configs[$class] = parent::get_disabled_writer();
             }
-            $this->configs[$class] = new $class;
             $this->configs[$class]->load($configuration);
         }
         self::set_state(self::STATE_READY);
