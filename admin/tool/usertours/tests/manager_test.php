@@ -14,13 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Tests for manager.
- *
- * @package    tool_usertours
- * @copyright  2016 Andrew Nicols <andrew@nicols.co.uk>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
+namespace tool_usertours;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -35,9 +29,9 @@ require_once(__DIR__ . '/helper_trait.php');
  * @copyright  2016 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class tool_usertours_manager_testcase extends advanced_testcase {
+class manager_test extends \advanced_testcase {
     // There are shared helpers for these tests in the helper trait.
-    use tool_usertours_helper_trait;
+    use \tool_usertours_helper_trait;
 
     /**
      * @var moodle_database
@@ -190,7 +184,7 @@ class tool_usertours_manager_testcase extends advanced_testcase {
         $tour = \tool_usertours\tour::load_from_record($record);
 
         // Call protected method via reflection.
-        $class = new ReflectionClass(\tool_usertours\manager::class);
+        $class = new \ReflectionClass(\tool_usertours\manager::class);
         $method = $class->getMethod('_move_tour');
         $method->setAccessible(true);
         $method->invokeArgs(null, [$tour, $direction]);
@@ -325,15 +319,47 @@ class tool_usertours_manager_testcase extends advanced_testcase {
     public function test_get_matching_tours(array $alltours, string $url, array $expected) {
         $this->resetAfterTest();
 
+        $this->setGuestUser();
+
         foreach ($alltours as $tourconfig) {
             $tour = $this->helper_create_tour((object) $tourconfig);
             $this->helper_create_step((object) ['tourid' => $tour->get_id()]);
         }
 
-        $matches = \tool_usertours\manager::get_matching_tours(new moodle_url($url));
+        $matches = \tool_usertours\manager::get_matching_tours(new \moodle_url($url));
         $this->assertEquals(count($expected), count($matches));
         for ($i = 0; $i < count($matches); $i++) {
             $this->assertEquals($expected[$i], $matches[$i]->get_name());
         }
+    }
+
+    /**
+     * Test that no matching tours are returned if there is pending site policy agreement.
+     */
+    public function test_get_matching_tours_for_user_without_site_policy_agreed() {
+        global $CFG;
+
+        $this->resetAfterTest();
+        $this->setGuestUser();
+
+        $tour = $this->helper_create_tour((object) [
+            'pathmatch' => '/%',
+            'enabled' => true,
+            'name' => 'Test tour',
+            'description' => '',
+            'configdata' => '',
+        ]);
+
+        $this->helper_create_step((object) [
+            'tourid' => $tour->get_id(),
+        ]);
+
+        $matches = \tool_usertours\manager::get_matching_tours(new \moodle_url('/'));
+        $this->assertEquals(1, count($matches));
+
+        $CFG->sitepolicyguest = 'https://example.com';
+
+        $matches = \tool_usertours\manager::get_matching_tours(new \moodle_url('/'));
+        $this->assertEmpty($matches);
     }
 }

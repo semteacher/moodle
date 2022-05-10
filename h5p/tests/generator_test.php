@@ -38,7 +38,7 @@ defined('MOODLE_INTERNAL') || die();
 * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
 * @runTestsInSeparateProcesses
 */
-class generator_testcase extends \advanced_testcase {
+class generator_test extends \advanced_testcase {
 
     /**
      * Tests set up.
@@ -251,6 +251,7 @@ class generator_testcase extends \advanced_testcase {
             'coremajor' => null,
             'coreminor' => null,
             'metadatasettings' => null,
+            'enabled' => 1,
         ];
 
         $this->assertEquals($expected, $data);

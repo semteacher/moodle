@@ -38,7 +38,7 @@ use stdClass;
 /**
  * Unit tests for the `exportable_filearea` export item class.
  *
- * @coversDefaultClass core\content\exportable_items\exportable_filearea
+ * @coversDefaultClass \core\content\exportable_items\exportable_filearea
  */
 class exportable_filearea_test extends advanced_testcase {
 
@@ -224,7 +224,7 @@ class exportable_filearea_test extends advanced_testcase {
     ): exported_item {
         $archive = $this->getMockBuilder(zipwriter::class)
             ->setConstructorArgs([$this->getMockBuilder(\ZipStream\ZipStream::class)->getmock()])
-            ->setMethods([
+            ->onlyMethods([
                 'add_file_from_stored_file',
                 'is_file_in_archive',
             ])

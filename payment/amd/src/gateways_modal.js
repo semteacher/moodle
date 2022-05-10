@@ -17,7 +17,6 @@
  * Contain the logic for the gateways modal.
  *
  * @module     core_payment/gateways_modal
- * @package    core_payment
  * @copyright  2019 Shamim Rezaie <shamim@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -95,7 +94,7 @@ const show = async(rootNode, {
                     message: message,
                     type: 'success',
                 });
-                location.reload();
+                location.href = rootNode.dataset.successurl;
 
                 // The following return statement is never reached. It is put here just to make eslint happy.
                 return message;
@@ -105,7 +104,7 @@ const show = async(rootNode, {
             // We cannot use await in the following line.
             // The reason is that we are preventing the default action of the save event being triggered,
             // therefore we cannot define the event handler function asynchronous.
-            getString('nogatewayselected', 'core_payment').then(message => addToast(message)).catch();
+            getString('nogatewayselected', 'core_payment').then(message => addToast(message, {type: 'warning'})).catch();
         }
 
         e.preventDefault();

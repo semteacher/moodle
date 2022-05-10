@@ -38,7 +38,7 @@ use stdClass;
 /**
  * Unit tests for the `exportable_textarea` export item class.
  *
- * @coversDefaultClass core\content\exportable_items\exportable_textarea
+ * @coversDefaultClass \core\content\exportable_items\exportable_textarea
  */
 class exportable_textarea_test extends advanced_testcase {
 
@@ -309,7 +309,7 @@ EOF;
     ): void {
         $archive = $this->getMockBuilder(zipwriter::class)
             ->setConstructorArgs([$this->getMockBuilder(\ZipStream\ZipStream::class)->getmock()])
-            ->setMethods([
+            ->onlyMethods([
                 'is_file_in_archive',
                 'add_file_from_string',
                 'add_file_from_stored_file',
@@ -357,7 +357,7 @@ EOF;
     ): void {
         $archive = $this->getMockBuilder(zipwriter::class)
             ->setConstructorArgs([$this->getMockBuilder(\ZipStream\ZipStream::class)->getmock()])
-            ->setMethods([
+            ->onlyMethods([
                 'add_file_from_stored_file',
                 'add_file_from_string',
                 'add_file_from_template',

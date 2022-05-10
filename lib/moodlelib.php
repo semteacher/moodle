@@ -460,6 +460,23 @@ define('MOD_ARCHETYPE_ASSIGNMENT', 2);
 /** System (not user-addable) module archetype */
 define('MOD_ARCHETYPE_SYSTEM', 3);
 
+/** Type of module */
+define('FEATURE_MOD_PURPOSE', 'mod_purpose');
+/** Module purpose administration */
+define('MOD_PURPOSE_ADMINISTRATION', 'administration');
+/** Module purpose assessment */
+define('MOD_PURPOSE_ASSESSMENT', 'assessment');
+/** Module purpose communication */
+define('MOD_PURPOSE_COLLABORATION', 'collaboration');
+/** Module purpose communication */
+define('MOD_PURPOSE_COMMUNICATION', 'communication');
+/** Module purpose content */
+define('MOD_PURPOSE_CONTENT', 'content');
+/** Module purpose interface */
+define('MOD_PURPOSE_INTERFACE', 'interface');
+/** Module purpose other */
+define('MOD_PURPOSE_OTHER', 'other');
+
 /**
  * Security token used for allowing access
  * from external application such as web services.
@@ -489,11 +506,20 @@ define('HOMEPAGE_MY', 1);
  * The home page can be chosen by the user
  */
 define('HOMEPAGE_USER', 2);
+/**
+ * The home page should be the users my courses page
+ */
+define('HOMEPAGE_MYCOURSES', 3);
 
 /**
  * URL of the Moodle sites registration portal.
  */
 defined('HUB_MOODLEORGHUBURL') || define('HUB_MOODLEORGHUBURL', 'https://stats.moodle.org');
+
+/**
+ * URL of the statistic server public key.
+ */
+defined('HUB_STATSPUBLICKEY') || define('HUB_STATSPUBLICKEY', 'https://moodle.org/static/statspubkey.pem');
 
 /**
  * Moodle mobile app service name
@@ -1284,7 +1310,7 @@ function fix_utf8($value) {
         if ($buggyiconv) {
             if (function_exists('mb_convert_encoding')) {
                 $subst = mb_substitute_character();
-                mb_substitute_character('');
+                mb_substitute_character('none');
                 $result = mb_convert_encoding($value, 'utf-8', 'utf-8');
                 mb_substitute_character($subst);
 
@@ -1457,8 +1483,6 @@ function set_config($name, $value, $plugin=null) {
  *
  * NOTE: this function is called from lib/db/upgrade.php
  *
- * @static string|false $siteidentifier The site identifier is not cached. We use this static cache so
- *     that we need only fetch it once per request.
  * @param string $plugin full component name
  * @param string $name default null
  * @return mixed hash-like object or single value, return false no config found
@@ -1466,8 +1490,6 @@ function set_config($name, $value, $plugin=null) {
  */
 function get_config($plugin, $name = null) {
     global $CFG, $DB;
-
-    static $siteidentifier = null;
 
     if ($plugin === 'moodle' || $plugin === 'core' || empty($plugin)) {
         $forced =& $CFG->config_php_settings;
@@ -1482,12 +1504,11 @@ function get_config($plugin, $name = null) {
         $iscore = false;
     }
 
-    if ($siteidentifier === null) {
+    if (!isset($CFG->siteidentifier)) {
         try {
-            // This may fail during installation.
-            // If you have a look at {@link initialise_cfg()} you will see that this is how we detect the need to
-            // install the database.
-            $siteidentifier = $DB->get_field('config', 'value', array('name' => 'siteidentifier'));
+            // This may throw an exception during installation, which is how we detect the
+            // need to install the database. For more details see {@see initialise_cfg()}.
+            $CFG->siteidentifier = $DB->get_field('config', 'value', array('name' => 'siteidentifier'));
         } catch (dml_exception $ex) {
             // Set siteidentifier to false. We don't want to trip this continually.
             $siteidentifier = false;
@@ -1499,7 +1520,7 @@ function get_config($plugin, $name = null) {
         if (array_key_exists($name, $forced)) {
             return (string)$forced[$name];
         } else if ($name === 'siteidentifier' && $plugin == 'core') {
-            return $siteidentifier;
+            return $CFG->siteidentifier;
         }
     }
 
@@ -1524,7 +1545,7 @@ function get_config($plugin, $name = null) {
     }
 
     if ($plugin === 'core') {
-        $result['siteidentifier'] = $siteidentifier;
+        $result['siteidentifier'] = $CFG->siteidentifier;
     }
 
     foreach ($forced as $key => $value) {
@@ -1690,7 +1711,6 @@ function purge_caches($options = []) {
  */
 function purge_other_caches() {
     global $DB, $CFG;
-    core_text::reset_caches();
     if (class_exists('core_plugin_manager')) {
         core_plugin_manager::reset_caches();
     }
@@ -2354,6 +2374,14 @@ function date_format_string($date, $format, $tz = 99) {
  * @return array An array that represents the date in user time
  */
 function usergetdate($time, $timezone=99) {
+    if ($time === null) {
+        // PHP8 and PHP7 return different results when getdate(null) is called.
+        // Display warning and cast to 0 to make sure the usergetdate() behaves consistently on all versions of PHP.
+        // In the future versions of Moodle we may consider adding a strict typehint.
+        debugging('usergetdate() expects parameter $time to be int, null given', DEBUG_DEVELOPER);
+        $time = 0;
+    }
+
     date_default_timezone_set(core_date::get_user_timezone($timezone));
     $result = getdate($time);
     core_date::set_default_server_timezone();
@@ -2719,13 +2747,8 @@ function require_login($courseorid = null, $autologinguest = true, $cm = null, $
                 $SESSION->wantsurl = qualified_me();
             }
 
-            $referer = get_local_referer(false);
-            if (!empty($referer)) {
-                $SESSION->fromurl = $referer;
-            }
-
             // Give auth plugins an opportunity to authenticate or redirect to an external login page
-            $authsequence = get_enabled_auth_plugins(true); // auths, in sequence
+            $authsequence = get_enabled_auth_plugins(); // Auths, in sequence.
             foreach($authsequence as $authname) {
                 $authplugin = get_auth_plugin($authname);
                 $authplugin->pre_loginpage_hook();
@@ -3349,7 +3372,7 @@ function get_user_key($script, $userid, $instance=null, $iprestriction=null, $va
  * @return bool Always returns true
  */
 function update_user_login_times() {
-    global $USER, $DB;
+    global $USER, $DB, $SESSION;
 
     if (isguestuser()) {
         // Do not update guest access times/ips for performance.
@@ -3373,6 +3396,7 @@ function update_user_login_times() {
 
     // Function user_accesstime_log() may not update immediately, better do it here.
     $USER->lastaccess = $user->lastaccess = $now;
+    $SESSION->userpreviousip = $USER->lastip;
     $USER->lastip = $user->lastip = getremoteaddr();
 
     // Note: do not call user_update_user() here because this is part of the login process,
@@ -3540,7 +3564,7 @@ function fullname($user, $override=false) {
     }
 
     // Get all of the name fields.
-    $allnames = get_all_user_name_fields();
+    $allnames = \core_user\fields::get_name_fields();
     if ($CFG->debugdeveloper) {
         foreach ($allnames as $allname) {
             if (!property_exists($user, $allname)) {
@@ -3633,64 +3657,6 @@ function fullname($user, $override=false) {
 }
 
 /**
- * A centralised location for the all name fields. Returns an array / sql string snippet.
- *
- * @param bool $returnsql True for an sql select field snippet.
- * @param string $tableprefix table query prefix to use in front of each field.
- * @param string $prefix prefix added to the name fields e.g. authorfirstname.
- * @param string $fieldprefix sql field prefix e.g. id AS userid.
- * @param bool $order moves firstname and lastname to the top of the array / start of the string.
- * @return array|string All name fields.
- */
-function get_all_user_name_fields($returnsql = false, $tableprefix = null, $prefix = null, $fieldprefix = null, $order = false) {
-    // This array is provided in this order because when called by fullname() (above) if firstname is before
-    // firstnamephonetic str_replace() will change the wrong placeholder.
-    $alternatenames = array('firstnamephonetic' => 'firstnamephonetic',
-                            'lastnamephonetic' => 'lastnamephonetic',
-                            'middlename' => 'middlename',
-                            'alternatename' => 'alternatename',
-                            'firstname' => 'firstname',
-                            'lastname' => 'lastname');
-
-    // Let's add a prefix to the array of user name fields if provided.
-    if ($prefix) {
-        foreach ($alternatenames as $key => $altname) {
-            $alternatenames[$key] = $prefix . $altname;
-        }
-    }
-
-    // If we want the end result to have firstname and lastname at the front / top of the result.
-    if ($order) {
-        // Move the last two elements (firstname, lastname) off the array and put them at the top.
-        for ($i = 0; $i < 2; $i++) {
-            // Get the last element.
-            $lastelement = end($alternatenames);
-            // Remove it from the array.
-            unset($alternatenames[$lastelement]);
-            // Put the element back on the top of the array.
-            $alternatenames = array_merge(array($lastelement => $lastelement), $alternatenames);
-        }
-    }
-
-    // Create an sql field snippet if requested.
-    if ($returnsql) {
-        if ($tableprefix) {
-            if ($fieldprefix) {
-                foreach ($alternatenames as $key => $altname) {
-                    $alternatenames[$key] = $tableprefix . '.' . $altname . ' AS ' . $fieldprefix . $altname;
-                }
-            } else {
-                foreach ($alternatenames as $key => $altname) {
-                    $alternatenames[$key] = $tableprefix . '.' . $altname;
-                }
-            }
-        }
-        $alternatenames = implode(',', $alternatenames);
-    }
-    return $alternatenames;
-}
-
-/**
  * Reduces lines of duplicated code for getting user name fields.
  *
  * See also {@link user_picture::unalias()}
@@ -3703,7 +3669,10 @@ function get_all_user_name_fields($returnsql = false, $tableprefix = null, $pref
  * @return object User name fields.
  */
 function username_load_fields_from_object($addtoobject, $secondobject, $prefix = null, $additionalfields = null) {
-    $fields = get_all_user_name_fields(false, null, $prefix);
+    $fields = [];
+    foreach (\core_user\fields::get_name_fields() as $field) {
+        $fields[$field] = $prefix . $field;
+    }
     if ($additionalfields) {
         // Additional fields can specify their own 'alias' such as 'id' => 'userid'. This checks to see if
         // the key is a number and then sets the key to the array value.
@@ -3750,119 +3719,6 @@ function order_in_string($values, $stringformat) {
     }
     ksort($valuearray);
     return $valuearray;
-}
-
-/**
- * Checks if current user is shown any extra fields when listing users.
- *
- * @param object $context Context
- * @param array $already Array of fields that we're going to show anyway
- *   so don't bother listing them
- * @return array Array of field names from user table, not including anything
- *   listed in $already
- */
-function get_extra_user_fields($context, $already = array()) {
-    global $CFG;
-
-    // Only users with permission get the extra fields.
-    if (!has_capability('moodle/site:viewuseridentity', $context)) {
-        return array();
-    }
-
-    // Split showuseridentity on comma (filter needed in case the showuseridentity is empty).
-    $extra = array_filter(explode(',', $CFG->showuseridentity));
-
-    foreach ($extra as $key => $field) {
-        if (in_array($field, $already)) {
-            unset($extra[$key]);
-        }
-    }
-
-    // If the identity fields are also among hidden fields, make sure the user can see them.
-    $hiddenfields = array_filter(explode(',', $CFG->hiddenuserfields));
-    $hiddenidentifiers = array_intersect($extra, $hiddenfields);
-
-    if ($hiddenidentifiers) {
-        if ($context->get_course_context(false)) {
-            // We are somewhere inside a course.
-            $canviewhiddenuserfields = has_capability('moodle/course:viewhiddenuserfields', $context);
-
-        } else {
-            // We are not inside a course.
-            $canviewhiddenuserfields = has_capability('moodle/user:viewhiddendetails', $context);
-        }
-
-        if (!$canviewhiddenuserfields) {
-            // Remove hidden identifiers from the list.
-            $extra = array_diff($extra, $hiddenidentifiers);
-        }
-    }
-
-    // Re-index the entries.
-    $extra = array_values($extra);
-
-    return $extra;
-}
-
-/**
- * If the current user is to be shown extra user fields when listing or
- * selecting users, returns a string suitable for including in an SQL select
- * clause to retrieve those fields.
- *
- * @param context $context Context
- * @param string $alias Alias of user table, e.g. 'u' (default none)
- * @param string $prefix Prefix for field names using AS, e.g. 'u_' (default none)
- * @param array $already Array of fields that we're going to include anyway so don't list them (default none)
- * @return string Partial SQL select clause, beginning with comma, for example ',u.idnumber,u.department' unless it is blank
- */
-function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = array()) {
-    $fields = get_extra_user_fields($context, $already);
-    $result = '';
-    // Add punctuation for alias.
-    if ($alias !== '') {
-        $alias .= '.';
-    }
-    foreach ($fields as $field) {
-        $result .= ', ' . $alias . $field;
-        if ($prefix) {
-            $result .= ' AS ' . $prefix . $field;
-        }
-    }
-    return $result;
-}
-
-/**
- * Returns the display name of a field in the user table. Works for most fields that are commonly displayed to users.
- * @param string $field Field name, e.g. 'phone1'
- * @return string Text description taken from language file, e.g. 'Phone number'
- */
-function get_user_field_name($field) {
-    // Some fields have language strings which are not the same as field name.
-    switch ($field) {
-        case 'url' : {
-            return get_string('webpage');
-        }
-        case 'icq' : {
-            return get_string('icqnumber');
-        }
-        case 'skype' : {
-            return get_string('skypeid');
-        }
-        case 'aim' : {
-            return get_string('aimid');
-        }
-        case 'yahoo' : {
-            return get_string('yahooid');
-        }
-        case 'msn' : {
-            return get_string('msnid');
-        }
-        case 'picture' : {
-            return get_string('pictureofuser');
-        }
-    }
-    // Otherwise just use the same lang string.
-    return get_string($field);
 }
 
 /**
@@ -3919,7 +3775,7 @@ function get_auth_plugin($auth) {
 /**
  * Returns array of active auth plugins.
  *
- * @param bool $fix fix $CFG->auth if needed
+ * @param bool $fix fix $CFG->auth if needed. Only set if logged in as admin.
  * @return array
  */
 function get_enabled_auth_plugins($fix=false) {
@@ -3933,18 +3789,21 @@ function get_enabled_auth_plugins($fix=false) {
         $auths = explode(',', $CFG->auth);
     }
 
-    if ($fix) {
-        $auths = array_unique($auths);
-        $oldauthconfig = implode(',', $auths);
-        foreach ($auths as $k => $authname) {
-            $authplugindoesnotexist = !exists_auth_plugin($authname);
-            if ($authplugindoesnotexist || in_array($authname, $default)) {
-                if ($authplugindoesnotexist) {
-                    debugging(get_string('authpluginnotfound', 'debug', $authname));
-                }
-                unset($auths[$k]);
-            }
+    $auths = array_unique($auths);
+    $oldauthconfig = implode(',', $auths);
+    foreach ($auths as $k => $authname) {
+        if (in_array($authname, $default)) {
+            // The manual and nologin plugin never need to be stored.
+            unset($auths[$k]);
+        } else if (!exists_auth_plugin($authname)) {
+            debugging(get_string('authpluginnotfound', 'debug', $authname));
+            unset($auths[$k]);
         }
+    }
+
+    // Ideally only explicit interaction from a human admin should trigger a
+    // change in auth config, see MDL-70424 for details.
+    if ($fix) {
         $newconfig = implode(',', $auths);
         if (!isset($CFG->auth) or $newconfig != $CFG->auth) {
             add_to_config_log('auth', $oldauthconfig, $newconfig, 'core');
@@ -4041,10 +3900,6 @@ function create_user_record($username, $password, $auth = 'manual') {
         if (email_is_not_allowed($newuser->email)) {
             unset($newuser->email);
         }
-    }
-
-    if (!isset($newuser->city)) {
-        $newuser->city = '';
     }
 
     $newuser->auth = $auth;
@@ -4176,7 +4031,6 @@ function truncate_userinfo(array $info) {
         'firstname'   => 100,
         'lastname'    => 100,
         'email'       => 100,
-        'icq'         =>  15,
         'phone1'      =>  20,
         'phone2'      =>  20,
         'institution' => 255,
@@ -4184,7 +4038,6 @@ function truncate_userinfo(array $info) {
         'address'     => 255,
         'city'        => 120,
         'country'     =>   2,
-        'url'         => 255,
     );
 
     // Apply where needed.
@@ -4710,6 +4563,27 @@ function complete_user_login($user) {
     );
     $event->trigger();
 
+    // Check if the user is using a new browser or session (a new MoodleSession cookie is set in that case).
+    // If the user is accessing from the same IP, ignore everything (most of the time will be a new session in the same browser).
+    // Skip Web Service requests, CLI scripts, AJAX scripts, and request from the mobile app itself.
+    $loginip = getremoteaddr();
+    $isnewip = isset($SESSION->userpreviousip) && $SESSION->userpreviousip != $loginip;
+    $isvalidenv = (!WS_SERVER && !CLI_SCRIPT && !NO_MOODLE_COOKIES) || PHPUNIT_TEST;
+
+    if (!empty($SESSION->isnewsessioncookie) && $isnewip && $isvalidenv && !\core_useragent::is_moodle_app()) {
+
+        $logintime = time();
+        $ismoodleapp = false;
+        $useragent = \core_useragent::get_user_agent_string();
+
+        // Schedule adhoc task to sent a login notification to the user.
+        $task = new \core\task\send_login_notifications();
+        $task->set_userid($USER->id);
+        $task->set_custom_data(compact('ismoodleapp', 'useragent', 'loginip', 'logintime'));
+        $task->set_component('core');
+        \core\task\manager::queue_adhoc_task($task);
+    }
+
     // Queue migrating the messaging data, if we need to.
     if (!get_user_preferences('core_message_migrate_data', false, $USER->id)) {
         // Check if there are any legacy messages to migrate.
@@ -5176,9 +5050,7 @@ function delete_course($courseorid, $showfeedback = true) {
     $DB->delete_records("course_format_options", array("courseid" => $courseid));
 
     // Reset all course related caches here.
-    if (class_exists('format_base', false)) {
-        format_base::reset_course_cache($courseid);
-    }
+    core_courseformat\base::reset_course_cache($courseid);
 
     // Tell search that we have deleted the course so it can delete course data from the index.
     \core_search\manager::course_deleting_finish($courseid);
@@ -5414,6 +5286,10 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     // Delete course tags.
     core_tag_tag::remove_all_item_tags('core', 'course', $course->id);
 
+    // Give the course format the opportunity to remove its obscure data.
+    $format = course_get_format($course);
+    $format->delete_format_data();
+
     // Notify the competency subsystem.
     \core_competency\api::hook_course_deleted($course);
 
@@ -5467,8 +5343,7 @@ function remove_course_contents($courseid, $showfeedback = true, array $options 
     fulldelete($CFG->dataroot.'/'.$course->id);
 
     // Delete from cache to reduce the cache size especially makes sense in case of bulk course deletion.
-    $cachemodinfo = cache::make('core', 'coursemodinfo');
-    $cachemodinfo->delete($courseid);
+    course_modinfo::purge_course_cache($courseid);
 
     // Trigger a course content deleted event.
     $event = \core\event\course_content_deleted::create(array(
@@ -6581,7 +6456,6 @@ function send_confirmation_email($user, $confirmationurl = null) {
     $supportuser = core_user::get_support_user();
 
     $data = new stdClass();
-    $data->firstname = fullname($user);
     $data->sitename  = format_string($site->fullname);
     $data->admin     = generate_email_signoff();
 
@@ -6970,7 +6844,7 @@ function get_max_upload_sizes($sitebytes = 0, $coursebytes = 0, $modulebytes = 0
 
     foreach ($sizelist as $sizebytes) {
         if ($sizebytes < $maxsize && $sizebytes > 0) {
-            $filesize[(string)intval($sizebytes)] = display_size($sizebytes);
+            $filesize[(string)intval($sizebytes)] = display_size($sizebytes, 0);
         }
     }
 
@@ -6980,17 +6854,17 @@ function get_max_upload_sizes($sitebytes = 0, $coursebytes = 0, $modulebytes = 0
         (($modulebytes < $coursebytes || $coursebytes == 0) &&
          ($modulebytes < $sitebytes || $sitebytes == 0))) {
         $limitlevel = get_string('activity', 'core');
-        $displaysize = display_size($modulebytes);
+        $displaysize = display_size($modulebytes, 0);
         $filesize[$modulebytes] = $displaysize; // Make sure the limit is also included in the list.
 
     } else if ($coursebytes && ($coursebytes < $sitebytes || $sitebytes == 0)) {
         $limitlevel = get_string('course', 'core');
-        $displaysize = display_size($coursebytes);
+        $displaysize = display_size($coursebytes, 0);
         $filesize[$coursebytes] = $displaysize; // Make sure the limit is also included in the list.
 
     } else if ($sitebytes) {
         $limitlevel = get_string('site', 'core');
-        $displaysize = display_size($sitebytes);
+        $displaysize = display_size($sitebytes, 0);
         $filesize[$sitebytes] = $displaysize; // Make sure the limit is also included in the list.
     }
 
@@ -7122,14 +6996,12 @@ function get_directory_size($rootdir, $excludefile='') {
 /**
  * Converts bytes into display form
  *
- * @static string $gb Localized string for size in gigabytes
- * @static string $mb Localized string for size in megabytes
- * @static string $kb Localized string for size in kilobytes
- * @static string $b Localized string for size in bytes
  * @param int $size  The size to convert to human readable form
- * @return string
+ * @param int $decimalplaces If specified, uses fixed number of decimal places
+ * @param string $fixedunits If specified, uses fixed units (e.g. 'KB')
+ * @return string Display version of size
  */
-function display_size($size) {
+function display_size($size, int $decimalplaces = 1, string $fixedunits = ''): string {
 
     static $units;
 
@@ -7146,20 +7018,44 @@ function display_size($size) {
         $units[] = get_string('sizepb');
     }
 
-    if ($size >= 1024 ** 5) {
-        $size = round($size / 1024 ** 5 * 10) / 10 . $units[5];
-    } else if ($size >= 1024 ** 4) {
-        $size = round($size / 1024 ** 4 * 10) / 10 . $units[4];
-    } else if ($size >= 1024 ** 3) {
-        $size = round($size / 1024 ** 3 * 10) / 10 . $units[3];
-    } else if ($size >= 1024 ** 2) {
-        $size = round($size / 1024 ** 2 * 10) / 10 . $units[2];
-    } else if ($size >= 1024 ** 1) {
-        $size = round($size / 1024 ** 1 * 10) / 10 . $units[1];
-    } else {
-        $size = intval($size) .' '. $units[0]; // File sizes over 2GB can not work in 32bit PHP anyway.
+    switch ($fixedunits) {
+        case 'PB' :
+            $magnitude = 5;
+            break;
+        case 'TB' :
+            $magnitude = 4;
+            break;
+        case 'GB' :
+            $magnitude = 3;
+            break;
+        case 'MB' :
+            $magnitude = 2;
+            break;
+        case 'KB' :
+            $magnitude = 1;
+            break;
+        case 'B' :
+            $magnitude = 0;
+            break;
+        case '':
+            $magnitude = floor(log($size, 1024));
+            $magnitude = max(0, min(5, $magnitude));
+            break;
+        default:
+            throw new coding_exception('Unknown fixed units value: ' . $fixedunits);
     }
-    return $size;
+
+    // Special case for magnitude 0 (bytes) - never use decimal places.
+    $nbsp = "\xc2\xa0";
+    if ($magnitude === 0) {
+        return round($size) . $nbsp . $units[$magnitude];
+    }
+
+    // Convert to specified units.
+    $sizeinunit = $size / 1024 ** $magnitude;
+
+    // Fixed decimal places.
+    return sprintf('%.' . $decimalplaces . 'f', $sizeinunit) . $nbsp . $units[$magnitude];
 }
 
 /**
@@ -8008,15 +7904,31 @@ function get_list_of_plugins($directory='mod', $exclude='', $basedir='') {
         unset($subtypes);
     }
 
+    $ignorelist = array_flip(array_filter([
+        'CVS',
+        '_vti_cnf',
+        'amd',
+        'classes',
+        'simpletest',
+        'tests',
+        'templates',
+        'yui',
+        $exclude,
+    ]));
+
     if (file_exists($basedir) && filetype($basedir) == 'dir') {
         if (!$dirhandle = opendir($basedir)) {
             debugging("Directory permission error for plugin ({$directory}). Directory exists but cannot be read.", DEBUG_DEVELOPER);
             return array();
         }
         while (false !== ($dir = readdir($dirhandle))) {
-            // Func: strpos is marginally but reliably faster than substr($dir, 0, 1).
-            if (strpos($dir, '.') === 0 or $dir === 'CVS' or $dir === '_vti_cnf' or $dir === 'simpletest' or $dir === 'yui' or
-                $dir === 'tests' or $dir === 'classes' or $dir === $exclude) {
+            if (strpos($dir, '.') === 0) {
+                // Ignore directories starting with .
+                // These are treated as hidden directories.
+                continue;
+            }
+            if (array_key_exists($dir, $ignorelist)) {
+                // This directory features on the ignore list.
                 continue;
             }
             if (filetype($basedir .'/'. $dir) != 'dir') {
@@ -8851,8 +8763,9 @@ function format_float($float, $decimalpoints=1, $localized=true, $stripzeros=fal
     }
 
     $result = number_format($float, $decimalpoints, $separator, '');
-    if ($stripzeros) {
+    if ($stripzeros && $decimalpoints > 0) {
         // Remove zeros and final dot if not needed.
+        // However, only do this if there is a decimal point!
         $result = preg_replace('~(' . preg_quote($separator, '~') . ')?0+$~', '', $result);
     }
     return $result;
@@ -9692,9 +9605,9 @@ function get_performance_info() {
 
         $table = new html_table();
         $table->attributes['class'] = 'cachesused table table-dark table-sm w-auto table-bordered';
-        $table->head = ['Mode', 'Cache item', 'Static', 'H', 'M', get_string('mappingprimary', 'cache'), 'H', 'M', 'S'];
+        $table->head = ['Mode', 'Cache item', 'Static', 'H', 'M', get_string('mappingprimary', 'cache'), 'H', 'M', 'S', 'I/O'];
         $table->data = [];
-        $table->align = ['left', 'left', 'left', 'right', 'right', 'left', 'right', 'right', 'right'];
+        $table->align = ['left', 'left', 'left', 'right', 'right', 'left', 'right', 'right', 'right', 'right'];
 
         $text = 'Caches used (hits/misses/sets): ';
         $hits = 0;
@@ -9725,9 +9638,11 @@ function get_performance_info() {
             $table->align[] = 'right';
             $table->align[] = 'right';
             $table->align[] = 'right';
+            $table->align[] = 'right';
             $table->head[] = 'H';
             $table->head[] = 'M';
             $table->head[] = 'S';
+            $table->head[] = 'I/O';
         }
 
         ksort($stats);
@@ -9787,10 +9702,27 @@ function get_performance_info() {
                     $cell = new html_table_cell($data['sets']);
                     $cell->attributes = ['class' => $cachestoreclass];
                     $row[] = $cell;
+
+                    if ($data['hits'] || $data['sets']) {
+                        if ($data['iobytes'] === cache_store::IO_BYTES_NOT_SUPPORTED) {
+                            $size = '-';
+                        } else {
+                            $size = display_size($data['iobytes'], 1, 'KB');
+                            if ($data['iobytes'] >= 10 * 1024) {
+                                $cachestoreclass = ' bg-warning text-dark';
+                            }
+                        }
+                    } else {
+                        $size = '';
+                    }
+                    $cell = new html_table_cell($size);
+                    $cell->attributes = ['class' => $cachestoreclass];
+                    $row[] = $cell;
                 }
                 $storec++;
             }
             while ($storec++ < $maxstores) {
+                $row[] = '';
                 $row[] = '';
                 $row[] = '';
                 $row[] = '';
@@ -9805,11 +9737,11 @@ function get_performance_info() {
 
         // Now lets also show sub totals for each cache store.
         $storetotals = [];
-        $storetotal = ['hits' => 0, 'misses' => 0, 'sets' => 0];
+        $storetotal = ['hits' => 0, 'misses' => 0, 'sets' => 0, 'iobytes' => 0];
         foreach ($stats as $definition => $details) {
             foreach ($details['stores'] as $store => $data) {
                 if (!array_key_exists($store, $storetotals)) {
-                    $storetotals[$store] = ['hits' => 0, 'misses' => 0, 'sets' => 0];
+                    $storetotals[$store] = ['hits' => 0, 'misses' => 0, 'sets' => 0, 'iobytes' => 0];
                 }
                 $storetotals[$store]['class']   = $data['class'];
                 $storetotals[$store]['hits']   += $data['hits'];
@@ -9818,14 +9750,18 @@ function get_performance_info() {
                 $storetotal['hits']   += $data['hits'];
                 $storetotal['misses'] += $data['misses'];
                 $storetotal['sets']   += $data['sets'];
+                if ($data['iobytes'] !== cache_store::IO_BYTES_NOT_SUPPORTED) {
+                    $storetotals[$store]['iobytes'] += $data['iobytes'];
+                    $storetotal['iobytes'] += $data['iobytes'];
+                }
             }
         }
 
         $table = new html_table();
         $table->attributes['class'] = 'cachesused table table-dark table-sm w-auto table-bordered';
-        $table->head = [get_string('storename', 'cache'), get_string('type_cachestore', 'plugin'), 'H', 'M', 'S'];
+        $table->head = [get_string('storename', 'cache'), get_string('type_cachestore', 'plugin'), 'H', 'M', 'S', 'I/O'];
         $table->data = [];
-        $table->align = ['left', 'left', 'right', 'right', 'right'];
+        $table->align = ['left', 'left', 'right', 'right', 'right', 'right'];
 
         ksort($storetotals);
 
@@ -9853,7 +9789,26 @@ function get_performance_info() {
             $cell = new html_table_cell($data['sets']);
             $cell->attributes = ['class' => $cachestoreclass];
             $row[] = $cell;
+            if ($data['hits'] || $data['sets']) {
+                if ($data['iobytes']) {
+                    $size = display_size($data['iobytes'], 1, 'KB');
+                } else {
+                    $size = '-';
+                }
+            } else {
+                $size = '';
+            }
+            $cell = new html_table_cell($size);
+            $cell->attributes = ['class' => $cachestoreclass];
+            $row[] = $cell;
             $table->data[] = $row;
+        }
+        if (!empty($storetotal['iobytes'])) {
+            $size = display_size($storetotal['iobytes'], 1, 'KB');
+        } else if (!empty($storetotal['hits']) || !empty($storetotal['sets'])) {
+            $size = '-';
+        } else {
+            $size = '';
         }
         $row = [
             get_string('total'),
@@ -9861,6 +9816,7 @@ function get_performance_info() {
             $storetotal['hits'],
             $storetotal['misses'],
             $storetotal['sets'],
+            $size,
         ];
         $table->data[] = $row;
 
@@ -9875,7 +9831,7 @@ function get_performance_info() {
         $info['txt'] .= 'Caches used (hits/misses/sets): 0/0/0 ';
     }
 
-    $info['html'] = '<div class="performanceinfo siteinfo container-fluid px-md-0 overflow-auto mt-3">'.$info['html'].'</div>';
+    $info['html'] = '<div class="performanceinfo siteinfo container-fluid px-md-0 overflow-auto pt-3">'.$info['html'].'</div>';
     return $info;
 }
 
@@ -10407,13 +10363,38 @@ function get_home_page() {
     global $CFG;
 
     if (isloggedin() && !isguestuser() && !empty($CFG->defaulthomepage)) {
+        // If dashboard is disabled, home will be set to default page.
+        $defaultpage = get_default_home_page();
         if ($CFG->defaulthomepage == HOMEPAGE_MY) {
-            return HOMEPAGE_MY;
+            if (!empty($CFG->enabledashboard)) {
+                return HOMEPAGE_MY;
+            } else {
+                return $defaultpage;
+            }
+        } else if ($CFG->defaulthomepage == HOMEPAGE_MYCOURSES) {
+            return HOMEPAGE_MYCOURSES;
         } else {
-            return (int)get_user_preferences('user_home_page_preference', HOMEPAGE_MY);
+            $userhomepage = (int) get_user_preferences('user_home_page_preference', $defaultpage);
+            if (empty($CFG->enabledashboard) && $userhomepage == HOMEPAGE_MY) {
+                // If the user was using the dashboard but it's disabled, return the default home page.
+                $userhomepage = $defaultpage;
+            }
+            return $userhomepage;
         }
     }
     return HOMEPAGE_SITE;
+}
+
+/**
+ * Returns the default home page to display if current one is not defined or can't be applied.
+ * The default behaviour is to return Dashboard if it's enabled or My courses page if it isn't.
+ *
+ * @return int The default home page.
+ */
+function get_default_home_page(): int {
+    global $CFG;
+
+    return !empty($CFG->enabledashboard) ? HOMEPAGE_MY : HOMEPAGE_MYCOURSES;
 }
 
 /**
@@ -10485,6 +10466,21 @@ function unserialize_array($expression) {
         $value[$parts[$i]] = $parts[$i+1];
     }
     return $value;
+}
+
+/**
+ * Safe method for unserializing given input that is expected to contain only a serialized instance of an stdClass object
+ *
+ * If any class type other than stdClass is included in the input string, it will not be instantiated and will be cast to an
+ * stdClass object. The initial cast to array, then back to object is to ensure we are always returning the correct type,
+ * otherwise we would return an instances of {@see __PHP_Incomplete_class} for malformed strings
+ *
+ * @param string $input
+ * @return stdClass
+ */
+function unserialize_object(string $input): stdClass {
+    $instance = (array) unserialize($input, ['allowed_classes' => [stdClass::class]]);
+    return (object) $instance;
 }
 
 /**
@@ -10593,7 +10589,7 @@ class lang_string {
         // changes are not carried across.
         // To do this we always ensure $a or its properties/values are strings
         // and that any properties/values that arn't convertable are forgotten.
-        if (!empty($a)) {
+        if ($a !== null) {
             if (is_scalar($a)) {
                 $this->a = $a;
             } else if ($a instanceof lang_string) {
@@ -10695,10 +10691,14 @@ class lang_string {
     /**
      * Magic __set_state method used for var_export
      *
-     * @return string
+     * @param array $array
+     * @return self
      */
-    public function __set_state() {
-        return $this->get_string();
+    public static function __set_state(array $array): self {
+        $tmp = new lang_string($array['identifier'], $array['component'], $array['a'], $array['lang']);
+        $tmp->string = $array['string'];
+        $tmp->forcedstring = $array['forcedstring'];
+        return $tmp;
     }
 
     /**

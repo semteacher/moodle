@@ -16,10 +16,12 @@ Feature: The Section links block can be configured to display section name in ad
       | user     | course | role           |
       | teacher1 | C1     | editingteacher |
       | student1 | C1     | student        |
+    And the following config values are set as admin:
+      | showsectionname | 1 | block_section_links |
     And I log in as "admin"
-    And I set the following administration settings values:
-      | showsectionname | 1 |
     And I am on "Course 1" course homepage with editing mode on
+    And the following config values are set as admin:
+      | unaddableblocks | | theme_boost|
     And I add the "Section links" block
     And I log out
 

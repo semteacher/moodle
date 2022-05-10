@@ -87,29 +87,23 @@ $PAGE->set_pagelayout('admin');
 $PAGE->navbar->add($title);
 $PAGE->set_title($title);
 $PAGE->set_heading($course->fullname);
-
+$PAGE->activityheader->set_attrs([
+    "title" => format_string($quiz->name, true, ['context' => $context]),
+    "description" => "",
+    "hidecompletion" => true
+]);
 echo $OUTPUT->header();
-echo $OUTPUT->heading(format_string($quiz->name, true, array('context' => $context)));
 
 if ($override->groupid) {
     $group = $DB->get_record('groups', ['id' => $override->groupid], 'id, name');
     $confirmstr = get_string("overridedeletegroupsure", "quiz", $group->name);
 } else {
-    $namefields = get_all_user_name_fields(true);
     $user = $DB->get_record('user', ['id' => $override->userid]);
+    profile_load_custom_fields($user);
 
-    $username = fullname($user);
-    $namefields = [];
-    foreach (get_extra_user_fields($context) as $field) {
-        if (isset($user->$field) && $user->$field !== '') {
-            $namefields[] = $user->$field;
-        }
-    }
-    if ($namefields) {
-        $username .= ' (' . implode(', ', $namefields) . ')';
-    }
-
-    $confirmstr = get_string('overridedeleteusersure', 'quiz', $username);
+    $confirmstr = get_string('overridedeleteusersure', 'quiz',
+            quiz_override_form::display_user_name($user,
+                    \core_user\fields::get_identity_fields($context)));
 }
 
 echo $OUTPUT->confirm($confirmstr, $confirmurl, $cancelurl);

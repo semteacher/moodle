@@ -16,18 +16,15 @@
 
 .environmenttable {
     .warn {
-        background-color: $state-warning-bg;
-        color: $warning;
+        @extend .alert-warning;
     }
 
     .error {
-        background-color: $state-danger-bg;
-        color: $danger;
+        @extend .alert-danger;
     }
 
     .ok {
-        background-color: $state-success-bg;
-        color: $success;
+        @extend .alert-success;
     }
 }
 
@@ -248,6 +245,21 @@
     text-align: center;
     padding: 0.5em;
     margin: 0;
+}
+
+.path-admin,
+.format-site {
+    .header-maxwidth,
+    .secondary-navigation {
+        max-width: none;
+    }
+}
+.path-admin.path-admin-roles:not(.format-site),
+.path-admin.path-admin-tool-lp {
+    .header-maxwidth,
+    .secondary-navigation {
+        max-width: $course-content-maxwidth;
+    }
 }
 
 .plugincheckwrapper {

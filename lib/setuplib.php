@@ -419,10 +419,9 @@ function default_exception_handler($ex) {
  * @param string $errstr
  * @param string $errfile
  * @param int $errline
- * @param array $errcontext
  * @return bool false means use default error handler
  */
-function default_error_handler($errno, $errstr, $errfile, $errline, $errcontext) {
+function default_error_handler($errno, $errstr, $errfile, $errline) {
     if ($errno == 4096) {
         //fatal catchable error
         throw new coding_exception('PHP catchable fatal error', $errstr);
@@ -589,12 +588,7 @@ function get_exception_info($ex) {
     $moreinfourl = $errordoclink . 'error/' . $modulelink . '/' . $errorcode;
 
     if (empty($link)) {
-        if (!empty($SESSION->fromurl)) {
-            $link = $SESSION->fromurl;
-            unset($SESSION->fromurl);
-        } else {
-            $link = $CFG->wwwroot .'/';
-        }
+        $link = get_local_referer(false) ?: ($CFG->wwwroot . '/');
     }
 
     // When printing an error the continue button should never link offsite.
@@ -619,24 +613,12 @@ function get_exception_info($ex) {
 }
 
 /**
- * Generate a V4 UUID.
- *
- * Unique is hard. Very hard. Attempt to use the PECL UUID function if available, and if not then revert to
- * constructing the uuid using mt_rand.
- *
- * It is important that this token is not solely based on time as this could lead
- * to duplicates in a clustered environment (especially on VMs due to poor time precision).
- *
- * @see https://tools.ietf.org/html/rfc4122
- *
  * @deprecated since Moodle 3.8 MDL-61038 - please do not use this function any more.
  * @see \core\uuid::generate()
- *
- * @return string The uuid.
  */
 function generate_uuid() {
-    debugging('generate_uuid() is deprecated. Please use \core\uuid::generate() instead.', DEBUG_DEVELOPER);
-    return \core\uuid::generate();
+    throw new coding_exception('generate_uuid() cannot be used anymore. Please use ' .
+        '\core\uuid::generate() instead.');
 }
 
 /**
@@ -809,6 +791,53 @@ function initialise_cfg() {
 }
 
 /**
+ * Cache any immutable config locally to avoid constant DB lookups.
+ *
+ * Only to be used only from lib/setup.php
+ */
+function initialise_local_config_cache() {
+    global $CFG;
+
+    $bootstrapcachefile = $CFG->localcachedir . '/bootstrap.php';
+
+    if (!empty($CFG->siteidentifier) && !file_exists($bootstrapcachefile)) {
+        $contents = "<?php
+// ********** This file is generated DO NOT EDIT **********
+\$CFG->siteidentifier = '" . addslashes($CFG->siteidentifier) . "';
+\$CFG->bootstraphash = '" . hash_local_config_cache() . "';
+// Only if the file is not stale and has not been defined.
+if (\$CFG->bootstraphash === hash_local_config_cache() && !defined('SYSCONTEXTID')) {
+    define('SYSCONTEXTID', ".SYSCONTEXTID.");
+}
+";
+
+        $temp = $bootstrapcachefile . '.tmp' . uniqid();
+        file_put_contents($temp, $contents);
+        @chmod($temp, $CFG->filepermissions);
+        rename($temp, $bootstrapcachefile);
+    }
+}
+
+/**
+ * Calculate a proper hash to be able to invalidate stale cached configs.
+ *
+ * Only to be used to verify bootstrap.php status.
+ *
+ * @return string md5 hash of all the sensible bits deciding if cached config is stale or no.
+ */
+function hash_local_config_cache() {
+    global $CFG;
+
+    // This is pretty much {@see moodle_database::get_settings_hash()} that is used
+    // as identifier for the database meta information MUC cache. Should be enough to
+    // react against any of the normal changes (new prefix, change of DB type) while
+    // *incorrectly* keeping the old dataroot directory unmodified with stale data.
+    // This may need more stuff to be considered if it's discovered that there are
+    // more variables making the file stale.
+    return md5($CFG->dbtype . $CFG->dbhost . $CFG->dbuser . $CFG->dbname . $CFG->prefix);
+}
+
+/**
  * Initialises $FULLME and friends. Private function. Should only be called from
  * setup.php.
  */
@@ -898,9 +927,10 @@ function initialise_fullme() {
         $_SERVER['SERVER_PORT'] = 443; // Assume default ssl port for the proxy.
     }
 
-    // hopefully this will stop all those "clever" admins trying to set up moodle
-    // with two different addresses in intranet and Internet
-    if (!empty($CFG->reverseproxy) && $rurl['host'] === $wwwroot['host']) {
+    // Hopefully this will stop all those "clever" admins trying to set up moodle
+    // with two different addresses in intranet and Internet.
+    // Port forwarding is still allowed!
+    if (!empty($CFG->reverseproxy) && $rurl['host'] === $wwwroot['host'] && (empty($wwwroot['port']) || $rurl['port'] === $wwwroot['port'])) {
         print_error('reverseproxyabused', 'error');
     }
 
@@ -951,7 +981,7 @@ function setup_get_remote_url() {
     } else {
         $rurl['host'] = null;
     }
-    $rurl['port'] = $_SERVER['SERVER_PORT'];
+    $rurl['port'] = (int)$_SERVER['SERVER_PORT'];
     $rurl['path'] = $_SERVER['SCRIPT_NAME']; // Script path without slash arguments
     $rurl['scheme'] = (empty($_SERVER['HTTPS']) or $_SERVER['HTTPS'] === 'off' or $_SERVER['HTTPS'] === 'Off' or $_SERVER['HTTPS'] === 'OFF') ? 'http' : 'https';
 
@@ -1393,7 +1423,7 @@ function disable_output_buffering() {
  */
 function is_major_upgrade_required() {
     global $CFG;
-    $lastmajordbchanges = 2019050100.01;
+    $lastmajordbchanges = 2022022200.00;
 
     $required = empty($CFG->version);
     $required = $required || (float)$CFG->version < $lastmajordbchanges;
@@ -1671,7 +1701,7 @@ function get_request_storage_directory($exceptiononerror = true, bool $forcecrea
  * @param   bool    $forcecreate Force creation of a new parent directory
  * @return  string  The full path to directory if successful, false if not; may throw exception
  */
-function make_request_directory($exceptiononerror = true, bool $forcecreate = false) {
+function make_request_directory(bool $exceptiononerror = true, bool $forcecreate = false) {
     $basedir = get_request_storage_directory($exceptiononerror, $forcecreate);
     return make_unique_writable_directory($basedir, $exceptiononerror);
 }
@@ -2048,7 +2078,7 @@ class bootstrap_renderer {
         // In the name of protocol correctness, monitoring and performance
         // profiling, set the appropriate error headers for machine consumption.
         $protocol = (isset($_SERVER['SERVER_PROTOCOL']) ? $_SERVER['SERVER_PROTOCOL'] : 'HTTP/1.0');
-        @header($protocol . ' 503 Service Unavailable');
+        @header($protocol . ' 500 Internal Server Error');
 
         // better disable any caching
         @header('Content-Type: text/html; charset=utf-8');

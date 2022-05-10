@@ -30,12 +30,13 @@
 defined('MOODLE_INTERNAL') || die();
 
 $string['admindirname'] = 'Φάκελος διαχειριστή';
-$string['availablelangs'] = 'Λίστα διαθέσιμων πακέτων γλωσσών';
+$string['availablelangs'] = 'Λίστα διαθέσιμων πακέτων γλώσσας';
 $string['chooselanguagehead'] = 'Επιλογή γλώσσας';
 $string['chooselanguagesub'] = 'Παρακαλούμε, επιλέξτε γλώσσα για την εγκατάσταση. Αυτή η γλώσσα θα χρησιμοποιηθεί επίσης ως προεπιλεγμένη γλώσσα για τον ιστότοπο, αν και μπορεί να αλλάξει αργότερα.';
 $string['clialreadyconfigured'] = 'Το αρχείο ρυθμίσεων config.php υπάρχει ήδη. Χρησιμοποιήστε το admin/cli/install_database.php για να εγκαταστήσετε το Moodle για αυτόν τον ιστότοπο.';
 $string['clialreadyinstalled'] = 'Το αρχείο ρυθμίσεων config.php υπάρχει ήδη. Χρησιμοποιήστε το admin/cli/install_database.php για να αναβαθμίσετε το Moodle για αυτόν τον ιστότοπο.';
 $string['cliinstallheader'] = 'Moodle {$a} πρόγραμμα εγκατάστασης γραμμής εντολών';
+$string['clitablesexist'] = 'Οι πίνακες βάσεων δεδομένων υπάρχουν ήδη. Η εγκατάσταση από γραμμή εντολών δεν μπορεί να συνεχιστεί.';
 $string['databasehost'] = 'Κεντρικός H/Y που φιλοξενεί την Βάση Δεδομένων';
 $string['databasename'] = 'Όνομα Βάσης Δεδομένων';
 $string['databasetypehead'] = 'Επιλογή οδηγού βάσης δεδομένων';
