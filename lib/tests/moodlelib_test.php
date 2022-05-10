@@ -3444,7 +3444,7 @@ class core_moodlelib_testcase extends advanced_testcase {
 
         // Verify attachment in message body (attachment is in MIME format, but we can detect some Content fields).
         $messagebody = reset($messages)->body;
-        $this->assertContains('Content-Type: text/plain; name="' . $filename . '"', $messagebody);
+        $this->assertStringContainsString('Content-Type: text/plain; name=' . $filename, $messagebody);
         $this->assertContains('Content-Disposition: attachment; filename=' . $filename, $messagebody);
 
         // Cleanup.
@@ -4416,6 +4416,29 @@ class core_moodlelib_testcase extends advanced_testcase {
      */
     public function test_component_class_callback_not_found($default) {
         $this->assertSame($default, component_class_callback('thisIsNotTheClassYouWereLookingFor', 'anymethod', [], $default));
+    }
+
+    /**
+     * Test method for safely unserializing a serialized object of type stdClass
+     */
+    public function test_unserialize_object(): void {
+        $object = (object) [
+            'foo' => 42,
+            'bar' => 'Hamster',
+            'innerobject' => (object) [
+                'baz' => 'happy',
+            ],
+        ];
+
+        // We should get back the same object we serialized.
+        $serializedobject = serialize($object);
+        $this->assertEquals($object, unserialize_object($serializedobject));
+
+        // Try serializing a different class, not allowed.
+        $langstr = new lang_string('no');
+        $serializedlangstr = serialize($langstr);
+        $unserializedlangstr = unserialize_object($serializedlangstr);
+        $this->assertInstanceOf(stdClass::class, $unserializedlangstr);
     }
 
     /**
