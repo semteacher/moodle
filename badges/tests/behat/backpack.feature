@@ -5,9 +5,9 @@ Feature: Backpack badges
 
   Background:
     Given the following "badge external backpacks" exist:
-      | backpackapiurl                               | backpackweburl           | apiversion |
-      | https://dc.imsglobal.org/obchost/ims/ob/v2p1 | https://dc.imsglobal.org | 2.1        |
-      | https://test.com/                            | https://test.com/        | 2          |
+      | backpackapiurl                               | backpackweburl           | apiversion | sortorder |
+      | https://dc.imsglobal.org/obchost/ims/ob/v2p1 | https://dc.imsglobal.org | 2.1        | 2         |
+      | https://test.com/                            | https://test.com/        | 2          | 3         |
     And the following "users" exist:
       | username | firstname | lastname | email                |
       | student1 | Student   | 1        | student1@example.com |
@@ -18,14 +18,33 @@ Feature: Backpack badges
     And I log out
 
   @javascript
+  Scenario: If external backpack connection is disabled, backpack settings should not be displayed
+    Given I am on homepage
+    And I log in as "admin"
+    And I navigate to "Badges > Badges settings" in site administration
+    And I set the following fields to these values:
+      | External backpack connection | 0                        |
+    And I press "Save changes"
+    When I navigate to "Badges" in site administration
+    Then I should not see "Manage backpacks"
+    And I navigate to "Badges > Badges settings" in site administration
+    And I set the following fields to these values:
+      | External backpack connection | 1                        |
+    And I press "Save changes"
+    And I am on homepage
+    And I navigate to "Badges" in site administration
+    And I should see "Manage backpacks"
+
+  @javascript
   Scenario: Verify backback settings
     Given I am on homepage
     And I log in as "admin"
-    And I navigate to "Badges > Backpack settings" in site administration
+    And I navigate to "Badges > Badges settings" in site administration
     And I set the following fields to these values:
       | External backpack connection | 1                        |
-      | Active external backpack     | https://dc.imsglobal.org |
     And I press "Save changes"
+    And I navigate to "Badges > Manage backpacks" in site administration
+    And I click on "Move up" "link" in the "https://dc.imsglobal.org" "table_row"
     And I navigate to "Badges > Add a new badge" in site administration
     And I set the following fields to these values:
       | Name          | Test badge verify backpack |
@@ -41,7 +60,7 @@ Feature: Backpack badges
     And I press "Save"
     And I press "Enable access"
     And I press "Continue"
-    And I follow "Recipients (0)"
+    And I select "Recipients (0)" from the "jump" singleselect
     And I press "Award badge"
     And I set the field "potentialrecipients[]" to "Student 1 (student1@example.com)"
     And I press "Award badge"
@@ -57,11 +76,12 @@ Feature: Backpack badges
   Scenario: User has been connected backpack
     Given I am on homepage
     And I log in as "admin"
-    And I navigate to "Badges > Backpack settings" in site administration
+    And I navigate to "Badges > Badges settings" in site administration
     And I set the following fields to these values:
       | External backpack connection | 1                        |
-      | Active external backpack     | https://dc.imsglobal.org |
     And I press "Save changes"
+    And I navigate to "Badges > Manage backpacks" in site administration
+    And I click on "Move up" "link" in the "https://dc.imsglobal.org" "table_row"
     And I navigate to "Badges > Add a new badge" in site administration
     And I set the following fields to these values:
       | Name           | Test badge verify backpack |
@@ -77,7 +97,7 @@ Feature: Backpack badges
     And I press "Save"
     And I press "Enable access"
     And I press "Continue"
-    And I follow "Recipients (0)"
+    And I select "Recipients (0)" from the "jump" singleselect
     And I press "Award badge"
     And I set the field "potentialrecipients[]" to "Student 1 (student1@example.com)"
     And I press "Award badge"
@@ -120,7 +140,22 @@ Feature: Backpack badges
     And I click on "Delete" "button" in the "Delete site backpack" "dialogue"
     Then I should see "The site backpack has been deleted."
     And I should not see "https://dc.imsglobal.org"
-    And "Delete" "button" should not exist
+    And "Delete" "button" should not be visible
+
+  @javascript
+  Scenario: Move up and down site backpack
+    Given I am on homepage
+    And I log in as "admin"
+    And I navigate to "Badges > Manage backpacks" in site administration
+    And "Move up" "icon" should exist in the "https://dc.imsglobal.org" "table_row"
+    And "Move down" "icon" should exist in the "https://dc.imsglobal.org" "table_row"
+    When I click on "Move up" "link" in the "https://dc.imsglobal.org" "table_row"
+    Then "Move up" "icon" should not exist in the "https://dc.imsglobal.org" "table_row"
+    And "Move down" "icon" should exist in the "https://dc.imsglobal.org" "table_row"
+    And I click on "Move down" "link" in the "https://dc.imsglobal.org" "table_row"
+    And I click on "Move down" "link" in the "https://dc.imsglobal.org" "table_row"
+    And "Move up" "icon" should exist in the "https://dc.imsglobal.org" "table_row"
+    And "Move down" "icon" should not exist in the "https://dc.imsglobal.org" "table_row"
 
   @javascript
   Scenario: Add a new site backpack with authentication details checkbox
@@ -131,27 +166,27 @@ Feature: Backpack badges
     And I set the field "backpackapiurl" to "http://backpackapiurl.cat"
     And I set the field "backpackweburl" to "http://backpackweburl.cat"
     And I set the field "apiversion" to "2.1"
-    Then "Include authentication details with the backpack" "checkbox" should not exist
+    Then "Include authentication details with the backpack" "checkbox" should not be visible
     And I should not see "Badge issuer email address"
     And I should not see "Badge issuer password"
     And I set the field "apiversion" to "1"
-    And "Include authentication details with the backpack" "checkbox" should exist
+    And "Include authentication details with the backpack" "checkbox" should be visible
     And I click on "includeauthdetails" "checkbox"
     And I should see "Badge issuer email address"
     And I should not see "Badge issuer password"
     And I set the field "apiversion" to "2"
-    And "Include authentication details with the backpack" "checkbox" should exist
+    And "Include authentication details with the backpack" "checkbox" should be visible
     And I should see "Badge issuer email address"
     And I should see "Badge issuer password"
     And I set the field "backpackemail" to "test@test.com"
     And I set the field "password" to "123456"
     And I press "Save changes"
     And I click on "Edit" "link" in the "http://backpackweburl.cat" "table_row"
-    And "input[name=includeauthdetails][type=checkbox][value=1]" "css_element" should exist
+    And the field "Include authentication details with the backpack" matches value "1"
     And I click on "includeauthdetails" "checkbox"
     And I press "Save changes"
     And I click on "Edit" "link" in the "http://backpackweburl.cat" "table_row"
-    And "input[name=includeauthdetails][type=checkbox][value=1]" "css_element" should not exist
+    And the field "Include authentication details with the backpack" matches value "0"
     And I click on "includeauthdetails" "checkbox"
     And I should not see "test@test.com"
     And I log out

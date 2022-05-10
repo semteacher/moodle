@@ -36,7 +36,7 @@ require_once($CFG->libdir . '/filestorage/file_system_filedir.php');
  * @category  files
  * @copyright 2017 Andrew Nicols <andrew@nicols.co.uk>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass file_system_filedir
+ * @coversDefaultClass \file_system_filedir
  */
 class core_files_file_system_filedir_testcase extends advanced_testcase {
 
@@ -99,14 +99,14 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
      *                  If no methods are specified, only abstract functions are mocked.
      * @return stored_file
      */
-    protected function get_stored_file($filecontent, $filename = null, $mockedmethods = null) {
+    protected function get_stored_file($filecontent, $filename = null, $mockedmethods = []) {
         $contenthash = file_storage::hash_from_string($filecontent);
         if (empty($filename)) {
             $filename = $contenthash;
         }
 
         $file = $this->getMockBuilder(stored_file::class)
-            ->setMethods($mockedmethods)
+            ->onlyMethods($mockedmethods)
             ->setConstructorArgs([
                 get_file_storage(),
                 (object) [
@@ -129,7 +129,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
      */
     protected function get_testable_mock($mockedmethods = []) {
         $fs = $this->getMockBuilder(file_system_filedir::class)
-            ->setMethods($mockedmethods)
+            ->onlyMethods($mockedmethods)
             ->getMock();
 
         return $fs;
@@ -154,7 +154,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
         // This should generate an exception.
         $this->expectException('file_exception');
         $this->expectExceptionMessageMatches(
-            '/Can not create local file pool directories, please verify permissions in dataroot./');
+            '/Cannot create local file pool directories. Please verify permissions in dataroot./');
 
         new file_system_filedir();
     }
@@ -178,7 +178,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
         // This should generate an exception.
         $this->expectException('file_exception');
         $this->expectExceptionMessageMatches(
-            '/Can not create local file pool directories, please verify permissions in dataroot./');
+            '/Cannot create local file pool directories. Please verify permissions in dataroot./');
 
         new file_system_filedir();
     }
@@ -321,7 +321,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
 
         $file = $this->getMockBuilder('stored_file')
             ->disableOriginalConstructor()
-            ->setMethods([
+            ->onlyMethods([
                 'sync_external_file',
                 'get_contenthash',
             ])
@@ -441,7 +441,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
 
         $fs = $this->getMockBuilder(file_system_filedir::class)
             ->disableOriginalConstructor()
-            ->setMethods([
+            ->onlyMethods([
                 'get_local_path_from_storedfile',
             ])
             ->getMock();
@@ -835,7 +835,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
 
         $this->expectException('file_exception');
         $this->expectExceptionMessageMatches(
-            "/Can not create local file pool directories, please verify permissions in dataroot./");
+            "/Cannot create local file pool directories. Please verify permissions in dataroot./");
 
         // Attempt to add the file to the file pool.
         $fs = new file_system_filedir();
@@ -893,7 +893,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
 
         $this->expectException('file_exception');
         $this->expectExceptionMessageMatches(
-            "/Can not create local file pool directories, please verify permissions in dataroot./");
+            "/Cannot create local file pool directories. Please verify permissions in dataroot./");
 
         // Attempt to add the file to the file pool.
         $fs = new file_system_filedir();
@@ -997,7 +997,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
         global $DB;
 
         $DB = $this->getMockBuilder(\moodle_database::class)
-            ->setMethods(['record_exists'])
+            ->onlyMethods(['record_exists'])
             ->getMockForAbstractClass();
 
         $DB->expects($this->never())
@@ -1031,7 +1031,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
         $vfileroot = $this->setup_vfile_root($filedircontent);
 
         $DB = $this->getMockBuilder(\moodle_database::class)
-            ->setMethods(['record_exists'])
+            ->onlyMethods(['record_exists'])
             ->getMockForAbstractClass();
 
         $DB->method('record_exists')->willReturn(true);
@@ -1064,7 +1064,7 @@ class core_files_file_system_filedir_testcase extends advanced_testcase {
         $vfileroot = $this->setup_vfile_root($filedircontent);
 
         $DB = $this->getMockBuilder(\moodle_database::class)
-            ->setMethods(['record_exists'])
+            ->onlyMethods(['record_exists'])
             ->getMockForAbstractClass();
 
         $DB->method('record_exists')->willReturn(false);

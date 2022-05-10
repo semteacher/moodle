@@ -51,6 +51,16 @@ class qtype_essay extends question_type {
         parent::get_question_options($question);
     }
 
+    public function save_defaults_for_new_questions(stdClass $fromform): void {
+        parent::save_defaults_for_new_questions($fromform);
+        $this->set_default_value('responseformat', $fromform->responseformat);
+        $this->set_default_value('responserequired', $fromform->responserequired);
+        $this->set_default_value('responsefieldlines', $fromform->responsefieldlines);
+        $this->set_default_value('attachments', $fromform->attachments);
+        $this->set_default_value('attachmentsrequired', $fromform->attachmentsrequired);
+        $this->set_default_value('maxbytes', $fromform->maxbytes);
+    }
+
     public function save_question_options($formdata) {
         global $DB;
         $context = $formdata->context;
@@ -68,7 +78,12 @@ class qtype_essay extends question_type {
         $options->minwordlimit = isset($formdata->minwordenabled) ? $formdata->minwordlimit : null;
         $options->maxwordlimit = isset($formdata->maxwordenabled) ? $formdata->maxwordlimit : null;
         $options->attachments = $formdata->attachments;
-        $options->attachmentsrequired = $formdata->attachmentsrequired;
+        if ((int)$formdata->attachments === 0 && $formdata->attachmentsrequired > 0) {
+            // Adjust the value for the field 'attachmentsrequired' when the field 'attachments' is set to 'No'.
+            $options->attachmentsrequired = 0;
+        } else {
+            $options->attachmentsrequired = $formdata->attachmentsrequired;
+        }
         if (!isset($formdata->filetypeslist)) {
             $options->filetypeslist = null;
         } else {

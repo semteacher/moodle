@@ -50,7 +50,7 @@
         }
 
         .cb-unlisted .cb-thumbnail {
-            opacity: .3;
+            opacity: .15;
         }
 
         /* Display a centered eye slash on top of unlisted content icons. */
@@ -63,7 +63,8 @@
             font-family: FontAwesome;
             font-size: 26px;
             text-align: center;
-            opacity: 0.8;
+            opacity: 0.9;
+            text-shadow: 0 0 10px $body-bg;
         }
 
         .cb-heading,
@@ -148,10 +149,13 @@
             span {
                 display: none;
             }
+            .title {
+                display: inline;
+            }
             &.dir-none .default,
             &.dir-asc .asc,
             &.dir-desc .desc {
-                display: block;
+                display: inline;
             }
         }
     }
@@ -160,4 +164,8 @@
 .cb-toolbar-container .dropdown-scrollable {
     max-height: 190px;
     overflow-y: auto;
+}
+.cb-navigation-container .singleselect,
+.cb-navigation-container .singleselect .custom-select {
+    width: 100%;
 }

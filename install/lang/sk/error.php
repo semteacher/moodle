@@ -29,19 +29,24 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$string['cannotcreatelangdir'] = 'Nie je možné vytvoriť adresár pre jazykové súbory.';
+$string['cannotcreatedboninstall'] = '<p>Nie je možné vytvoriť databázu.</p>
+<p>Zadaná databáza neexistuje a používateľ nemá oprávnenie pre vytvorenie databázy.</p>
+<p>Administrátor portálu by mal overiť konfiguráciu databázy.</p>';
+$string['cannotcreatelangdir'] = 'Nie je možné vytvoriť priečinok pre jazykové súbory';
 $string['cannotcreatetempdir'] = 'Nie je možné vytvoriť dočasný adresár.';
 $string['cannotdownloadcomponents'] = 'Nie je možné stiahnuť komponenty.';
 $string['cannotdownloadzipfile'] = 'Nie je možné stiahnuť súbor ZIP.';
 $string['cannotfindcomponent'] = 'Komponent nenájdený.';
 $string['cannotsavemd5file'] = 'Nie je možné uložiť súbor MD5.';
 $string['cannotsavezipfile'] = 'Nie je možné uložiť súbor ZIP.';
-$string['cannotunzipfile'] = 'Nie je možné dekomprimovať súbor.';
+$string['cannotunzipfile'] = 'Nie je možné dekomprimovať súbor';
 $string['componentisuptodate'] = 'Komponent je aktuálny.';
+$string['dmlexceptiononinstall'] = '<p>Došlo k chybe databázy [{$a->errorcode}].<br />{$a->debuginfo}</p>';
 $string['downloadedfilecheckfailed'] = 'Kontrola stiahnutého súboru bola neúspešná';
 $string['invalidmd5'] = 'Kontrolovaná premenná bola nesprávna - skúste znova';
 $string['missingrequiredfield'] = 'Chýba niektoré z povinných polí';
-$string['remotedownloaderror'] = 'Stiahnutie komponentu na server zlyhalo, skontrolujte nastavenia proxy, doporučené je PHP rozšírenie cURL. <br /><br />Musíte stiahnuť súbor <a href="{$a->url}">{$a->url}</a> manuálne, skopírovať ho do "{$a->dest}" na serveri a rozzipovať ho tam.';
+$string['remotedownloaderror'] = '<p>Sťahovanie komponentu na váš server zlyhalo. Preverte nastavenia proxy. Vrelo odporúčame PHP rozšírenie cURL.</p>
+<p>Teraz musíte stiahnuť súbor <a href="{$a->url}">{$a->url}</a> ručne, prekopírovať ho do "{$a->dest}" na vašom serveri a tam ho rozbaliť.</p>';
 $string['wrongdestpath'] = 'Chybné umiestnenie cieľa';
 $string['wrongsourcebase'] = 'Chybné základné URL serveru';
 $string['wrongzipfilename'] = 'Chybné meno súboru ZIP';

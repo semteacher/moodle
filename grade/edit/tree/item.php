@@ -109,7 +109,7 @@ $mform = new edit_item_form(null, array('current'=>$item, 'gpr'=>$gpr));
 if ($mform->is_cancelled()) {
     redirect($returnurl);
 
-} else if ($data = $mform->get_data(false)) {
+} else if ($data = $mform->get_data()) {
 
     // This is a new item, and the category chosen is different than the default category.
     if (empty($grade_item->id) && isset($data->parentcategory) && $parent_category->id != $data->parentcategory) {
@@ -190,7 +190,7 @@ if ($mform->is_cancelled()) {
 
     if ($item->cancontrolvisibility) {
         // Update hiding flag.
-        $gradeitem->set_hidden($hide, false);
+        $gradeitem->set_hidden($hide, true);
     }
 
     $gradeitem->set_locktime($locktime); // Locktime first - it might be removed when unlocking.
