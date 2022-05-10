@@ -37,7 +37,7 @@ use stored_file;
 /**
  * Unit tests for the `exportable_stored_file` export item class.
  *
- * @coversDefaultClass core\content\exportable_items\exportable_stored_file
+ * @coversDefaultClass \core\content\exportable_items\exportable_stored_file
  */
 class exportable_stored_file_test extends advanced_testcase {
 
@@ -209,7 +209,7 @@ class exportable_stored_file_test extends advanced_testcase {
     ): void {
         $archive = $this->getMockBuilder(zipwriter::class)
             ->setConstructorArgs([$this->getMockBuilder(\ZipStream\ZipStream::class)->getmock()])
-            ->setMethods([
+            ->onlyMethods([
                 'add_file_from_stored_file',
             ])
             ->getMock();

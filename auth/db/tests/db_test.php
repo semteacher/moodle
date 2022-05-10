@@ -34,6 +34,17 @@ class auth_db_testcase extends advanced_testcase {
     /** @var int The amount of users to create for the large user set deletion test  */
     protected $largedeletionsetsize = 128;
 
+    public static function tearDownAfterClass(): void {
+        global $DB;
+        // Apply sqlsrv native driver error and logging default
+        // settings while finishing the AdoDB tests.
+        if ($DB->get_dbfamily() === 'mssql') {
+            sqlsrv_configure("WarningsReturnAsErrors", false);
+            sqlsrv_configure("LogSubsystems", SQLSRV_LOG_SYSTEM_OFF);
+            sqlsrv_configure("LogSeverity", SQLSRV_LOG_SEVERITY_ERROR);
+        }
+    }
+
     protected function init_auth_database() {
         global $DB, $CFG;
         require_once("$CFG->dirroot/auth/db/auth.php");
@@ -139,8 +150,7 @@ class auth_db_testcase extends advanced_testcase {
         set_config('field_lock_email', 'unlocked', 'auth_db');
 
         // Create a user profile field and add mapping to it.
-        $DB->insert_record('user_info_field', ['shortname' => 'pet', 'name' => 'Pet', 'required' => 0,
-            'visible' => 1, 'locked' => 0, 'categoryid' => 1, 'datatype' => 'text']);
+        $this->getDataGenerator()->create_custom_profile_field(['shortname' => 'pet', 'name' => 'Pet', 'datatype' => 'text']);
 
         set_config('field_map_profile_field_pet', 'animal', 'auth_db');
         set_config('field_updatelocal_profile_field_pet', 'oncreate', 'auth_db');
@@ -335,11 +345,27 @@ class auth_db_testcase extends advanced_testcase {
         $DB->update_record('auth_db_users', $user3);
         $this->assertTrue($auth->user_login('u3', 'heslo'));
 
+        // Test user created to see if the checking happens strictly.
+        $usermd5 = (object)['name' => 'usermd5', 'pass' => '0e462097431906509019562988736854'];
+        $usermd5->id = $DB->insert_record('auth_db_users', $usermd5);
+
+        // md5('240610708') === '0e462097431906509019562988736854'.
+        $this->assertTrue($auth->user_login('usermd5', '240610708'));
+        $this->assertFalse($auth->user_login('usermd5', 'QNKCDZO'));
+
         set_config('passtype', 'sh1', 'auth_db');
         $auth->config->passtype = 'sha1';
         $user3->pass = sha1('heslo');
         $DB->update_record('auth_db_users', $user3);
         $this->assertTrue($auth->user_login('u3', 'heslo'));
+
+        // Test user created to see if the checking happens strictly.
+        $usersha1 = (object)['name' => 'usersha1', 'pass' => '0e66507019969427134894567494305185566735'];
+        $usersha1->id = $DB->insert_record('auth_db_users', $usersha1);
+
+        // sha1('aaroZmOk') === '0e66507019969427134894567494305185566735'.
+        $this->assertTrue($auth->user_login('usersha1', 'aaroZmOk'));
+        $this->assertFalse($auth->user_login('usersha1', 'aaK1STfY'));
 
         set_config('passtype', 'saltedcrypt', 'auth_db');
         $auth->config->passtype = 'saltedcrypt';

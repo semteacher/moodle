@@ -395,7 +395,14 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @return string HTML fragment.
      */
     protected function render_quiz_nav_section_heading(quiz_nav_section_heading $heading) {
-        return $this->heading($heading->heading, 3, 'mod_quiz-section-heading');
+        if (empty($heading->heading)) {
+            $headingtext = get_string('sectionnoname', 'quiz');
+            $class = ' dimmed_text';
+        } else {
+            $headingtext = $heading->heading;
+            $class = '';
+        }
+        return $this->heading($headingtext, 3, 'mod_quiz-section-heading' . $class);
     }
 
     /**
@@ -421,6 +428,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function start_attempt_page(quiz $quizobj, mod_quiz_preflight_check_form $mform) {
         $output = '';
         $output .= $this->header();
+        $output .= $this->during_attempt_tertiary_nav($quizobj->view_url());
         $output .= $this->heading(format_string($quizobj->get_quiz_name(), true,
                                   array("context" => $quizobj->get_context())));
         $output .= $this->quiz_intro($quizobj->get_quiz(), $quizobj->get_cm());
@@ -439,15 +447,36 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @param array $slots Contains an array of integers that relate to questions
      * @param int $id The ID of an attempt
      * @param int $nextpage The number of the next page
+     * @return string HTML to output.
      */
     public function attempt_page($attemptobj, $page, $accessmanager, $messages, $slots, $id,
             $nextpage) {
         $output = '';
         $output .= $this->header();
+        $output .= $this->during_attempt_tertiary_nav($attemptobj->view_url());
         $output .= $this->quiz_notices($messages);
         $output .= $this->countdown_timer($attemptobj, time());
         $output .= $this->attempt_form($attemptobj, $page, $slots, $id, $nextpage);
         $output .= $this->footer();
+        return $output;
+    }
+
+    /**
+     * Render the tertiary navigation for pages during the attempt.
+     *
+     * @param string|moodle_url $quizviewurl url of the view.php page for this quiz.
+     * @return string HTML to output.
+     */
+    public function during_attempt_tertiary_nav($quizviewurl): string {
+        $output = '';
+        $output .= html_writer::start_div('container-fluid tertiary-navigation');
+        $output .= html_writer::start_div('row');
+        $output .= html_writer::start_div('navitem');
+        $output .= html_writer::link($quizviewurl, get_string('back'),
+                ['class' => 'btn btn-secondary']);
+        $output .= html_writer::end_div();
+        $output .= html_writer::end_div();
+        $output .= html_writer::end_div();
         return $output;
     }
 
@@ -460,8 +489,11 @@ class mod_quiz_renderer extends plugin_renderer_base {
         if (!$messages) {
             return '';
         }
-        return $this->box($this->heading(get_string('accessnoticesheader', 'quiz'), 3) .
-                $this->access_messages($messages), 'quizaccessnotices');
+        return $this->notification(
+            html_writer::tag('p', get_string('accessnoticesheader', 'quiz')) . $this->access_messages($messages),
+            'warning',
+            false
+        );
     }
 
     /**
@@ -536,7 +568,9 @@ class mod_quiz_renderer extends plugin_renderer_base {
         $output .= html_writer::start_tag('div', array('class' => 'submitbtns'));
         if ($page > 0 && $navmethod == 'free') {
             $output .= html_writer::empty_tag('input', array('type' => 'submit', 'name' => 'previous',
-                    'value' => get_string('navigateprevious', 'quiz'), 'class' => 'mod_quiz-prev-nav btn btn-secondary'));
+                    'value' => get_string('navigateprevious', 'quiz'), 'class' => 'mod_quiz-prev-nav btn btn-secondary',
+                    'id' => 'mod_quiz-prev-nav'));
+            $this->page->requires->js_call_amd('core_form/submit', 'init', ['mod_quiz-prev-nav']);
         }
         if ($lastpage) {
             $nextlabel = get_string('endtest', 'quiz');
@@ -544,8 +578,9 @@ class mod_quiz_renderer extends plugin_renderer_base {
             $nextlabel = get_string('navigatenext', 'quiz');
         }
         $output .= html_writer::empty_tag('input', array('type' => 'submit', 'name' => 'next',
-                'value' => $nextlabel, 'class' => 'mod_quiz-next-nav btn btn-primary'));
+                'value' => $nextlabel, 'class' => 'mod_quiz-next-nav btn btn-primary', 'id' => 'mod_quiz-next-nav'));
         $output .= html_writer::end_tag('div');
+        $this->page->requires->js_call_amd('core_form/submit', 'init', ['mod_quiz-next-nav']);
 
         return $output;
     }
@@ -615,7 +650,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function access_messages($messages) {
         $output = '';
         foreach ($messages as $message) {
-            $output .= html_writer::tag('p', $message) . "\n";
+            $output .= html_writer::tag('p', $message, ['class' => 'text-left']);
         }
         return $output;
     }
@@ -632,6 +667,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
     public function summary_page($attemptobj, $displayoptions) {
         $output = '';
         $output .= $this->header();
+        $output .= $this->during_attempt_tertiary_nav($attemptobj->view_url());
         $output .= $this->heading(format_string($attemptobj->get_quiz_name()));
         $output .= $this->heading(get_string('summaryofattempt', 'quiz'), 3);
         $output .= $this->summary_table($attemptobj, $displayoptions);
@@ -667,12 +703,22 @@ class mod_quiz_renderer extends plugin_renderer_base {
         foreach ($slots as $slot) {
             // Add a section headings if we need one here.
             $heading = $attemptobj->get_heading_before_slot($slot);
-            if ($heading) {
+            if ($heading !== null) {
+                // There is a heading here.
+                $rowclasses = 'quizsummaryheading';
+                if ($heading) {
+                    $heading = format_string($heading);
+                } else if (count($attemptobj->get_quizobj()->get_sections()) > 1) {
+                    // If this is the start of an unnamed section, and the quiz has more
+                    // than one section, then add a default heading.
+                    $heading = get_string('sectionnoname', 'quiz');
+                    $rowclasses .= ' dimmed_text';
+                }
                 $cell = new html_table_cell(format_string($heading));
                 $cell->header = true;
                 $cell->colspan = $tablewidth;
                 $table->data[] = array($cell);
-                $table->rowclasses[] = 'quizsummaryheading';
+                $table->rowclasses[] = $rowclasses;
             }
 
             // Don't display information items.
@@ -744,6 +790,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
             $button->add_action(new confirm_action(get_string('confirmclose', 'quiz'), null,
                     get_string('submitallandfinish', 'quiz')));
         }
+        $button->primary = true;
 
         $duedate = $attemptobj->get_due_date();
         $message = '';
@@ -767,19 +814,17 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Generates the view page
      *
-     * @param int $course The id of the course
-     * @param array $quiz Array conting quiz data
-     * @param int $cm Course Module ID
-     * @param int $context The page context ID
-     * @param array $infomessages information about this quiz
+     * @param stdClass $course the course settings row from the database.
+     * @param stdClass $quiz the quiz settings row from the database.
+     * @param stdClass $cm the course_module settings row from the database.
+     * @param context_module $context the quiz context.
      * @param mod_quiz_view_object $viewobj
-     * @param string $buttontext text for the start/continue attempt button, if
-     *      it should be shown.
-     * @param array $infomessages further information about why the student cannot
-     *      attempt this quiz now, if appicable this quiz
+     * @return string HTML to display
      */
     public function view_page($course, $quiz, $cm, $context, $viewobj) {
         $output = '';
+
+        $output .= $this->view_page_tertiary_nav($viewobj);
         $output .= $this->view_information($quiz, $cm, $context, $viewobj->infomessages);
         $output .= $this->view_table($quiz, $context, $viewobj);
         $output .= $this->view_result_info($quiz, $context, $cm, $viewobj);
@@ -788,27 +833,49 @@ class mod_quiz_renderer extends plugin_renderer_base {
     }
 
     /**
+     * Render the tertiary navigation for the view page.
+     *
+     * @param mod_quiz_view_object $viewobj the information required to display the view page.
+     * @return string HTML to output.
+     */
+    public function view_page_tertiary_nav(mod_quiz_view_object $viewobj): string {
+        $content = '';
+
+        if ($viewobj->buttontext) {
+            $attemptbtn = $this->start_attempt_button($viewobj->buttontext,
+                    $viewobj->startattempturl, $viewobj->preflightcheckform,
+                    $viewobj->popuprequired, $viewobj->popupoptions);
+            $content .= $attemptbtn;
+        }
+
+        if ($viewobj->canedit && !$viewobj->quizhasquestions) {
+            $content .= html_writer::link($viewobj->editurl, get_string('addquestion', 'quiz'),
+                    ['class' => 'btn btn-secondary']);
+        }
+
+        if ($content) {
+            return html_writer::div(html_writer::div($content, 'row'), 'container-fluid tertiary-navigation');
+        } else {
+            return '';
+        }
+    }
+
+    /**
      * Work out, and render, whatever buttons, and surrounding info, should appear
      * at the end of the review page.
-     * @param mod_quiz_view_object $viewobj the information required to display
-     * the view page.
+     *
+     * @param mod_quiz_view_object $viewobj the information required to display the view page.
      * @return string HTML to output.
      */
     public function view_page_buttons(mod_quiz_view_object $viewobj) {
-        global $CFG;
         $output = '';
 
         if (!$viewobj->quizhasquestions) {
-            $output .= $this->no_questions_message($viewobj->canedit, $viewobj->editurl);
+            $output .= html_writer::div(
+                    $this->notification(get_string('noquestions', 'quiz'), 'warning', false),
+                    'text-left mb-3');
         }
-
         $output .= $this->access_messages($viewobj->preventmessages);
-
-        if ($viewobj->buttontext) {
-            $output .= $this->start_attempt_button($viewobj->buttontext,
-                    $viewobj->startattempturl, $viewobj->preflightcheckform,
-                    $viewobj->popuprequired, $viewobj->popupoptions);
-        }
 
         if ($viewobj->showbacktocourse) {
             $output .= $this->single_button($viewobj->backtocourseurl,
@@ -840,7 +907,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
                     'quiz_access_manager::get_preflight_check_form, not a warning message string.');
         }
 
-        $button = new single_button($url, $buttontext);
+        $button = new single_button($url, $buttontext, 'post', true);
         $button->class .= ' quizstartbuttondiv';
         if ($popuprequired) {
             $button->class .= ' quizsecuremoderequired';
@@ -868,12 +935,16 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Generate a message saying that this quiz has no questions, with a button to
      * go to the edit page, if the user has the right capability.
-     * @param object $quiz the quiz settings.
-     * @param object $cm the course_module object.
-     * @param object $context the quiz context.
+     *
+     * @param bool $canedit can the current user edit the quiz?
+     * @param moodle_url $editurl URL of the edit quiz page.
      * @return string HTML to output.
+     *
+     * @deprecated since Moodle 4.0 MDL-71915 - please do not use this function any more.
      */
     public function no_questions_message($canedit, $editurl) {
+        debugging('no_questions_message() is deprecated, please use generate_no_questions_message() instead.', DEBUG_DEVELOPER);
+
         $output = html_writer::start_tag('div', array('class' => 'card text-center mb-3'));
         $output .= html_writer::start_tag('div', array('class' => 'card-body'));
 
@@ -890,14 +961,16 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Outputs an error message for any guests accessing the quiz
      *
-     * @param int $course The course ID
-     * @param array $quiz Array contingin quiz data
-     * @param int $cm Course Module ID
-     * @param int $context The page contect ID
+     * @param stdClass $course the course settings row from the database.
+     * @param stdClass $quiz the quiz settings row from the database.
+     * @param stdClass $cm the course_module settings row from the database.
+     * @param context_module $context the quiz context.
      * @param array $messages Array containing any messages
+     * @param mod_quiz_view_object $viewobj
      */
-    public function view_page_guest($course, $quiz, $cm, $context, $messages) {
+    public function view_page_guest($course, $quiz, $cm, $context, $messages, $viewobj) {
         $output = '';
+        $output .= $this->view_page_tertiary_nav($viewobj);
         $output .= $this->view_information($quiz, $cm, $context, $messages);
         $guestno = html_writer::tag('p', get_string('guestsno', 'quiz'));
         $liketologin = html_writer::tag('p', get_string('liketologin'));
@@ -909,15 +982,17 @@ class mod_quiz_renderer extends plugin_renderer_base {
     /**
      * Outputs and error message for anyone who is not enrolle don the course
      *
-     * @param int $course The course ID
-     * @param array $quiz Array contingin quiz data
-     * @param int $cm Course Module ID
-     * @param int $context The page contect ID
+     * @param stdClass $course the course settings row from the database.
+     * @param stdClass $quiz the quiz settings row from the database.
+     * @param stdClass $cm the course_module settings row from the database.
+     * @param context_module $context the quiz context.
      * @param array $messages Array containing any messages
+     * @param mod_quiz_view_object $viewobj
      */
-    public function view_page_notenrolled($course, $quiz, $cm, $context, $messages) {
+    public function view_page_notenrolled($course, $quiz, $cm, $context, $messages, $viewobj) {
         global $CFG;
         $output = '';
+        $output .= $this->view_page_tertiary_nav($viewobj);
         $output .= $this->view_information($quiz, $cm, $context, $messages);
         $youneedtoenrol = html_writer::tag('p', get_string('youneedtoenrol', 'quiz'));
         $button = html_writer::tag('p',
@@ -933,16 +1008,11 @@ class mod_quiz_renderer extends plugin_renderer_base {
      * @param object $cm the course_module object.
      * @param context $context the quiz context.
      * @param array $messages any access messages that should be described.
+     * @param bool $quizhasquestions does quiz has questions added.
      * @return string HTML to output.
      */
-    public function view_information($quiz, $cm, $context, $messages) {
-        global $CFG;
-
+    public function view_information($quiz, $cm, $context, $messages, bool $quizhasquestions = false) {
         $output = '';
-
-        // Print quiz name and description.
-        $output .= $this->heading(format_string($quiz->name));
-        $output .= $this->quiz_intro($quiz, $cm);
 
         // Output any access messages.
         if ($messages) {
@@ -1021,7 +1091,7 @@ class mod_quiz_renderer extends plugin_renderer_base {
             $table->size[] = '';
         }
         if ($viewobj->gradecolumn) {
-            $table->head[] = get_string('grade') . ' / ' .
+            $table->head[] = get_string('gradenoun') . ' / ' .
                     quiz_format_grade($quiz, $quiz->grade);
             $table->align[] = 'center';
             $table->size[] = '';
@@ -1299,10 +1369,12 @@ class mod_quiz_renderer extends plugin_renderer_base {
      *
      * @param \core\chart_base $chart The chart.
      * @param string $title The title to display above the graph.
+     * @param array $attrs extra container html attributes.
      * @return string HTML fragment for the graph.
      */
-    public function chart(\core\chart_base $chart, $title) {
-        return $this->heading($title, 3) . html_writer::tag('div', $this->render($chart), array('class' => 'graph'));
+    public function chart(\core\chart_base $chart, $title, $attrs = []) {
+        return $this->heading($title, 3) . html_writer::tag('div',
+            $this->render($chart), array_merge(['class' => 'graph'], $attrs));
     }
 
     /**
@@ -1393,7 +1465,7 @@ class mod_quiz_view_object {
     public $buttontext;
     /** @var moodle_url $startattempturl URL to start an attempt. */
     public $startattempturl;
-    /** @var moodleform|null $preflightcheckform confirmation form that must be
+    /** @var mod_quiz_preflight_check_form|null $preflightcheckform confirmation form that must be
      *       submitted before an attempt is started, if required. */
     public $preflightcheckform;
     /** @var moodle_url $startattempturl URL for any Back to the course button. */

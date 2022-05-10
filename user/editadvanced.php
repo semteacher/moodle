@@ -53,6 +53,7 @@ if (!empty($USER->newadminuser)) {
         require_login($course);
     }
     $PAGE->set_pagelayout('admin');
+    $PAGE->add_body_class('limitedwidth');
 }
 
 if ($course->id == SITEID) {
@@ -72,6 +73,8 @@ if ($id == -1) {
     $user->timezone = '99';
     require_capability('moodle/user:create', $systemcontext);
     admin_externalpage_setup('addnewuser', '', array('id' => -1));
+    $PAGE->set_primary_active_tab('siteadminnode');
+    $PAGE->navbar->add(get_string('addnewuser', 'moodle'), $PAGE->url);
 } else {
     // Editing existing user.
     require_capability('moodle/user:update', $systemcontext);
@@ -204,7 +207,7 @@ if ($userform->is_cancelled()) {
         if (!$authplugin->is_internal() and $authplugin->can_change_password() and !empty($usernew->newpassword)) {
             if (!$authplugin->user_update_password($usernew, $usernew->newpassword)) {
                 // Do not stop here, we need to finish user creation.
-                debugging(get_string('cannotupdatepasswordonextauth', '', '', $usernew->auth), DEBUG_NONE);
+                debugging(get_string('cannotupdatepasswordonextauth', 'error', $usernew->auth), DEBUG_NONE);
             }
         }
         $usercreated = true;
@@ -358,4 +361,3 @@ $userform->display();
 
 // And proper footer.
 echo $OUTPUT->footer();
-

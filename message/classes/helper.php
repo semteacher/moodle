@@ -23,6 +23,7 @@
  */
 
 namespace core_message;
+use DOMDocument;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -269,18 +270,17 @@ class helper {
 
         // Get providers preferences.
         foreach ($providers as $provider) {
-            foreach (array('loggedin', 'loggedoff') as $state) {
-                $linepref = get_user_preferences('message_provider_' . $provider->component . '_' . $provider->name
-                    . '_' . $state, '', $userid);
-                if ($linepref == '') {
-                    continue;
-                }
-                $lineprefarray = explode(',', $linepref);
-                $preferences->{$provider->component.'_'.$provider->name.'_'.$state} = array();
-                foreach ($lineprefarray as $pref) {
-                    $preferences->{$provider->component.'_'.$provider->name.'_'.$state}[$pref] = 1;
-                }
+            $linepref = get_user_preferences('message_provider_' . $provider->component . '_' . $provider->name
+                . '_enabled', '', $userid);
+            if ($linepref == '') {
+                continue;
             }
+            $lineprefarray = explode(',', $linepref);
+            $preferences->{$provider->component.'_'.$provider->name.'_enabled'} = [];
+            foreach ($lineprefarray as $pref) {
+                $preferences->{$provider->component.'_'.$provider->name.'_enabled'}[$pref] = 1;
+            }
+
         }
 
         return $preferences;
@@ -429,7 +429,8 @@ class helper {
         }
 
         list($useridsql, $usersparams) = $DB->get_in_or_equal($userids);
-        $userfields = \user_picture::fields('u', array('lastaccess'));
+        $userfieldsapi = \core_user\fields::for_userpic()->including('lastaccess');
+        $userfields = $userfieldsapi->get_sql('u', false, '', '', false)->selects;
         $userssql = "SELECT $userfields, u.deleted, mc.id AS contactid, mub.id AS blockedid
                        FROM {user} u
                   LEFT JOIN {message_contacts} mc
@@ -549,10 +550,7 @@ class helper {
         global $USER, $CFG, $PAGE;
 
         // Early bail out conditions.
-        if (empty($CFG->messaging) || !isloggedin() || isguestuser() || user_not_fully_set_up($USER) ||
-            get_user_preferences('auth_forcepasswordchange') ||
-            (!$USER->policyagreed && !is_siteadmin() &&
-                ($manager = new \core_privacy\local\sitepolicy\manager()) && $manager->is_defined())) {
+        if (empty($CFG->messaging) || !isloggedin() || isguestuser() || \core_user::awaiting_action()) {
             return '';
         }
 
@@ -624,6 +622,7 @@ class helper {
             'isdrawer' => $isdrawer,
             'showemojipicker' => !empty($CFG->allowemojipicker),
             'messagemaxlength' => api::MESSAGE_MAX_LENGTH,
+            'caneditownmessageprofile' => has_capability('moodle/user:editownmessageprofile', \context_system::instance())
         ];
 
         if ($sendtouser || $conversationid) {
@@ -676,5 +675,33 @@ class helper {
             }
         }
         return [];
+    }
+
+    /**
+     * Prevent unclosed HTML elements in a message.
+     *
+     * @param string $message The html message.
+     * @param bool $removebody True if we want to remove tag body.
+     * @return string The html properly structured.
+     */
+    public static function prevent_unclosed_html_tags(
+        string $message,
+        bool $removebody = false
+    ) : string {
+        $html = '';
+        if (!empty($message)) {
+            $doc = new DOMDocument();
+            $olderror = libxml_use_internal_errors(true);
+            $doc->loadHTML('<?xml version="1.0" encoding="UTF-8" ?>' . $message);
+            libxml_clear_errors();
+            libxml_use_internal_errors($olderror);
+            $html = $doc->getElementsByTagName('body')->item(0)->C14N(false, true);
+            if ($removebody) {
+                // Remove <body> element added in C14N function.
+                $html = preg_replace('~<(/?(?:body))[^>]*>\s*~i', '', $html);
+            }
+        }
+
+        return $html;
     }
 }

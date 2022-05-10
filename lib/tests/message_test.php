@@ -144,7 +144,7 @@ class core_message_testcase extends advanced_testcase {
         $this->assertFileExists("$CFG->dirroot/message/output/popup/version.php");
 
         $DB->set_field_select('message_processors', 'enabled', 0, "name <> 'email'");
-        set_user_preference('message_provider_moodle_instantmessage_loggedoff', 'email', $user2);
+        set_user_preference('message_provider_moodle_instantmessage_enabled', 'email', $user2);
 
         // Extra content for all types of messages.
         $message = new \core\message\message();
@@ -174,7 +174,7 @@ class core_message_testcase extends advanced_testcase {
         $this->assertSame(get_string('unreadnewmessage', 'message', fullname($user1)), $email->subject);
         $this->assertNotEmpty($email->header);
         $this->assertNotEmpty($email->body);
-        $this->assertRegExp('/test message body.*test/s', $email->body);
+        $this->assertMatchesRegularExpression('/test.*message body.*test/s', $email->body);
         $sink->clear();
 
         // Test that event fired includes the courseid.
@@ -214,7 +214,7 @@ class core_message_testcase extends advanced_testcase {
         $this->assertSame(get_string('unreadnewmessage', 'message', fullname($user1)), $email->subject);
         $this->assertNotEmpty($email->header);
         $this->assertNotEmpty($email->body);
-        $this->assertNotRegExp('/test message body test/', $email->body);
+        $this->assertDoesNotMatchRegularExpression('/test.*message body test/', $email->body);
 
         // Test that event fired includes the courseid.
         $eventsink = $this->redirectEvents();
@@ -241,7 +241,7 @@ class core_message_testcase extends advanced_testcase {
         $this->assertFileExists("$CFG->dirroot/message/output/popup/version.php");
 
         $DB->set_field_select('message_processors', 'enabled', 0, "name <> 'email'");
-        set_user_preference('message_provider_moodle_instantmessage_loggedoff', 'email', $user2);
+        set_user_preference('message_provider_moodle_instantmessage_enabled', 'email', $user2);
 
         // Check that prefix is ammended to the subject of the email.
         $message = new \core\message\message();

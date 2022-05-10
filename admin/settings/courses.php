@@ -88,6 +88,15 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
     $downloadcontentsitedefault->add_dependent_on('downloadcoursecontentallowed');
     $temp->add($downloadcontentsitedefault);
 
+    $temp->add(
+            new admin_setting_configtext(
+                'moodlecourse/participantsperpage',
+                new lang_string('participants:perpage', 'course'),
+                new lang_string('participants:perpage_help', 'course'),
+                20
+            )
+        );
+
     // Course format.
     $temp->add(new admin_setting_heading('courseformathdr', new lang_string('type_format', 'plugin'), ''));
 
@@ -109,7 +118,7 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
     $choices['0'] = new lang_string('hiddensectionscollapsed');
     $choices['1'] = new lang_string('hiddensectionsinvisible');
     $temp->add(new admin_setting_configselect('moodlecourse/hiddensections', new lang_string('hiddensections'),
-        new lang_string('coursehelphiddensections'), 0, $choices));
+        new lang_string('coursehelphiddensections'), 1, $choices));
 
     $choices = array();
     $choices[COURSE_DISPLAY_SINGLEPAGE] = new lang_string('coursedisplay_single');
@@ -139,6 +148,13 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
         new lang_string('coursehelpshowgrades'), 1, array(0 => new lang_string('no'), 1 => new lang_string('yes'))));
     $temp->add(new admin_setting_configselect('moodlecourse/showreports', new lang_string('showreports'), '', 0,
         array(0 => new lang_string('no'), 1 => new lang_string('yes'))));
+    $temp->add(new admin_setting_configselect('moodlecourse/showactivitydates',
+        new lang_string('showactivitydates'),
+        new lang_string('showactivitydates_help'), 1, [
+            0 => new lang_string('no'),
+            1 => new lang_string('yes')
+        ]
+    ));
 
     // Files and uploads.
     $temp->add(new admin_setting_heading('filesanduploadshdr', new lang_string('filesanduploads'), ''));
@@ -162,6 +178,15 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
     $temp->add(new admin_setting_heading('progress', new lang_string('completion','completion'), ''));
     $temp->add(new admin_setting_configselect('moodlecourse/enablecompletion', new lang_string('completion', 'completion'),
         new lang_string('enablecompletion_help', 'completion'), 1, array(0 => new lang_string('no'), 1 => new lang_string('yes'))));
+
+    // Display completion conditions.
+    $temp->add(new admin_setting_configselect('moodlecourse/showcompletionconditions',
+        new lang_string('showcompletionconditions', 'completion'),
+        new lang_string('showcompletionconditions_help', 'completion'), 1, [
+            0 => new lang_string('no'),
+            1 => new lang_string('yes')
+        ]
+    ));
 
     // Groups.
     $temp->add(new admin_setting_heading('groups', new lang_string('groups', 'group'), ''));
@@ -327,6 +352,11 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
 
     // Import defaults section.
     $temp->add(new admin_setting_heading('importsettings', new lang_string('importsettings', 'backup'), ''));
+    $temp->add(new admin_setting_configcheckbox_with_lock(
+            'backup/backup_import_permissions',
+            new lang_string('generalpermissions', 'backup'),
+            new lang_string('configgeneralpermissions', 'backup'),
+            array('value' => 0, 'locked' => 0)));
     $temp->add(new admin_setting_configcheckbox_with_lock('backup/backup_import_activities', new lang_string('generalactivities','backup'), new lang_string('configgeneralactivities','backup'), array('value'=>1, 'locked'=>0)));
     $temp->add(new admin_setting_configcheckbox_with_lock('backup/backup_import_blocks', new lang_string('generalblocks','backup'), new lang_string('configgeneralblocks','backup'), array('value'=>1, 'locked'=>0)));
     $temp->add(new admin_setting_configcheckbox_with_lock('backup/backup_import_filters', new lang_string('generalfilters','backup'), new lang_string('configgeneralfilters','backup'), array('value'=>1, 'locked'=>0)));
@@ -501,6 +531,9 @@ if ($hassiteconfig or has_any_capability($capabilities, $systemcontext)) {
     $temp->add(new admin_setting_configcheckbox_with_lock('restore/restore_general_role_assignments',
         new lang_string('generalroleassignments', 'backup'),
         new lang_string('configrestoreroleassignments', 'backup'), array('value' => 1, 'locked' => 0)));
+    $temp->add(new admin_setting_configcheckbox_with_lock('restore/restore_general_permissions',
+        new lang_string('generalpermissions', 'backup'),
+        new lang_string('configrestorepermissions', 'backup'), array('value' => 1, 'locked' => 0)));
     $temp->add(new admin_setting_configcheckbox_with_lock('restore/restore_general_activities',
         new lang_string('generalactivities', 'backup'),
         new lang_string('configrestoreactivities', 'backup'), array('value' => 1, 'locked' => 0)));

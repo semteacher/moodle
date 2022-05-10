@@ -19,8 +19,7 @@ class course_edit_form extends moodleform {
         global $CFG, $PAGE;
 
         $mform    = $this->_form;
-        $PAGE->requires->yui_module('moodle-course-formatchooser', 'M.course.init_formatchooser',
-                array(array('formid' => $mform->getAttribute('id'))));
+        $PAGE->requires->js_call_amd('core_course/formatchooser', 'init');
 
         $course        = $this->_customdata['course']; // this contains the data of this form
         $category      = $this->_customdata['category'];
@@ -78,6 +77,7 @@ class course_edit_form extends moodleform {
             if (has_capability('moodle/course:create', $categorycontext)) {
                 $displaylist = core_course_category::make_categories_list('moodle/course:create');
                 $mform->addElement('autocomplete', 'category', get_string('coursecategory'), $displaylist);
+                $mform->addRule('category', null, 'required', null, 'client');
                 $mform->addHelpButton('category', 'coursecategory');
                 $mform->setDefault('category', $category->id);
             } else {
@@ -94,6 +94,7 @@ class course_edit_form extends moodleform {
                         ->get_formatted_name();
                 }
                 $mform->addElement('autocomplete', 'category', get_string('coursecategory'), $displaylist);
+                $mform->addRule('category', null, 'required', null, 'client');
                 $mform->addHelpButton('category', 'coursecategory');
             } else {
                 //keep current
@@ -218,13 +219,18 @@ class course_edit_form extends moodleform {
             }
         }
 
-        $mform->addElement('select', 'format', get_string('format'), $formcourseformats);
+        $mform->addElement('select', 'format', get_string('format'), $formcourseformats, [
+            'data-formatchooser-field' => 'selector',
+        ]);
         $mform->addHelpButton('format', 'format');
         $mform->setDefault('format', $courseconfig->format);
 
         // Button to update format-specific options on format change (will be hidden by JavaScript).
         $mform->registerNoSubmitButton('updatecourseformat');
-        $mform->addElement('submit', 'updatecourseformat', get_string('courseformatudpate'));
+        $mform->addElement('submit', 'updatecourseformat', get_string('courseformatudpate'), [
+            'data-formatchooser-field' => 'updateButton',
+            'class' => 'd-none',
+        ]);
 
         // Just a placeholder for the course format options.
         $mform->addElement('hidden', 'addcourseformatoptionshere');
@@ -278,6 +284,11 @@ class course_edit_form extends moodleform {
         $mform->addHelpButton('showreports', 'showreports');
         $mform->setDefault('showreports', $courseconfig->showreports);
 
+        // Show activity dates.
+        $mform->addElement('selectyesno', 'showactivitydates', get_string('showactivitydates'));
+        $mform->addHelpButton('showactivitydates', 'showactivitydates');
+        $mform->setDefault('showactivitydates', $courseconfig->showactivitydates);
+
         // Files and uploads.
         $mform->addElement('header', 'filehdr', get_string('filesanduploads'));
 
@@ -312,6 +323,12 @@ class course_edit_form extends moodleform {
             $mform->addElement('selectyesno', 'enablecompletion', get_string('enablecompletion', 'completion'));
             $mform->setDefault('enablecompletion', $courseconfig->enablecompletion);
             $mform->addHelpButton('enablecompletion', 'enablecompletion', 'completion');
+
+            $showcompletionconditions = $courseconfig->showcompletionconditions ?? COMPLETION_SHOW_CONDITIONS;
+            $mform->addElement('selectyesno', 'showcompletionconditions', get_string('showcompletionconditions', 'completion'));
+            $mform->addHelpButton('showcompletionconditions', 'showcompletionconditions', 'completion');
+            $mform->setDefault('showcompletionconditions', $showcompletionconditions);
+            $mform->hideIf('showcompletionconditions', 'enablecompletion', 'eq', COMPLETION_DISABLED);
         } else {
             $mform->addElement('hidden', 'enablecompletion');
             $mform->setType('enablecompletion', PARAM_INT);

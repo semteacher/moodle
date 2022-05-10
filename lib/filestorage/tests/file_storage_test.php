@@ -35,7 +35,7 @@ require_once($CFG->libdir . '/filestorage/stored_file.php');
  *
  * @copyright 2012 David Mudrak <david@moodle.com>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass file_storage
+ * @coversDefaultClass \file_storage
  */
 class core_files_file_storage_testcase extends advanced_testcase {
 
@@ -86,7 +86,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
         // Tests that missing content file is recreated.
 
         unlink($location);
-        $this->assertFileNotExists($location);
+        $this->assertFileDoesNotExist($location);
 
         $filerecord['filename'] = 'testfile2.txt';
         $file2 = $fs->create_file_from_string($filerecord, $content);
@@ -158,7 +158,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
         // Tests that missing content file is recreated.
 
         unlink($location);
-        $this->assertFileNotExists($location);
+        $this->assertFileDoesNotExist($location);
 
         $filerecord['filename'] = 'testfile2.jpg';
         $file2 = $fs->create_file_from_pathname($filerecord, $filepath);
@@ -287,7 +287,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
      * Make sure renaming is working
      *
      * @copyright 2012 Dongsheng Cai {@link http://dongsheng.org}
-     * @covers stored_file::rename
+     * @covers \stored_file::rename
      */
     public function test_file_renaming() {
         global $CFG;
@@ -324,7 +324,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
 
         // Try break it.
         $this->expectException('file_exception');
-        $this->expectExceptionMessage('Can not create file "1/core/unittest/0/test/newtest.txt" (file exists, cannot rename)');
+        $this->expectExceptionMessage('Cannot create file 1/core/unittest/0/test/newtest.txt (file exists, cannot rename)');
         // This shall throw exception.
         $originalfile->rename($newpath, $newname);
     }
@@ -393,7 +393,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
         $this->assertEquals($userrepository->id, $newstoredfile->get_repository_id());
         $this->assertEquals($originalfile->get_contenthash(), $newstoredfile->get_contenthash());
         $this->assertEquals($originalfile->get_filesize(), $newstoredfile->get_filesize());
-        $this->assertRegExp('#' . $filename. '$#', $newstoredfile->get_reference_details());
+        $this->assertMatchesRegularExpression('#' . $filename. '$#', $newstoredfile->get_reference_details());
 
         // Test looking for references.
         $count = $fs->get_references_count_by_storedfile($originalfile);
@@ -485,7 +485,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
         $this->assertEquals($userrepository->id, $newstoredfile->get_repository_id());
         $this->assertEquals($originalfile->get_contenthash(), $newstoredfile->get_contenthash());
         $this->assertEquals($originalfile->get_filesize(), $newstoredfile->get_filesize());
-        $this->assertRegExp('#' . $filename . '$#', $newstoredfile->get_reference_details());
+        $this->assertMatchesRegularExpression('#' . $filename . '$#', $newstoredfile->get_reference_details());
     }
 
     private function setup_three_private_files() {
@@ -1478,7 +1478,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
 
         // Creating a file validating unique constraint.
         $this->expectException(stored_file_creation_exception::class);
-        $this->expectExceptionMessage('Can not create file "1/core/phpunit/0/testfile.txt"');
+        $this->expectExceptionMessage('Cannot create file 1/core/phpunit/0/testfile.txt');
         $fs->create_file_from_storedfile($filerecord, $file1->get_id());
     }
 
@@ -1835,14 +1835,14 @@ class core_files_file_storage_testcase extends advanced_testcase {
 
         // Creating a file validating unique constraint.
         $this->expectException(stored_file_creation_exception::class);
-        $this->expectExceptionMessage('Can not create file "1/core/phpunit/0/testfile.txt"');
+        $this->expectExceptionMessage('Cannot create file 1/core/phpunit/0/testfile.txt');
         $file2 = $fs->create_file_from_pathname($filerecord, $path);
     }
 
     /**
      * Calling stored_file::delete_reference() on a non-reference file throws coding_exception
      *
-     * @covers stored_file::delete_reference
+     * @covers \stored_file::delete_reference
      */
     public function test_delete_reference_on_nonreference() {
 
@@ -1870,7 +1870,7 @@ class core_files_file_storage_testcase extends advanced_testcase {
      * Calling stored_file::delete_reference() on a reference file does not affect other
      * symlinks to the same original
      *
-     * @covers stored_file::delete_reference
+     * @covers \stored_file::delete_reference
      */
     public function test_delete_reference_one_symlink_does_not_rule_them_all() {
 
@@ -2115,26 +2115,42 @@ class core_files_file_storage_testcase extends advanced_testcase {
     }
 
     /**
-     * Test that mimetype_from_file returns appropriate output for a known
-     * file.
+     * Data provider to return fixture files and their expected mimetype
+     *
+     * @return array[]
+     */
+    public function filepath_mimetype_provider(): array {
+        return [
+            [__DIR__ . '/fixtures/testimage.jpg', 'image/jpeg'],
+            [__DIR__ . '/fixtures/testimage.svg', 'image/svg+xml'],
+            [__DIR__ . '/fixtures/testimage_basic.svg', 'image/svg+xml'],
+        ];
+    }
+
+    /**
+     * Test that mimetype returns appropriate output for a known file.
      *
      * Note: this is not intended to check that functions outside of this
      * file works. It is intended to validate the codepath contains no
      * errors and behaves as expected.
      *
      * @covers ::mimetype
+     *
+     * @param string $filepath
+     * @param string $expectedmimetype
+     *
+     * @dataProvider filepath_mimetype_provider
      */
-    public function test_mimetype_known() {
-        $filepath = __DIR__ . '/fixtures/testimage.jpg';
-        $mimetype = file_storage::mimetype_from_file($filepath);
-        $this->assertEquals('image/jpeg', $mimetype);
+    public function test_mimetype_known(string $filepath, string $expectedmimetype): void {
+        $mimetype = file_storage::mimetype($filepath);
+        $this->assertEquals($expectedmimetype, $mimetype);
     }
 
     /**
      * Test that mimetype_from_file returns appropriate output when the
      * file could not be found.
      *
-     * @covers ::mimetype
+     * @covers ::mimetype_from_file
      */
     public function test_mimetype_from_file_not_found() {
         $mimetype = file_storage::mimetype_from_file('/path/to/nonexistent/file');
@@ -2149,12 +2165,16 @@ class core_files_file_storage_testcase extends advanced_testcase {
      * file works. It is intended to validate the codepath contains no
      * errors and behaves as expected.
      *
-     * @covers ::mimetype
+     * @covers ::mimetype_from_file
+     *
+     * @param string $filepath
+     * @param string $expectedmimetype
+     *
+     * @dataProvider filepath_mimetype_provider
      */
-    public function test_mimetype_from_file_known() {
-        $filepath = __DIR__ . '/fixtures/testimage.jpg';
+    public function test_mimetype_from_file_known(string $filepath, string $expectedmimetype): void {
         $mimetype = file_storage::mimetype_from_file($filepath);
-        $this->assertEquals('image/jpeg', $mimetype);
+        $this->assertEquals($expectedmimetype, $mimetype);
     }
 
 }

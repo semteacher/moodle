@@ -2244,7 +2244,7 @@ function reset_role_capabilities($roleid) {
  * the database.
  *
  * @access private
- * @param string $component examples: 'moodle', 'mod_forum', 'block_quiz_results'
+ * @param string $component examples: 'moodle', 'mod_forum', 'block_activity_results'
  * @return boolean true if success, exception in case of any problems
  */
 function update_capabilities($component = 'moodle') {
@@ -2366,7 +2366,7 @@ function update_capabilities($component = 'moodle') {
  * NOTE: this function is called from lib/db/upgrade.php
  *
  * @access private
- * @param string $component examples: 'moodle', 'mod_forum', 'block_quiz_results'
+ * @param string $component examples: 'moodle', 'mod_forum', 'block_activity_results'
  * @param array $newcapdef array of the new capability definitions that will be
  *                     compared with the cached capabilities
  * @return int number of deprecated capabilities that have been removed
@@ -3923,7 +3923,8 @@ function get_role_users($roleid, context $context, $parent = false, $fields = ''
     global $DB;
 
     if (empty($fields)) {
-        $allnames = get_all_user_name_fields(true, 'u');
+        $userfieldsapi = \core_user\fields::for_name();
+        $allnames = $userfieldsapi->get_sql('u', false, '', '', false)->selects;
         $fields = 'u.id, u.confirmed, u.username, '. $allnames . ', ' .
                   'u.maildisplay, u.mailformat, u.maildigest, u.email, u.emailstop, u.city, '.
                   'u.country, u.picture, u.idnumber, u.department, u.institution, '.
@@ -4101,6 +4102,116 @@ function count_role_users($roleid, context $context, $parent = false) {
 }
 
 /**
+ * This function gets the list of course and course category contexts that this user has a particular capability in.
+ *
+ * It is now reasonably efficient, but bear in mind that if there are users who have the capability
+ * everywhere, it may return an array of all contexts.
+ *
+ * @param string $capability Capability in question
+ * @param int $userid User ID or null for current user
+ * @param bool $getcategories Wether to return also course_categories
+ * @param bool $doanything True if 'doanything' is permitted (default)
+ * @param string $coursefieldsexceptid Leave blank if you only need 'id' in the course records;
+ *   otherwise use a comma-separated list of the fields you require, not including id.
+ *   Add ctxid, ctxpath, ctxdepth etc to return course context information for preloading.
+ * @param string $categoryfieldsexceptid Leave blank if you only need 'id' in the course records;
+ *   otherwise use a comma-separated list of the fields you require, not including id.
+ *   Add ctxid, ctxpath, ctxdepth etc to return course context information for preloading.
+ * @param string $courseorderby If set, use a comma-separated list of fields from course
+ *   table with sql modifiers (DESC) if needed
+ * @param string $categoryorderby If set, use a comma-separated list of fields from course_category
+ *   table with sql modifiers (DESC) if needed
+ * @param int $limit Limit the number of courses to return on success. Zero equals all entries.
+ * @return array Array of categories and courses.
+ */
+function get_user_capability_contexts(string $capability, bool $getcategories, $userid = null, $doanything = true,
+                                      $coursefieldsexceptid = '', $categoryfieldsexceptid = '', $courseorderby = '',
+                                      $categoryorderby = '', $limit = 0): array {
+    global $DB, $USER;
+
+    // Default to current user.
+    if (!$userid) {
+        $userid = $USER->id;
+    }
+
+    if ($doanything && is_siteadmin($userid)) {
+        // If the user is a site admin and $doanything is enabled then there is no need to restrict
+        // the list of courses.
+        $contextlimitsql = '';
+        $contextlimitparams = [];
+    } else {
+        // Gets SQL to limit contexts ('x' table) to those where the user has this capability.
+        list ($contextlimitsql, $contextlimitparams) = \core\access\get_user_capability_course_helper::get_sql(
+            $userid, $capability);
+        if (!$contextlimitsql) {
+            // If the does not have this capability in any context, return false without querying.
+            return [false, false];
+        }
+
+        $contextlimitsql = 'WHERE' . $contextlimitsql;
+    }
+
+    $categories = [];
+    if ($getcategories) {
+        $fieldlist = \core\access\get_user_capability_course_helper::map_fieldnames($categoryfieldsexceptid);
+        if ($categoryorderby) {
+            $fields = explode(',', $categoryorderby);
+            $orderby = '';
+            foreach ($fields as $field) {
+                if ($orderby) {
+                    $orderby .= ',';
+                }
+                $orderby .= 'c.'.$field;
+            }
+            $orderby = 'ORDER BY '.$orderby;
+        }
+        $rs = $DB->get_recordset_sql("
+            SELECT c.id $fieldlist
+              FROM {course_categories} c
+               JOIN {context} x ON c.id = x.instanceid AND x.contextlevel = ?
+            $contextlimitsql
+            $orderby", array_merge([CONTEXT_COURSECAT], $contextlimitparams));
+        $basedlimit = $limit;
+        foreach ($rs as $category) {
+            $categories[] = $category;
+            $basedlimit--;
+            if ($basedlimit == 0) {
+                break;
+            }
+        }
+    }
+
+    $courses = [];
+    $fieldlist = \core\access\get_user_capability_course_helper::map_fieldnames($coursefieldsexceptid);
+    if ($courseorderby) {
+        $fields = explode(',', $courseorderby);
+        $courseorderby = '';
+        foreach ($fields as $field) {
+            if ($courseorderby) {
+                $courseorderby .= ',';
+            }
+            $courseorderby .= 'c.'.$field;
+        }
+        $courseorderby = 'ORDER BY '.$courseorderby;
+    }
+    $rs = $DB->get_recordset_sql("
+            SELECT c.id $fieldlist
+              FROM {course} c
+               JOIN {context} x ON c.id = x.instanceid AND x.contextlevel = ?
+            $contextlimitsql
+            $courseorderby", array_merge([CONTEXT_COURSE], $contextlimitparams));
+    foreach ($rs as $course) {
+        $courses[] = $course;
+        $limit--;
+        if ($limit == 0) {
+            break;
+        }
+    }
+    $rs->close();
+    return [$categories, $courses];
+}
+
+/**
  * This function gets the list of courses that this user has a particular capability in.
  *
  * It is now reasonably efficient, but bear in mind that if there are users who have the capability
@@ -4117,84 +4228,20 @@ function count_role_users($roleid, context $context, $parent = false) {
  * @param int $limit Limit the number of courses to return on success. Zero equals all entries.
  * @return array|bool Array of courses, if none found false is returned.
  */
-function get_user_capability_course($capability, $userid = null, $doanything = true, $fieldsexceptid = '', $orderby = '',
-        $limit = 0) {
-    global $DB, $USER;
-
-    // Default to current user.
-    if (!$userid) {
-        $userid = $USER->id;
-    }
-
-    if ($doanything && is_siteadmin($userid)) {
-        // If the user is a site admin and $doanything is enabled then there is no need to restrict
-        // the list of courses.
-        $contextlimitsql = '';
-        $contextlimitparams = [];
-    } else {
-        // Gets SQL to limit contexts ('x' table) to those where the user has this capability.
-        list ($contextlimitsql, $contextlimitparams) = \core\access\get_user_capability_course_helper::get_sql(
-                $userid, $capability);
-        if (!$contextlimitsql) {
-            // If the does not have this capability in any context, return false without querying.
-            return false;
-        }
-
-        $contextlimitsql = 'WHERE' . $contextlimitsql;
-    }
-
-    // Convert fields list and ordering
-    $fieldlist = '';
-    if ($fieldsexceptid) {
-        $fields = array_map('trim', explode(',', $fieldsexceptid));
-        foreach ($fields as $field) {
-            // Context fields have a different alias.
-            if (strpos($field, 'ctx') === 0) {
-                switch($field) {
-                    case 'ctxlevel' :
-                        $realfield = 'contextlevel';
-                        break;
-                    case 'ctxinstance' :
-                        $realfield = 'instanceid';
-                        break;
-                    default:
-                        $realfield = substr($field, 3);
-                        break;
-                }
-                $fieldlist .= ',x.' . $realfield . ' AS ' . $field;
-            } else {
-                $fieldlist .= ',c.'.$field;
-            }
-        }
-    }
-    if ($orderby) {
-        $fields = explode(',', $orderby);
-        $orderby = '';
-        foreach ($fields as $field) {
-            if ($orderby) {
-                $orderby .= ',';
-            }
-            $orderby .= 'c.'.$field;
-        }
-        $orderby = 'ORDER BY '.$orderby;
-    }
-
-    $courses = array();
-    $rs = $DB->get_recordset_sql("
-            SELECT c.id $fieldlist
-              FROM {course} c
-              JOIN {context} x ON c.id = x.instanceid AND x.contextlevel = ?
-            $contextlimitsql
-            $orderby", array_merge([CONTEXT_COURSE], $contextlimitparams));
-    foreach ($rs as $course) {
-        $courses[] = $course;
-        $limit--;
-        if ($limit == 0) {
-            break;
-        }
-    }
-    $rs->close();
-    return empty($courses) ? false : $courses;
+function get_user_capability_course($capability, $userid = null, $doanything = true, $fieldsexceptid = '',
+                                    $orderby = '', $limit = 0) {
+    list($categories, $courses) = get_user_capability_contexts(
+        $capability,
+        false,
+        $userid,
+        $doanything,
+        $fieldsexceptid,
+        '',
+        $orderby,
+        '',
+        $limit
+    );
+    return $courses;
 }
 
 /**
@@ -5528,9 +5575,11 @@ abstract class context extends stdClass implements IteratorAggregate {
      *      type of context, e.g. User, Course, Forum, etc.
      * @param boolean $short whether to use the short name of the thing. Only applies
      *      to course contexts
+     * @param boolean $escape Whether the returned name of the thing is to be
+     *      HTML escaped or not.
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         // must be implemented in all context levels
         throw new coding_exception('can not get name of abstract context');
     }
@@ -6183,6 +6232,21 @@ class context_helper extends context {
     }
 
     /**
+     * Gets the current context to be used for navigation tree filtering.
+     *
+     * @param context|null $context The current context to be checked against.
+     * @return context|null the context that navigation tree filtering should use.
+     */
+    public static function get_navigation_filter_context(?context $context): ?context {
+        global $CFG;
+        if (!empty($CFG->filternavigationwithsystemcontext)) {
+            return context_system::instance();
+        } else {
+            return $context;
+        }
+    }
+
+    /**
      * not used
      */
     public function get_url() {
@@ -6235,9 +6299,10 @@ class context_system extends context {
      *
      * @param boolean $withprefix does not apply to system context
      * @param boolean $short does not apply to system context
+     * @param boolean $escape does not apply to system context
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         return self::get_level_name();
     }
 
@@ -6287,7 +6352,8 @@ class context_system extends context {
             debugging('context_system::instance(): invalid $id parameter detected, should be 0');
         }
 
-        if (defined('SYSCONTEXTID') and $cache) { // dangerous: define this in config.php to eliminate 1 query/page
+        // SYSCONTEXTID is cached in local cache to eliminate 1 query per page.
+        if (defined('SYSCONTEXTID') and $cache) {
             if (!isset(context::$systemcontext)) {
                 $record = new stdClass();
                 $record->id           = SYSCONTEXTID;
@@ -6489,9 +6555,10 @@ class context_user extends context {
      *
      * @param boolean $withprefix whether to prefix the name of the context with User
      * @param boolean $short does not apply to user context
+     * @param boolean $escape does not apply to user context
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         global $DB;
 
         $name = '';
@@ -6672,9 +6739,10 @@ class context_coursecat extends context {
      *
      * @param boolean $withprefix whether to prefix the name of the context with Category
      * @param boolean $short does not apply to course categories
+     * @param boolean $escape Whether the returned name of the context is to be HTML escaped or not.
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         global $DB;
 
         $name = '';
@@ -6682,7 +6750,11 @@ class context_coursecat extends context {
             if ($withprefix){
                 $name = get_string('category').': ';
             }
-            $name .= format_string($category->name, true, array('context' => $this));
+            if (!$escape) {
+                $name .= format_string($category->name, true, array('context' => $this, 'escape' => false));
+            } else {
+                $name .= format_string($category->name, true, array('context' => $this));
+            }
         }
         return $name;
     }
@@ -6903,9 +6975,10 @@ class context_course extends context {
      *
      * @param boolean $withprefix whether to prefix the name of the context with Course
      * @param boolean $short whether to use the short name of the thing.
+     * @param bool $escape Whether the returned category name is to be HTML escaped or not.
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         global $DB;
 
         $name = '';
@@ -6917,10 +6990,19 @@ class context_course extends context {
                     $name = get_string('course').': ';
                 }
                 if ($short){
-                    $name .= format_string($course->shortname, true, array('context' => $this));
+                    if (!$escape) {
+                        $name .= format_string($course->shortname, true, array('context' => $this, 'escape' => false));
+                    } else {
+                        $name .= format_string($course->shortname, true, array('context' => $this));
+                    }
                 } else {
-                    $name .= format_string(get_course_display_name_for_list($course));
-               }
+                    if (!$escape) {
+                        $name .= format_string(get_course_display_name_for_list($course), true, array('context' => $this,
+                            'escape' => false));
+                    } else {
+                        $name .= format_string(get_course_display_name_for_list($course), true, array('context' => $this));
+                    }
+                }
             }
         }
         return $name;
@@ -7124,9 +7206,10 @@ class context_module extends context {
      * @param boolean $withprefix whether to prefix the name of the context with the
      *      module name, e.g. Forum, Glossary, etc.
      * @param boolean $short does not apply to module context
+     * @param boolean $escape Whether the returned name of the context is to be HTML escaped or not.
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         global $DB;
 
         $name = '';
@@ -7138,7 +7221,11 @@ class context_module extends context {
                     if ($withprefix){
                         $name = get_string('modulename', $cm->modname).': ';
                     }
-                    $name .= format_string($mod->name, true, array('context' => $this));
+                    if (!$escape) {
+                        $name .= format_string($mod->name, true, array('context' => $this, 'escape' => false));
+                    } else {
+                        $name .= format_string($mod->name, true, array('context' => $this));
+                    }
                 }
             }
         return $name;
@@ -7399,9 +7486,10 @@ class context_block extends context {
      *
      * @param boolean $withprefix whether to prefix the name of the context with Block
      * @param boolean $short does not apply to block context
+     * @param boolean $escape does not apply to block context
      * @return string the human readable context name.
      */
-    public function get_context_name($withprefix = true, $short = false) {
+    public function get_context_name($withprefix = true, $short = false, $escape = true) {
         global $DB, $CFG;
 
         $name = '';
@@ -7515,16 +7603,23 @@ class context_block extends context {
     protected static function create_level_instances() {
         global $DB;
 
-        $sql = "SELECT ".CONTEXT_BLOCK.", bi.id
-                  FROM {block_instances} bi
-                 WHERE NOT EXISTS (SELECT 'x'
-                                     FROM {context} cx
-                                    WHERE bi.id = cx.instanceid AND cx.contextlevel=".CONTEXT_BLOCK.")";
-        $contextdata = $DB->get_recordset_sql($sql);
-        foreach ($contextdata as $context) {
-            context::insert_context_record(CONTEXT_BLOCK, $context->id, null);
-        }
-        $contextdata->close();
+        $sql = <<<EOF
+            INSERT INTO {context} (
+                contextlevel,
+                instanceid
+            ) SELECT
+                :contextlevel,
+                bi.id as instanceid
+               FROM {block_instances} bi
+               WHERE NOT EXISTS (
+                   SELECT 'x' FROM {context} cx WHERE bi.id = cx.instanceid AND cx.contextlevel = :existingcontextlevel
+               )
+        EOF;
+
+        $DB->execute($sql, [
+            'contextlevel' => CONTEXT_BLOCK,
+            'existingcontextlevel' => CONTEXT_BLOCK,
+        ]);
     }
 
     /**

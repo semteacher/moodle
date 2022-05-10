@@ -23,6 +23,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+namespace core;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once(__DIR__.'/test_moodle_database.php');
@@ -37,7 +39,7 @@ require_once(__DIR__.'/../../moodle_read_slave_trait.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class read_slave_moodle_database extends test_moodle_database {
-    use moodle_read_slave_trait;
+    use \moodle_read_slave_trait;
 
     /** @var string */
     protected $handle;
@@ -58,7 +60,7 @@ class read_slave_moodle_database extends test_moodle_database {
         $this->prefix = $prefix;
 
         if ($dbhost == 'test_ro_fail') {
-            throw new dml_connection_exception($dbhost);
+            throw new \dml_connection_exception($dbhost);
         }
 
         return true;
@@ -200,7 +202,7 @@ class read_slave_moodle_database extends test_moodle_database {
      * @param string $dbh
      * @return void
      */
-    protected function set_db_handle($dbh) {
+    protected function set_db_handle($dbh): void {
         $this->handle = $dbh;
     }
 
