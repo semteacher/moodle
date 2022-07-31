@@ -547,8 +547,9 @@ class quiz {
                 if (!isset($qcategories[$questiondata->category])) {
                     $qcategories[$questiondata->category] = false;
                 }
-                if ($questiondata->includingsubcategories) {
-                    $qcategories[$questiondata->category] = true;
+                if (!empty($questiondata->filtercondition)) {
+                    $filtercondition = json_decode($questiondata->filtercondition);
+                    $qcategories[$questiondata->category] = !empty($filtercondition->includingsubcategories);
                 }
             } else {
                 if (!in_array($questiondata->qtype, $questiontypes)) {
@@ -1848,7 +1849,7 @@ class quiz_attempt {
      */
     public function render_question_for_commenting($slot) {
         $options = $this->get_display_options(true);
-        $options->hide_all_feedback();
+        $options->generalfeedback = question_display_options::HIDDEN;
         $options->manualcomment = question_display_options::EDITABLE;
         return $this->quba->render_question($slot, $options,
                 $this->get_question_number($slot));
@@ -1900,8 +1901,7 @@ class quiz_attempt {
         $bc = new block_contents();
         $bc->attributes['id'] = 'mod_quiz_navblock';
         $bc->attributes['role'] = 'navigation';
-        $bc->attributes['aria-labelledby'] = 'mod_quiz_navblock_title';
-        $bc->title = html_writer::span(get_string('quiznavigation', 'quiz'), '', array('id' => 'mod_quiz_navblock_title'));
+        $bc->title = get_string('quiznavigation', 'quiz');
         $bc->content = $output->navigation_panel($panel);
         return $bc;
     }

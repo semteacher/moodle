@@ -532,104 +532,6 @@ function upgrade_delete_orphaned_file_records() {
 }
 
 /**
- * Updates the existing prediction actions in the database according to the new suggested actions.
- * @return null
- */
-function upgrade_rename_prediction_actions_useful_incorrectly_flagged() {
-    global $DB;
-
-    // The update depends on the analyser class used by each model so we need to iterate through the models in the system.
-    $modelids = $DB->get_records_sql("SELECT DISTINCT am.id, am.target
-                                        FROM {analytics_models} am
-                                        JOIN {analytics_predictions} ap ON ap.modelid = am.id
-                                        JOIN {analytics_prediction_actions} apa ON ap.id = apa.predictionid");
-    foreach ($modelids as $model) {
-        $targetname = $model->target;
-        if (!class_exists($targetname)) {
-            // The plugin may not be available.
-            continue;
-        }
-        $target = new $targetname();
-
-        $analyserclass = $target->get_analyser_class();
-        if (!class_exists($analyserclass)) {
-            // The plugin may not be available.
-            continue;
-        }
-
-        if ($analyserclass::one_sample_per_analysable()) {
-            // From 'fixed' to 'useful'.
-            $params = ['oldaction' => 'fixed', 'newaction' => 'useful'];
-        } else {
-            // From 'notuseful' to 'incorrectlyflagged'.
-            $params = ['oldaction' => 'notuseful', 'newaction' => 'incorrectlyflagged'];
-        }
-
-        $subsql = "SELECT id FROM {analytics_predictions} WHERE modelid = :modelid";
-        $updatesql = "UPDATE {analytics_prediction_actions}
-                         SET actionname = :newaction
-                       WHERE predictionid IN ($subsql) AND actionname = :oldaction";
-
-        $DB->execute($updatesql, $params + ['modelid' => $model->id]);
-    }
-}
-
-/**
- * Convert the site settings for the 'hub' component in the config_plugins table.
- *
- * @param stdClass $hubconfig Settings loaded for the 'hub' component.
- * @param string $huburl The URL of the hub to use as the valid one in case of conflict.
- * @return stdClass List of new settings to be applied (including null values to be unset).
- */
-function upgrade_convert_hub_config_site_param_names(stdClass $hubconfig, string $huburl): stdClass {
-
-    $cleanhuburl = clean_param($huburl, PARAM_ALPHANUMEXT);
-    $converted = [];
-
-    foreach ($hubconfig as $oldname => $value) {
-        if (preg_match('/^site_([a-z]+)([A-Za-z0-9_-]*)/', $oldname, $matches)) {
-            $newname = 'site_'.$matches[1];
-
-            if ($oldname === $newname) {
-                // There is an existing value with the new naming convention already.
-                $converted[$newname] = $value;
-
-            } else if (!array_key_exists($newname, $converted)) {
-                // Add the value under a new name and mark the original to be unset.
-                $converted[$newname] = $value;
-                $converted[$oldname] = null;
-
-            } else if ($matches[2] === '_'.$cleanhuburl) {
-                // The new name already exists, overwrite only if coming from the valid hub.
-                $converted[$newname] = $value;
-                $converted[$oldname] = null;
-
-            } else {
-                // Just unset the old value.
-                $converted[$oldname] = null;
-            }
-
-        } else {
-            // Not a hub-specific site setting, just keep it.
-            $converted[$oldname] = $value;
-        }
-    }
-
-    return (object) $converted;
-}
-
-/**
- * Fix the incorrect default values inserted into analytics contextids field.
- */
-function upgrade_analytics_fix_contextids_defaults() {
-    global $DB;
-
-    $select = $DB->sql_compare_text('contextids') . ' = :zero OR ' . $DB->sql_compare_text('contextids') . ' = :null';
-    $params = ['zero' => '0', 'null' => 'null'];
-    $DB->execute("UPDATE {analytics_models} set contextids = null WHERE " . $select, $params);
-}
-
-/**
  * Upgrade core licenses shipped with Moodle.
  */
 function upgrade_core_licenses() {
@@ -1596,4 +1498,39 @@ function upgrade_block_set_my_user_parent_context(
     $DB->execute($sql);
 
     $dbman->drop_table($xmldbtable);
+}
+
+/**
+ * Fix the timestamps for files where their timestamps are older
+ * than the directory listing that they are contained in.
+ */
+function upgrade_fix_file_timestamps() {
+    global $DB;
+
+    // Due to incompatability in SQL syntax for updates with joins,
+    // These will be updated in a select + separate update.
+    $sql = "SELECT f.id, f2.timecreated
+              FROM {files} f
+              JOIN {files} f2
+                    ON f2.contextid = f.contextid
+                   AND f2.filepath = f.filepath
+                   AND f2.component = f.component
+                   AND f2.filearea = f.filearea
+                   AND f2.itemid = f.itemid
+                   AND f2.filename = '.'
+             WHERE f2.timecreated > f.timecreated";
+
+    $recordset = $DB->get_recordset_sql($sql);
+
+    if (!$recordset->valid()) {
+        $recordset->close();
+        return;
+    }
+
+    foreach ($recordset as $record) {
+        $record->timemodified = $record->timecreated;
+        $DB->update_record('files', $record);
+    }
+
+    $recordset->close();
 }
