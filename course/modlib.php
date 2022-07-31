@@ -678,6 +678,7 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
     if (core_tag_tag::is_enabled('core', 'course_modules') && isset($moduleinfo->tags)) {
         core_tag_tag::set_item_tags('core', 'course_modules', $moduleinfo->coursemodule, $modcontext, $moduleinfo->tags);
     }
+    $moduleinfo = edit_module_post_actions($moduleinfo, $course);
 
     // Now that module is fully updated, also update completion data if required.
     // (this will wipe all user completion data and recalculate it)
@@ -689,17 +690,7 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
         $completion->reset_all_state($cminfo);
     }
     $cm->name = $moduleinfo->name;
-
-    //TDMU-begin block
-    if ($moduleinfo->modulename == "quiz") {
-        \core\event\course_module_updated::create_from_cm($cm, $modcontext, $moduleinfo->timeopen, $moduleinfo->timeclose)->trigger();
-    } else {//TDMU - else cause contain original code	
-        \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
-    }
-    //TDMU-end block			   
-
-
-    $moduleinfo = edit_module_post_actions($moduleinfo, $course, 'mod_updated');
+    \core\event\course_module_updated::create_from_cm($cm, $modcontext)->trigger();
 
     return array($cm, $moduleinfo);
 }
