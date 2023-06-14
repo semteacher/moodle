@@ -14,18 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Question external functions tests.
- *
- * @package    core_question
- * @category   external
- * @copyright  2016 Pau Ferrer <pau@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @since      Moodle 3.1
- */
-
 namespace core_question;
 
+use core_external\restricted_context_exception;
 use core_question_external;
 use externallib_advanced_testcase;
 
@@ -40,12 +31,22 @@ require_once($CFG->dirroot . '/question/engine/tests/helpers.php');
  * Question external functions tests
  *
  * @package    core_question
+ * @covers     \core_question_external
  * @category   external
  * @copyright  2016 Pau Ferrer <pau@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.1
  */
 class externallib_test extends externallib_advanced_testcase {
+
+    /** @var \stdClass course record. */
+    protected $course;
+
+    /** @var \stdClass user record. */
+    protected $student;
+
+    /** @var \stdClass user role record. */
+    protected $studentrole;
 
     /**
      * Set up for every test
@@ -322,7 +323,7 @@ class externallib_test extends externallib_advanced_testcase {
             // to be reset afterwards.
             core_question_external::get_random_question_summaries(1, false, [], $systemcontext->id);
         } catch (\Exception $e) {
-            $this->assertInstanceOf('restricted_context_exception', $e);
+            $this->assertInstanceOf(restricted_context_exception::class, $e);
         }
         // Reset the restriction so that other tests don't fail aftwards.
         core_question_external::set_context_restriction($systemcontext);

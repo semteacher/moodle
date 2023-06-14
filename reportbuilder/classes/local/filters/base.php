@@ -102,6 +102,9 @@ abstract class base {
     /**
      * Returns the filter clauses to be used with SQL where
      *
+     * Ideally the field SQL should be included only once in the returned expression, however if that is unavoidable then
+     * use the {@see filter::get_field_sql_and_params} helper to ensure uniqueness of any parameters included within
+     *
      * @param array $values
      * @return array [$sql, [...$params]]
      */
@@ -119,5 +122,15 @@ abstract class base {
         [$filtersql] = $this->get_sql_filter($values);
 
         return $filtersql !== '';
+    }
+
+    /**
+     * Return sample filter values, that when applied to a report would activate the filter - that is, cause the filter to return
+     * SQL snippet. Should be overridden in child classes, to ensure compatibility with stress tests of reports
+     *
+     * @return array
+     */
+    public function get_sample_values(): array {
+        return [];
     }
 }

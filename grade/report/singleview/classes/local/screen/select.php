@@ -38,6 +38,9 @@ defined('MOODLE_INTERNAL') || die;
  */
 class select extends screen {
 
+    /** @var \stdClass course data. */
+    public $item;
+
     /**
      * Initialise this screen
      *
@@ -48,7 +51,7 @@ class select extends screen {
 
         $roleids = explode(',', get_config('moodle', 'gradebookroles'));
 
-        $this->items = array();
+        $this->items = [];
         foreach ($roleids as $roleid) {
             // Keeping the first user appearance.
             $this->items = $this->items + get_role_users(
@@ -57,15 +60,15 @@ class select extends screen {
                 $this->perpage * $this->page, $this->perpage
             );
         }
-        $this->item = $DB->get_record('course', array('id' => $this->courseid));
+        $this->item = $DB->get_record('course', ['id' => $this->courseid]);
     }
 
     /**
      * Get the type of items on this screen, not valid so return false.
      *
-     * @return bool
+     * @return string|null
      */
-    public function item_type() {
+    public function item_type(): ?string {
         return false;
     }
 
@@ -74,15 +77,30 @@ class select extends screen {
      *
      * @return string
      */
-    public function html() {
-        global $OUTPUT;
+    public function html(): string {
+        global $OUTPUT, $COURSE;
+
+        if ($this->itemid === null) {
+            $userlink = new \moodle_url('/grade/report/singleview/index.php', ['id' => $COURSE->id, 'item' => 'user_select']);
+            $gradelink = new \moodle_url('/grade/report/singleview/index.php', ['id' => $COURSE->id, 'item' => 'grade_select']);
+            $context = [
+                'courseid' => $COURSE->id,
+                'imglink' => $OUTPUT->image_url('zero_state', 'gradereport_singleview'),
+                'userzerolink' => $userlink->out(false),
+                'userselectactive' => false,
+                'gradezerolink' => $gradelink->out(false),
+                'gradeselectactive' => false,
+                'displaylabel' => false
+            ];
+            return $OUTPUT->render_from_template('gradereport_singleview/zero_state', $context);
+        }
 
         $html = '';
 
-        $types = gradereport_singleview::valid_screens();
+        $types = gradereport_singleview\report\singleview::valid_screens();
 
         foreach ($types as $type) {
-            $classname = "gradereport_singleview\\local\\screen\\${type}";
+            $classname = "gradereport_singleview\\local\\screen\\{$type}";
 
             $screen = new $classname($this->courseid, null, $this->groupid);
 
@@ -96,16 +114,16 @@ class select extends screen {
                 continue;
             }
 
-            $params = array(
+            $params = [
                 'id' => $this->courseid,
                 'item' => $screen->item_type(),
                 'group' => $this->groupid
-            );
+            ];
 
             $url = new moodle_url('/grade/report/singleview/index.php', $params);
 
-            $select = new \single_select($url, 'itemid', $options, '', array('' => $screen->select_label()));
-            $select->set_label($screen->select_label(), array('class'=>'accesshide'));
+            $select = new \single_select($url, 'itemid', $options, '', ['' => $screen->select_label()]);
+            $select->set_label($screen->select_label(), ['class' => 'accesshide']);
             $html .= $OUTPUT->render($select);
         }
         $html = $OUTPUT->container($html, 'selectitems');
@@ -121,7 +139,36 @@ class select extends screen {
      * Should we show the next prev selector?
      * @return bool
      */
-    public function supports_next_prev() {
+    public function supports_next_prev(): bool {
+        return false;
+    }
+
+    /**
+     * Should we show the base singlereport group selector?
+     * @return bool
+     */
+    public function display_group_selector(): bool {
+        if ($this->itemid === null) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Get the heading for the screen.
+     *
+     * @return string
+     */
+    public function heading(): string {
+        return ' ';
+    }
+
+    /**
+     * Does this screen support paging?
+     *
+     * @return bool
+     */
+    public function supports_paging(): bool {
         return false;
     }
 }

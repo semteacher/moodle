@@ -37,15 +37,9 @@ $string['display_firstaccess'] = 'Display first access';
 $string['display_lastaccess'] = 'Display last access';
 $string['display_currentlogin'] = 'Display current login';
 $string['display_lastip'] = 'Display last IP';
+$string['display_lastlogin'] = 'Display last login';
 $string['myprofile:addinstance'] = 'Add a new logged in user block';
 $string['myprofile:myaddinstance'] = 'Add a new logged in user block to Dashboard';
 $string['myprofile_settings'] = 'Visible user information';
 $string['pluginname'] = 'Logged in user';
 $string['privacy:metadata'] = 'The Logged in user block only shows information about the logged in user and does not store data itself.';
-
-// Deprecated since Moodle 3.11.
-$string['display_icq'] = 'Display ICQ';
-$string['display_skype'] = 'Display Skype';
-$string['display_yahoo'] = 'Display Yahoo';
-$string['display_aim'] = 'Display AIM';
-$string['display_msn'] = 'Display MSN';

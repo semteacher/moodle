@@ -139,13 +139,12 @@ abstract class question_definition {
      * Constructor. Normally to get a question, you call
      * {@link question_bank::load_question()}, but questions can be created
      * directly, for example in unit test code.
-     * @return unknown_type
      */
     public function __construct() {
     }
 
     /**
-     * @return the name of the question type (for example multichoice) that this
+     * @return string the name of the question type (for example multichoice) that this
      * question is.
      */
     public function get_type_name() {
@@ -237,6 +236,9 @@ abstract class question_definition {
      * The first step has a variable '_order' which is a comma-separated list of question_answer ids.
      * A different version of the question will have different question_answers with different ids. However, the list of
      * choices should be similar, and so we need to shuffle the new list of ids in the same way that the old one was.
+     *
+     * Note: be sure to return all the data that was originally in $oldstep, while updating the fields that
+     * require it. Otherwise you might break features like 'Each attempt builds on last' in the quiz.
      *
      * This method should only be called if {@see validate_can_regrade_with_other_version()} did not
      * flag up a potential problem. So, this method will throw a {@see coding_exception} if it is not

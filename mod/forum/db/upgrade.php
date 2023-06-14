@@ -162,5 +162,29 @@ function xmldb_forum_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2022062700, 'forum');
     }
 
+    if ($oldversion < 2022072900) {
+        // Define key usermodified (foreign) to be added to forum_discussions.
+        $table = new xmldb_table('forum_discussions');
+        $key = new xmldb_key('usermodified', XMLDB_KEY_FOREIGN, ['usermodified'], 'user', ['id']);
+        // Launch add key usermodified.
+        $dbman->add_key($table, $key);
+
+        // Forum savepoint reached.
+        upgrade_mod_savepoint(true, 2022072900, 'forum');
+    }
+
+    // Automatically generated Moodle v4.1.0 release upgrade line.
+    // Put any upgrade step following this.
+
+    if ($oldversion < 2022112801) {
+        // Some very old discussions from early Moodle versions may have the usermodified set to zero.
+        $DB->execute("UPDATE {forum_discussions} SET usermodified = userid WHERE usermodified = 0");
+
+        upgrade_mod_savepoint(true, 2022112801, 'forum');
+    }
+
+    // Automatically generated Moodle v4.2.0 release upgrade line.
+    // Put any upgrade step following this.
+
     return true;
 }

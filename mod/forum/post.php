@@ -105,7 +105,10 @@ if (!isloggedin() or isguestuser()) {
     $referer = get_local_referer(false);
 
     echo $OUTPUT->header();
-    echo $OUTPUT->confirm(get_string('noguestpost', 'forum').'<br /><br />'.get_string('liketologin'), get_login_url(), $referer);
+    echo $OUTPUT->confirm(get_string('noguestpost', 'forum'), get_login_url(), $referer, [
+        'confirmtitle' => get_string('noguestpost:title', 'forum'),
+        'continuestr' => get_string('login')
+    ]);
     echo $OUTPUT->footer();
     exit;
 }
@@ -343,7 +346,10 @@ if (!empty($forum)) {
         $canreplyprivately = forum_user_can_reply_privately($modcontext, $parent);
     }
 
-    $post = trusttext_pre_edit($post, 'message', $modcontext);
+    // If markdown is used, the parser does the job already, otherwise clean text from arbitrary code that might be dangerous.
+    if ($post->messageformat != FORMAT_MARKDOWN) {
+        $post = trusttext_pre_edit($post, 'message', $modcontext);
+    }
 
     // Unsetting this will allow the correct return URL to be calculated later.
     unset($SESSION->fromdiscussion);
@@ -796,9 +802,10 @@ if ($mformpost->is_cancelled()) {
     // WARNING: the $fromform->message array has been overwritten, do not use it anymore!
     $fromform->messagetrust  = trusttext_trusted($modcontext);
 
-    // Clean message text.
-    $fromform = trusttext_pre_edit($fromform, 'message', $modcontext);
-
+    // Clean message text, unless markdown which should be saved as it is, otherwise editing messes things up.
+    if ($fromform->messageformat != FORMAT_MARKDOWN) {
+        $fromform = trusttext_pre_edit($fromform, 'message', $modcontext);
+    }
     if ($fromform->edit) {
         // Updating a post.
         unset($fromform->groupid);
@@ -992,7 +999,7 @@ if ($mformpost->is_cancelled()) {
         forum_check_blocking_threshold($thresholdwarning);
 
         foreach ($groupstopostto as $group) {
-            if (!$capabilitymanager->can_create_discussions($USER, $groupid)) {
+            if (!$capabilitymanager->can_create_discussions($USER, $group)) {
                 throw new \moodle_exception('cannotcreatediscussion', 'forum');
             }
 

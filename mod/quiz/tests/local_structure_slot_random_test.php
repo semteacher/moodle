@@ -14,16 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Unit tests for the {@link \mod_quiz\local\structure\slot_random} class.
- *
- * @package    mod_quiz
- * @category   test
- * @copyright  2018 Shamim Rezaie <shamim@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
-defined('MOODLE_INTERNAL') || die();
+namespace mod_quiz;
 
 use mod_quiz\question\bank\qbank_helper;
 
@@ -31,10 +22,12 @@ use mod_quiz\question\bank\qbank_helper;
  * Class mod_quiz_local_structure_slot_random_test
  * Class for tests related to the {@link \mod_quiz\local\structure\slot_random} class.
  *
+ * @package    mod_quiz
+ * @category   test
  * @copyright  2018 Shamim Rezaie <shamim@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
+class local_structure_slot_random_test extends \advanced_testcase {
     /**
      * Constructor test.
      */
@@ -46,7 +39,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a quiz.
         $quizgenerator = $this->getDataGenerator()->get_plugin_generator('mod_quiz');
-        $quiz = $quizgenerator->create_instance(array('course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0));
+        $quiz = $quizgenerator->create_instance(['course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0]);
 
         // Create a question category in the system context.
         $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
@@ -54,7 +47,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a random question without adding it to a quiz.
         // We don't want to use quiz_add_random_questions because that itself, instantiates an object from the slot_random class.
-        $form = new stdClass();
+        $form = new \stdClass();
         $form->category = $category->id . ',' . $category->contextid;
         $form->includesubcategories = true;
         $form->fromtags = [];
@@ -63,22 +56,22 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         $form->stamp = make_unique_id_code();
 
         // Set the filter conditions.
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $filtercondition->questioncategoryid = $category->id;
         $filtercondition->includingsubcategories = 1;
 
         // Slot data.
-        $randomslotdata = new stdClass();
+        $randomslotdata = new \stdClass();
         $randomslotdata->quizid = $quiz->id;
         $randomslotdata->maxmark = 1;
-        $randomslotdata->usingcontextid = context_module::instance($quiz->cmid)->id;
+        $randomslotdata->usingcontextid = \context_module::instance($quiz->cmid)->id;
         $randomslotdata->questionscontextid = $category->contextid;
 
         // Insert the random question to the quiz.
         $randomslot = new \mod_quiz\local\structure\slot_random($randomslotdata);
         $randomslot->set_filter_condition($filtercondition);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('filtercondition');
         $rcp->setAccessible(true);
         $record = json_decode($rcp->getValue($randomslot));
@@ -101,7 +94,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a quiz.
         $quizgenerator = $this->getDataGenerator()->get_plugin_generator('mod_quiz');
-        $quiz = $quizgenerator->create_instance(array('course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0));
+        $quiz = $quizgenerator->create_instance(['course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0]);
 
         // Create a question category in the system context.
         $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
@@ -110,15 +103,15 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         quiz_add_random_questions($quiz, 0, $category->id, 1, false);
 
         // Set the filter conditions.
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $filtercondition->questioncategoryid = $category->id;
         $filtercondition->includingsubcategories = 1;
 
         // Slot data.
-        $randomslotdata = new stdClass();
+        $randomslotdata = new \stdClass();
         $randomslotdata->quizid = $quiz->id;
         $randomslotdata->maxmark = 1;
-        $randomslotdata->usingcontextid = context_module::instance($quiz->cmid)->id;
+        $randomslotdata->usingcontextid = \context_module::instance($quiz->cmid)->id;
         $randomslotdata->questionscontextid = $category->contextid;
 
         $randomslot = new \mod_quiz\local\structure\slot_random($randomslotdata);
@@ -138,7 +131,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a quiz.
         $quizgenerator = $this->getDataGenerator()->get_plugin_generator('mod_quiz');
-        $quiz = $quizgenerator->create_instance(array('course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0));
+        $quiz = $quizgenerator->create_instance(['course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0]);
 
         // Create a question category in the system context.
         $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
@@ -147,15 +140,15 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         quiz_add_random_questions($quiz, 0, $category->id, 1, false);
 
         // Set the filter conditions.
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $filtercondition->questioncategoryid = $category->id;
         $filtercondition->includingsubcategories = 1;
 
         // Slot data.
-        $randomslotdata = new stdClass();
+        $randomslotdata = new \stdClass();
         $randomslotdata->quizid = $quiz->id;
         $randomslotdata->maxmark = 1;
-        $randomslotdata->usingcontextid = context_module::instance($quiz->cmid)->id;
+        $randomslotdata->usingcontextid = \context_module::instance($quiz->cmid)->id;
         $randomslotdata->questionscontextid = $category->contextid;
 
         $randomslot = new \mod_quiz\local\structure\slot_random($randomslotdata);
@@ -166,7 +159,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         $randomslot->set_quiz($quiz);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('quiz');
         $rcp->setAccessible(true);
         $quizpropery = $rcp->getValue($randomslot);
@@ -179,7 +172,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a quiz.
         $quizgenerator = $this->getDataGenerator()->get_plugin_generator('mod_quiz');
-        $quiz = $quizgenerator->create_instance(array('course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0));
+        $quiz = $quizgenerator->create_instance(['course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0]);
 
         // Create a question category in the system context.
         $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
@@ -188,26 +181,26 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         quiz_add_random_questions($quiz, 0, $category->id, 1, false);
 
         // Slot data.
-        $randomslotdata = new stdClass();
+        $randomslotdata = new \stdClass();
         $randomslotdata->quizid = $quiz->id;
         $randomslotdata->maxmark = 1;
-        $randomslotdata->usingcontextid = context_module::instance($quiz->cmid)->id;
+        $randomslotdata->usingcontextid = \context_module::instance($quiz->cmid)->id;
         $randomslotdata->questionscontextid = $category->contextid;
 
         $randomslot = new \mod_quiz\local\structure\slot_random($randomslotdata);
 
         // Create tags.
         foreach ($tagnames as $tagname) {
-            $tagrecord = array(
+            $tagrecord = [
                 'isstandard' => 1,
                 'flag' => 0,
                 'rawname' => $tagname,
                 'description' => $tagname . ' desc'
-            );
+            ];
             $tags[$tagname] = $this->getDataGenerator()->create_tag($tagrecord);
         }
 
-        return array($randomslot, $tags);
+        return [$randomslot, $tags];
     }
 
     public function test_set_tags() {
@@ -215,11 +208,11 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         $this->setAdminUser();
 
         list($randomslot, $tags) = $this->setup_for_test_tags(['foo', 'bar']);
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $randomslot->set_tags([$tags['foo'], $tags['bar']]);
         $randomslot->set_filter_condition($filtercondition);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('filtercondition');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -237,13 +230,13 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         list($randomslot, $tags) = $this->setup_for_test_tags(['foo', 'bar', 'baz']);
 
         // Set tags for the first time.
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $randomslot->set_tags([$tags['foo'], $tags['bar']]);
         // Now set the tags again.
         $randomslot->set_tags([$tags['baz']]);
         $randomslot->set_filter_condition($filtercondition);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('filtercondition');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -258,11 +251,11 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         $this->setAdminUser();
 
         list($randomslot, $tags) = $this->setup_for_test_tags(['foo', 'bar', 'baz']);
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $randomslot->set_tags([$tags['foo'], $tags['bar'], $tags['foo']]);
         $randomslot->set_filter_condition($filtercondition);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('filtercondition');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -278,11 +271,11 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         $this->setAdminUser();
 
         list($randomslot, $tags) = $this->setup_for_test_tags(['foo', 'bar', 'baz']);
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $randomslot->set_tags_by_id([$tags['foo']->id, $tags['bar']->id]);
         $randomslot->set_filter_condition($filtercondition);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('tags');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -312,7 +305,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         // Now set the tags again.
         $randomslot->set_tags_by_id([$tags['baz']->id]);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('tags');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -334,7 +327,7 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         $randomslot->set_tags_by_id([$tags['foo']->id, $tags['bar']->id], $tags['foo']->id);
 
-        $rc = new ReflectionClass('\mod_quiz\local\structure\slot_random');
+        $rc = new \ReflectionClass('\mod_quiz\local\structure\slot_random');
         $rcp = $rc->getProperty('tags');
         $rcp->setAccessible(true);
         $tagspropery = $rcp->getValue($randomslot);
@@ -361,15 +354,15 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
 
         // Create a quiz.
         $quizgenerator = $this->getDataGenerator()->get_plugin_generator('mod_quiz');
-        $quiz = $quizgenerator->create_instance(array('course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0));
-        $quizcontext = context_module::instance($quiz->cmid);
+        $quiz = $quizgenerator->create_instance(['course' => $SITE->id, 'questionsperpage' => 3, 'grade' => 100.0]);
+        $quizcontext = \context_module::instance($quiz->cmid);
 
         // Create a question category in the system context.
         $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
         $category = $questiongenerator->create_question_category();
 
         // Create a random question without adding it to a quiz.
-        $form = new stdClass();
+        $form = new \stdClass();
         $form->category = $category->id . ',' . $category->contextid;
         $form->includesubcategories = true;
         $form->fromtags = [];
@@ -378,29 +371,29 @@ class mod_quiz_local_structure_slot_random_test extends advanced_testcase {
         $form->stamp = make_unique_id_code();
 
         // Prepare 2 tags.
-        $tagrecord = array(
+        $tagrecord = [
             'isstandard' => 1,
             'flag' => 0,
             'rawname' => 'foo',
             'description' => 'foo desc'
-        );
+        ];
         $footag = $this->getDataGenerator()->create_tag($tagrecord);
-        $tagrecord = array(
+        $tagrecord = [
             'isstandard' => 1,
             'flag' => 0,
             'rawname' => 'bar',
             'description' => 'bar desc'
-        );
+        ];
         $bartag = $this->getDataGenerator()->create_tag($tagrecord);
 
 
         // Set the filter conditions.
-        $filtercondition = new stdClass();
+        $filtercondition = new \stdClass();
         $filtercondition->questioncategoryid = $category->id;
         $filtercondition->includingsubcategories = 1;
 
         // Slot data.
-        $randomslotdata = new stdClass();
+        $randomslotdata = new \stdClass();
         $randomslotdata->quizid = $quiz->id;
         $randomslotdata->maxmark = 1;
         $randomslotdata->usingcontextid = $quizcontext->id;

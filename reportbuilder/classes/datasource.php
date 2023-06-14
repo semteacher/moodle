@@ -35,6 +35,18 @@ use core_reportbuilder\local\report\filter;
  */
 abstract class datasource extends base {
 
+    /** @var float[] $elementsmodified Track the time elements of specific reports have been added, updated, removed */
+    private static $elementsmodified = [];
+
+    /** @var array $activecolumns */
+    private $activecolumns;
+
+    /** @var array $activefilters */
+    private $activefilters;
+
+    /** @var array $activeconditions */
+    private $activeconditions;
+
     /**
      * Return user friendly name of the datasource
      *
@@ -83,9 +95,27 @@ abstract class datasource extends base {
      */
     public function add_default_columns(): void {
         $reportid = $this->get_report_persistent()->get('id');
+
+        // Retrieve default column sorting, and track index of both sorted/non-sorted columns.
         $columnidentifiers = $this->get_default_columns();
+        $defaultcolumnsorting = array_intersect_key($this->get_default_column_sorting(),
+            array_fill_keys($columnidentifiers, 1));
+        $columnnonsortingindex = count($defaultcolumnsorting) + 1;
+
         foreach ($columnidentifiers as $uniqueidentifier) {
-            report::add_report_column($reportid, $uniqueidentifier);
+            $column = report::add_report_column($reportid, $uniqueidentifier);
+
+            // After adding the column, toggle sorting according to defaults provided by the datasource.
+            $sortorder = array_search($uniqueidentifier, array_keys($defaultcolumnsorting));
+            if ($sortorder !== false) {
+                $column->set_many([
+                    'sortenabled' => true,
+                    'sortdirection' => $defaultcolumnsorting[$uniqueidentifier],
+                    'sortorder' => $sortorder + 1,
+                ])->update();
+            } else if (!empty($defaultcolumnsorting)) {
+                $column->set('sortorder', $columnnonsortingindex++)->update();
+            }
         }
     }
 
@@ -97,27 +127,51 @@ abstract class datasource extends base {
     abstract public function get_default_columns(): array;
 
     /**
-     * Return all configured report columns
+     * Return the default sorting that will be added to the report once it is created
+     *
+     * @return int[] array [column identifier => SORT_ASC/SORT_DESC]
+     */
+    public function get_default_column_sorting(): array {
+        return [];
+    }
+
+    /**
+     * Override parent method, returning only those columns specifically added to the custom report (rather than all that are
+     * available)
      *
      * @return column[]
      */
     public function get_active_columns(): array {
-        $columns = [];
+        $reportid = $this->get_report_persistent()->get('id');
 
-        $activecolumns = column_model::get_records(['reportid' => $this->get_report_persistent()->get('id')], 'columnorder');
+        // Determine whether we already retrieved the columns since the report was last modified.
+        self::$elementsmodified += [$reportid => -1];
+        if ($this->activecolumns !== null && $this->activecolumns['builttime'] > self::$elementsmodified[$reportid]) {
+            return $this->activecolumns['values'];
+        }
+
+        $this->activecolumns = ['builttime' => microtime(true), 'values' => []];
+
+        $activecolumns = column_model::get_records(['reportid' => $reportid], 'columnorder');
         foreach ($activecolumns as $index => $column) {
             $instance = $this->get_column($column->get('uniqueidentifier'));
+
+            // Ensure the column is still present and available.
             if ($instance !== null && $instance->get_is_available()) {
-                $instance->set_persistent($column);
+                if ($instance->get_is_deprecated()) {
+                    debugging("The column '{$instance->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                        " {$instance->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+                }
 
                 // We should clone the report column to ensure if it's added twice to a report, each operates independently.
-                $columns[] = clone $instance
+                $this->activecolumns['values'][] = clone $instance
                     ->set_index($index)
+                    ->set_persistent($column)
                     ->set_aggregation($column->get('aggregation'));
             }
         }
 
-        return $columns;
+        return $this->activecolumns['values'];
     }
 
     /**
@@ -175,23 +229,39 @@ abstract class datasource extends base {
     abstract public function get_default_filters(): array;
 
     /**
-     * Return all configured report filters
+     * Override parent method, returning only those filters specifically added to the custom report (rather than all that are
+     * available)
      *
      * @return filter[]
      */
     public function get_active_filters(): array {
-        $filters = [];
+        $reportid = $this->get_report_persistent()->get('id');
 
-        $activefilters = filter_model::get_filter_records($this->get_report_persistent()->get('id'), 'filterorder');
+        // Determine whether we already retrieved the filters since the report was last modified.
+        self::$elementsmodified += [$reportid => -1];
+        if ($this->activefilters !== null && $this->activefilters['builttime'] > self::$elementsmodified[$reportid]) {
+            return $this->activefilters['values'];
+        }
+
+        $this->activefilters = ['builttime' => microtime(true), 'values' => []];
+
+        $activefilters = filter_model::get_filter_records($reportid, 'filterorder');
         foreach ($activefilters as $filter) {
             $instance = $this->get_filter($filter->get('uniqueidentifier'));
+
+            // Ensure the filter is still present and available.
             if ($instance !== null && $instance->get_is_available()) {
-                $filters[$instance->get_unique_identifier()] = $instance
-                    ->set_persistent($filter);
+                if ($instance->get_is_deprecated()) {
+                    debugging("The filter '{$instance->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                        " {$instance->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+                }
+
+                $this->activefilters['values'][$instance->get_unique_identifier()] =
+                    $instance->set_persistent($filter);
             }
         }
 
-        return $filters;
+        return $this->activefilters['values'];
     }
 
     /**
@@ -264,22 +334,39 @@ abstract class datasource extends base {
     }
 
     /**
-     * Return all configured report conditions
+     * Override parent method, returning only those conditions specifically added to the custom report (rather than all that are
+     * available)
      *
      * @return filter[]
      */
     public function get_active_conditions(): array {
-        $conditions = [];
+        $reportid = $this->get_report_persistent()->get('id');
 
-        $activeconditions = filter_model::get_condition_records($this->get_report_persistent()->get('id'), 'filterorder');
+        // Determine whether we already retrieved the conditions since the report was last modified.
+        self::$elementsmodified += [$reportid => -1];
+        if ($this->activeconditions !== null && $this->activeconditions['builttime'] > self::$elementsmodified[$reportid]) {
+            return $this->activeconditions['values'];
+        }
+
+        $this->activeconditions = ['builttime' => microtime(true), 'values' => []];
+
+        $activeconditions = filter_model::get_condition_records($reportid, 'filterorder');
         foreach ($activeconditions as $condition) {
             $instance = $this->get_condition($condition->get('uniqueidentifier'));
+
+            // Ensure the condition is still present and available.
             if ($instance !== null && $instance->get_is_available()) {
-                $conditions[$instance->get_unique_identifier()] = $instance;
+                if ($instance->get_is_deprecated()) {
+                    debugging("The condition '{$instance->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                        " {$instance->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+                }
+
+                $this->activeconditions['values'][$instance->get_unique_identifier()] =
+                    $instance->set_persistent($condition);
             }
         }
 
-        return $conditions;
+        return $this->activeconditions['values'];
     }
 
     /**
@@ -300,5 +387,14 @@ abstract class datasource extends base {
         foreach ($this->get_entities() as $entity) {
             $this->add_all_from_entity($entity->get_entity_name());
         }
+    }
+
+    /**
+     * Indicate that report elements have been modified, e.g. columns/filters/conditions have been added, removed or updated
+     *
+     * @param int $reportid
+     */
+    final public static function report_elements_modified(int $reportid): void {
+        self::$elementsmodified[$reportid] = microtime(true);
     }
 }

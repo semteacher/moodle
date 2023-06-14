@@ -17,11 +17,11 @@
 namespace core_course\external;
 
 use context_module;
-use external_description;
-use external_files;
-use external_format_value;
-use external_util;
-use external_value;
+use core_external\external_description;
+use core_external\external_files;
+use core_external\external_format_value;
+use core_external\util as external_util;
+use core_external\external_value;
 
 /**
  * This class helps implement the get_..._by_courses web service that every activity should have.
@@ -57,6 +57,7 @@ abstract class helper_for_get_mods_by_courses {
         $moddetails['coursemodule'] = $modinstance->coursemodule;
         $moddetails['course'] = $modinstance->course;
         $moddetails['name'] = $modinstance->name;
+        $moddetails['lang'] = clean_param($modinstance->lang, PARAM_LANG);
         if (!$capabilityforintro || has_capability($capabilityforintro, $context)) {
             $moddetails['intro'] = $modinstance->intro;
             $moddetails['introformat'] = $modinstance->introformat;
@@ -85,10 +86,10 @@ abstract class helper_for_get_mods_by_courses {
     public static function format_name_and_intro(\stdClass $modinstance, string $component) {
         $context = context_module::instance($modinstance->coursemodule);
 
-        $modinstance->name = external_format_string($modinstance->name, $context->id);
+        $modinstance->name = \core_external\util::format_string($modinstance->name, $context);
 
-        [$modinstance->intro, $modinstance->introformat] = external_format_text(
-                $modinstance->intro, $modinstance->introformat, $context->id,
+        [$modinstance->intro, $modinstance->introformat] = \core_external\util::format_text(
+                $modinstance->intro, $modinstance->introformat, $context,
                 $component, 'intro', null, ['noclean' => true]);
         $modinstance->introfiles = external_util::get_area_files($context->id, $component, 'intro', false, false);
     }
@@ -130,6 +131,7 @@ abstract class helper_for_get_mods_by_courses {
             'visible' => new external_value(PARAM_BOOL, 'Visible', VALUE_OPTIONAL),
             'groupmode' => new external_value(PARAM_INT, 'Group mode', VALUE_OPTIONAL),
             'groupingid' => new external_value(PARAM_INT, 'Group id', VALUE_OPTIONAL),
+            'lang' => new external_value(PARAM_SAFEDIR, 'Forced activity language', VALUE_OPTIONAL),
         ];
     }
 }

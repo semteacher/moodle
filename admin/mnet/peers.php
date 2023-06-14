@@ -51,18 +51,12 @@ if ($hostid && $DB->get_field('mnet_host', 'deleted', array('id' => $hostid)) !=
 $PAGE->set_url('/admin/mnet/peers.php');
 admin_externalpage_setup($adminsection);
 
-$deprecatenotify = mnet_get_deprecation_notice();
-
 if (!extension_loaded('openssl')) {
     throw new \moodle_exception('requiresopenssl', 'mnet');
 }
 
 if (!function_exists('curl_init') ) {
     throw new \moodle_exception('nocurl', 'mnet');
-}
-
-if (!function_exists('xmlrpc_encode_request')) {
-    throw new \moodle_exception('xmlrpc-missing', 'mnet');
 }
 
 if (!isset($CFG->mnet_dispatcher_mode)) {
@@ -89,10 +83,8 @@ if ($formdata = $simpleform->get_data()) {
     $mnet_peer->bootstrap($formdata->wwwroot, null, $application);
     // bootstrap the second form straight with the data from the first form
     $reviewform = new mnet_review_host_form(null, array('peer' => $mnet_peer)); // the second step (also the edit host form)
-    $formdata->oldpublickey = $mnet_peer->public_key; // set this so we can confirm on form post without having to recreate the mnet_peer object
     $reviewform->set_data($mnet_peer);
     echo $OUTPUT->header();
-    echo $OUTPUT->render($deprecatenotify);
     echo $OUTPUT->box_start();
     $reviewform->display();
     echo $OUTPUT->box_end();
@@ -122,7 +114,6 @@ if (!empty($hostid)) {
         }
         $credentials = $mnet_peer->check_credentials($mnet_peer->public_key);
         $reviewform = new mnet_review_host_form(null, array('peer' => $mnet_peer)); // the second step (also the edit host form)
-        $mnet_peer->oldpublickey = $mnet_peer->public_key; // set this so we can confirm on form post without having to recreate the mnet_peer object
         $reviewform->set_data((object)$mnet_peer);
         echo $OUTPUT->box_start();
         $reviewform->display();
@@ -180,7 +171,6 @@ if ($formdata = $reviewform->get_data()) {
     }
 } else if ($reviewform->is_submitted()) { // submitted, but errors
     echo $OUTPUT->header();
-    echo $OUTPUT->render($deprecatenotify);
     echo $OUTPUT->box_start();
     $reviewform->display();
     echo $OUTPUT->box_end();
@@ -191,7 +181,6 @@ if ($formdata = $reviewform->get_data()) {
 
 // normal flow - just display all hosts with links
 echo $OUTPUT->header();
-echo $OUTPUT->render($deprecatenotify);
 $hosts = mnet_get_hosts(true);
 
 // print the table to display the register all hosts setting

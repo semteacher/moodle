@@ -117,6 +117,9 @@ class auth_plugin_base {
      */
     protected $errorlogtag = '';
 
+    /** @var array Stores extra information available to the logged in event. */
+    protected $extrauserinfo = [];
+
     /**
      * This is the primary method that is used by the authenticate_user_login()
      * function in moodlelib.php.
@@ -807,6 +810,25 @@ class auth_plugin_base {
             'message' => $message
         ];
     }
+
+    /**
+     * Set extra user information.
+     *
+     * @param array $values Any Key value pair.
+     * @return void
+     */
+    public function set_extrauserinfo(array $values): void {
+        $this->extrauserinfo = $values;
+    }
+
+    /**
+     * Returns extra user information.
+     *
+     * @return array An array of keys and values
+     */
+    public function get_extrauserinfo(): array {
+        return $this->extrauserinfo;
+    }
 }
 
 /**
@@ -1175,7 +1197,7 @@ function signup_is_enabled() {
 
 /**
  * Helper function used to print locking for auth plugins on admin pages.
- * @param stdclass $settings Moodle admin settings instance
+ * @param admin_settingpage $settings Moodle admin settings instance
  * @param string $auth authentication plugin shortname
  * @param array $userfields user profile fields
  * @param string $helptext help text to be displayed at top of form

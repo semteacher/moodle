@@ -14,14 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * Class handling course content updates notifications.
- *
- * @package    core_course
- * @copyright  2021 Juan Leyva <juan@moodle.com>
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace core_course\task;
 
 use core\task\adhoc_task;
@@ -40,8 +32,6 @@ class content_notification_task extends adhoc_task {
 
     /**
      * Run the main task.
-     *
-     * @throws \coding_exception if something wrong happens.
      */
     public function execute() {
         global $CFG, $OUTPUT;
@@ -78,7 +68,7 @@ class content_notification_task extends adhoc_task {
             from user with id {$userfrom->id}.");
         foreach ($users as $user) {
 
-            cron_setup_user($user, $course);
+            \core\cron::setup_user($user, $course);
 
             $cm = get_fast_modinfo($course)->cms[$cm->id];
 
@@ -91,7 +81,7 @@ class content_notification_task extends adhoc_task {
             // Get module names in the user's language.
             $modnames = get_module_types_names();
             $a = [
-                'coursename' => get_course_display_name_for_list($course),
+                'coursename' => format_string(get_course_display_name_for_list($course), true, ['context' => $modcontext]),
                 'courselink' => (new \moodle_url('/course/view.php', ['id' => $course->id]))->out(false),
                 'modulename' => format_string($cm->name, $modcontext->id),
                 'moduletypename' => $modnames[$cm->modname],
@@ -122,12 +112,13 @@ class content_notification_task extends adhoc_task {
             $eventdata->contexturl = (new \moodle_url('/mod/' . $cm->modname . '/view.php', ['id' => $cm->id]))->out(false);
             $eventdata->contexturlname = $cm->name;
             $eventdata->notification = 1;
-            $eventdata->customdata  = [
-                'notificationiconurl' => $cm->get_icon_url()->out(false),
-            ];
+
+            // Add notification custom data.
+            $eventcustomdata = ['notificationiconurl' => $cm->get_icon_url()->out(false)];
             if ($courseimage = \core_course\external\course_summary_exporter::get_course_image($course)) {
-                $eventdata->customdata['notificationpictureurl'] = $courseimage;
+                $eventcustomdata['notificationpictureurl'] = $courseimage;
             }
+            $eventdata->customdata = $eventcustomdata;
 
             $completion = \core_completion\cm_completion_details::get_instance($cm, $user->id);
             $activitydates = \core\activity_dates::get_dates_for_module($cm, $user->id);

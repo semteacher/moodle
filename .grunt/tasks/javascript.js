@@ -30,10 +30,9 @@
  * @param {String} srcPath the  matched src path
  * @return {String} The rewritten destination path.
  */
-
 const babelRename = function(destPath, srcPath) {
-    destPath = srcPath.replace('src', 'build');
-    destPath = destPath.replace('.js', '.min.js');
+    destPath = srcPath.replace(`amd/src`, `amd/build`);
+    destPath = destPath.replace(/\.js$/, '.min.js');
     return destPath;
 };
 
@@ -46,6 +45,9 @@ module.exports = grunt => {
 
     // Load ESLint.
     require('./eslint')(grunt);
+
+    // Load jsconfig.
+    require('./jsconfig')(grunt);
 
     // Load JSDoc.
     require('./jsdoc')(grunt);
