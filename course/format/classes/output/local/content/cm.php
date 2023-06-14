@@ -59,12 +59,6 @@ class cm implements named_templatable, renderable {
     /** @var array optional display options */
     protected $displayoptions;
 
-    /** @var string activity link css classes */
-    protected $linkclasses = null;
-
-    /** @var string text css classes */
-    protected $textclasses = null;
-
     /** @var string the activity name output class name */
     protected $cmnameclass;
 
@@ -88,10 +82,8 @@ class cm implements named_templatable, renderable {
         $this->mod = $mod;
 
         // Add extra display options.
-        $this->load_classes();
-        $displayoptions['linkclasses'] = $this->get_link_classes();
-        $displayoptions['textclasses'] = $this->get_text_classes();
         $this->displayoptions = $displayoptions;
+        $this->load_classes();
 
         // Get the necessary classes.
         $this->cmnameclass = $format->get_output_classname('content\\cm\\cmname');
@@ -116,6 +108,7 @@ class cm implements named_templatable, renderable {
             'activityname' => $mod->get_formatted_name(),
             'textclasses' => $displayoptions['textclasses'],
             'classlist' => [],
+            'cmid' => $mod->id,
         ];
 
         // Add partial data segments.
@@ -148,11 +141,11 @@ class cm implements named_templatable, renderable {
             $this->format,
             $this->section,
             $this->mod,
-            $this->format->show_editor(),
+            null,
             $this->displayoptions
         );
         $data->cmname = $cmname->export_for_template($output);
-        $data->hasname = !empty($data->cmname['displayvalue']);
+        $data->hasname = $cmname->has_name();
         return $data->hasname;
     }
 
@@ -323,8 +316,9 @@ class cm implements named_templatable, renderable {
                 $textclasses .= ' conditionalhidden';
             }
         }
-        $this->linkclasses = $linkclasses;
-        $this->textclasses = $textclasses;
+        $this->displayoptions['linkclasses'] = $linkclasses;
+        $this->displayoptions['textclasses'] = $textclasses;
+        $this->displayoptions['onclick'] = htmlspecialchars_decode($mod->onclick, ENT_QUOTES);;
     }
 
     /**
@@ -333,7 +327,7 @@ class cm implements named_templatable, renderable {
      * @return string the activity link classes.
      */
     public function get_link_classes(): string {
-        return $this->linkclasses;
+        return $this->displayoptions['linkclasses'] ?? '';
     }
 
     /**
@@ -342,6 +336,15 @@ class cm implements named_templatable, renderable {
      * @return string the activity text classes.
      */
     public function get_text_classes(): string {
-        return $this->textclasses;
+        return $this->displayoptions['textclasses'] ?? '';
+    }
+
+    /**
+     * Get the activity onclick code.
+     *
+     * @return string the activity onclick.
+     */
+    public function get_onclick_code(): string {
+        return $this->displayoptions['onclick'];
     }
 }

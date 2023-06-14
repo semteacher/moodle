@@ -87,6 +87,9 @@ abstract class base {
     /** @var int Default paging size */
     private $defaultperpage = self::DEFAULT_PAGESIZE;
 
+    /** @var array $attributes */
+    private $attributes = [];
+
     /**
      * Base report constructor
      *
@@ -289,8 +292,12 @@ abstract class base {
      * @throws coding_exception
      */
     final protected function annotate_entity(string $name, lang_string $title): void {
-        if (empty($name) || $name !== clean_param($name, PARAM_ALPHANUMEXT)) {
+        if ($name === '' || $name !== clean_param($name, PARAM_ALPHANUMEXT)) {
             throw new coding_exception('Entity name must be comprised of alphanumeric character, underscore or dash');
+        }
+
+        if (array_key_exists($name, $this->entitytitles)) {
+            throw new coding_exception('Duplicate entity name', $name);
         }
 
         $this->entitytitles[$name] = $title;
@@ -392,7 +399,15 @@ abstract class base {
      * @return column[]
      */
     public function get_active_columns(): array {
-        return $this->get_columns();
+        $columns = $this->get_columns();
+        foreach ($columns as $column) {
+            if ($column->get_is_deprecated()) {
+                debugging("The column '{$column->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                    " {$column->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+            }
+        }
+
+        return $columns;
     }
 
     /**
@@ -491,7 +506,15 @@ abstract class base {
      * @return filter[]
      */
     public function get_active_conditions(): array {
-        return $this->get_conditions();
+        $conditions = $this->get_conditions();
+        foreach ($conditions as $condition) {
+            if ($condition->get_is_deprecated()) {
+                debugging("The condition '{$condition->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                    " {$condition->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+            }
+        }
+
+        return $conditions;
     }
 
     /**
@@ -638,7 +661,15 @@ abstract class base {
      * @return filter[]
      */
     public function get_active_filters(): array {
-        return $this->get_filters();
+        $filters = $this->get_filters();
+        foreach ($filters as $filter) {
+            if ($filter->get_is_deprecated()) {
+                debugging("The filter '{$filter->get_unique_identifier()}' is deprecated, please do not use it any more." .
+                    " {$filter->get_is_deprecated_message()}", DEBUG_DEVELOPER);
+            }
+        }
+
+        return $filters;
     }
 
     /**
@@ -743,5 +774,25 @@ abstract class base {
      */
     public function get_default_per_page(): int {
         return $this->defaultperpage;
+    }
+
+    /**
+     * Add report attributes (data-, class, etc.) that will be included in HTML when report is displayed
+     *
+     * @param array $attributes
+     * @return self
+     */
+    public function add_attributes(array $attributes): self {
+        $this->attributes = $attributes + $this->attributes;
+        return $this;
+    }
+
+    /**
+     * Returns the report HTML attributes
+     *
+     * @return array
+     */
+    public function get_attributes(): array {
+        return $this->attributes;
     }
 }

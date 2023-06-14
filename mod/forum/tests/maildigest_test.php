@@ -41,6 +41,12 @@ class maildigest_test extends \advanced_testcase {
     // Make use of the test generator trait.
     use mod_forum_tests_generator_trait;
 
+    /** @var \phpunit_message_sink */
+    protected $messagesink;
+
+    /** @var \phpunit_message_sink */
+    protected $mailsink;
+
     /**
      * Set up message and mail sinks, and set up other requirements for the
      * cron to be tested here.
@@ -653,7 +659,7 @@ class maildigest_test extends \advanced_testcase {
         ];
         $this->queue_tasks_and_assert($expect);
 
-        $tasks = $DB->get_records('task_adhoc');
+        $tasks = $DB->get_records('task_adhoc', ['component' => 'mod_forum']);
         $task = reset($tasks);
         $this->assertGreaterThanOrEqual(time(), $task->nextruntime);
     }
@@ -693,7 +699,7 @@ class maildigest_test extends \advanced_testcase {
         ];
         $this->queue_tasks_and_assert($expect);
 
-        $tasks = $DB->get_records('task_adhoc');
+        $tasks = $DB->get_records('task_adhoc', ['component' => 'mod_forum']);
         $task = reset($tasks);
         $digesttime = usergetmidnight(time(), \core_date::get_server_timezone()) + ($CFG->digestmailtime * 3600);
         $this->assertLessThanOrEqual($digesttime, $task->nextruntime);
@@ -746,7 +752,7 @@ class maildigest_test extends \advanced_testcase {
         $this->queue_tasks_and_assert($expect);
 
         // There should now be two tasks queued.
-        $tasks = $DB->get_records('task_adhoc');
+        $tasks = $DB->get_records('task_adhoc', ['component' => 'mod_forum']);
         $this->assertCount(2, $tasks);
 
         // Add yet another another discussions to forum 1.
@@ -762,7 +768,7 @@ class maildigest_test extends \advanced_testcase {
         $this->queue_tasks_and_assert($expect);
 
         // There should still be two tasks queued.
-        $tasks = $DB->get_records('task_adhoc');
+        $tasks = $DB->get_records('task_adhoc', ['component' => 'mod_forum']);
         $this->assertCount(2, $tasks);
     }
 

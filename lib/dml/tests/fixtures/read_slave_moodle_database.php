@@ -91,12 +91,12 @@ class read_slave_moodle_database extends test_moodle_database {
     /**
      * Query wrapper that calls query_start() and query_end()
      * @param string $sql
-     * @param array $params
+     * @param array|null $params
      * @param int $querytype
      * @param ?callable $callback
      * @return string $handle handle property
      */
-    public function with_query_start_end($sql, array $params = null, $querytype, $callback = null) {
+    public function with_query_start_end($sql, ?array $params, $querytype, $callback = null) {
         $this->query_start($sql, $params, $querytype);
         $ret = $this->handle;
         if ($callback) {
@@ -119,7 +119,7 @@ class read_slave_moodle_database extends test_moodle_database {
      * @param string $sql
      * @param array $params
      * @return bool true
-     * @throws Exception
+     * @throws \Exception
      */
     public function execute($sql, array $params = null) {
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);

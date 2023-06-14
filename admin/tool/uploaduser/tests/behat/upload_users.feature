@@ -66,14 +66,10 @@ Feature: Upload users
   @javascript
   Scenario: Upload users with custom profile fields
     # Create user profile field.
-    Given I log in as "admin"
-    And I navigate to "Users > Accounts > User profile fields" in site administration
-    And I click on "Create a new profile field" "link"
-    And I click on "Text area" "link"
-    And I set the following fields to these values:
-      | Short name | superfield  |
-      | Name       | Super field |
-    And I click on "Save changes" "button"
+    Given the following "custom profile fields" exist:
+      | datatype | shortname  | name        |
+      | text     | superfield | Super field |
+    And I log in as "admin"
     # Upload users.
     When I navigate to "Users > Accounts > Upload users" in site administration
     And I upload "lib/tests/fixtures/upload_users_profile.csv" file to "File" filemanager
@@ -129,12 +125,10 @@ Feature: Upload users
     And I should see "Users created: 4"
     And I press "Continue"
     # Boost check.
-    And I navigate to "Users > Accounts > Browse list of users" in site administration
-    And I click on ".icon[title=Edit]" "css_element" in the "jonest@example.com" "table_row"
+    And I am on the "jonest@example.com" "user > editing" page
     And I should see "Boost"
     # Classic check.
-    And I navigate to "Users > Accounts > Browse list of users" in site administration
-    And I click on ".icon[title=Edit]" "css_element" in the "reznor@example.com" "table_row"
+    And I am on the "reznor@example.com" "user > editing" page
     And I should see "Classic"
 
   @javascript
@@ -258,3 +252,47 @@ Feature: Upload users
     And I select "Assign roles" from the "jump" singleselect
     And I should see "Course creator"
     And I should see "Federico Fellini"
+
+  @javascript
+  Scenario: Update existing users matching them on email
+    Given the following "users" exist:
+      | username | firstname | lastname | email              |
+      | bilbob   | Blasbo    | Blabbins | bilbo@example.com |
+      | frodob   | Frodeo    | Baspins  | frodo@example.com |
+    And I log in as "admin"
+    And I navigate to "Users > Accounts >Upload users" in site administration
+    When I upload "lib/tests/fixtures/upload_users_email_matching.csv" file to "File" filemanager
+    And I press "Upload users"
+    Then I should see "Upload users preview"
+    And I set the following fields to these values:
+      | Upload type  | Update existing users only |
+      | Existing user details | Override with file |
+      | Match on email address | Yes |
+    And I press "Upload users"
+    And I press "Continue"
+    And I navigate to "Users > Accounts > Browse list of users" in site administration
+    And I should see "Bilbo Baggins"
+    And I should see "Frodo Baggins"
+
+  @javascript
+  Scenario: Update existing users matching them on email where one email address is associated with multiple users
+    Given the following "users" exist:
+      | username | firstname | lastname | email              |
+      | bilbob   | Blasbo    | Blabbins | bilbo@example.com |
+      | frodob   | Frodeo    | Baspins  | frodo@example.com |
+      | fredob   | Fredoo    | Baspins  | frodo@example.com |
+    And I log in as "admin"
+    And I navigate to "Users > Accounts > Upload users" in site administration
+    When I upload "lib/tests/fixtures/upload_users_email_matching.csv" file to "File" filemanager
+    And I press "Upload users"
+    Then I should see "Upload users preview"
+    And I set the following fields to these values:
+      | Upload type  | Update existing users only |
+      | Existing user details | Override with file |
+      | Match on email address | Yes |
+    And I press "Upload users"
+    And I should see "Multiple users with email frodo@example.com detected"
+    And I press "Continue"
+    And I navigate to "Users > Accounts > Browse list of users" in site administration
+    And I should see "Bilbo Baggins"
+    And I should not see "Frodo Baggins"

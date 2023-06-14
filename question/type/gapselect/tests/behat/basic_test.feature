@@ -20,19 +20,19 @@ Feature: Test all the basic functionality of this question type
 
     # Create a new question.
     And I add a "Select missing words" question filling the form with:
-      | Question name             | Select missing words 001      |
-      | Question text             | The [[1]] [[2]] on the [[3]]. |
-      | General feedback          | The cat sat on the mat.       |
-      | id_choices_0_answer       | cat                           |
-      | id_choices_1_answer       | sat                           |
-      | id_choices_1_choicegroup  | 2                             |
-      | id_choices_2_answer       | mat                           |
-      | id_choices_3_answer       | dog                           |
-      | id_choices_4_answer       | table                         |
-      | id_choices_5_answer       | ran                           |
-      | id_choices_5_choicegroup  | 2                             |
-      | Hint 1                    | First hint                    |
-      | Hint 2                    | Second hint                   |
+      | Question name            | Select missing words 001      |
+      | Question text            | The [[1]] [[2]] on the [[3]]. |
+      | General feedback         | The cat sat on the mat.       |
+      | id_choices_0_answer      | cat                           |
+      | id_choices_1_answer      | sat                           |
+      | id_choices_1_choicegroup | 2                             |
+      | id_choices_2_answer      | mat                           |
+      | id_choices_3_answer      | dog                           |
+      | id_choices_4_answer      | table                         |
+      | id_choices_5_answer      | ran                           |
+      | id_choices_5_choicegroup | 2                             |
+      | Hint 1                   | First hint                    |
+      | Hint 2                   | Second hint                   |
     Then I should see "Select missing words 001"
 
     # Preview it.
@@ -50,7 +50,7 @@ Feature: Test all the basic functionality of this question type
       | Marks                | Show mark and max               |
       | Specific feedback    | Shown                           |
       | Right answer         | Shown                           |
-    And I press "Start again with these options"
+    And I press "Save preview options and start again"
 
     # Answer question correctly
     And I set space "1" to "cat" in the select missing words question
@@ -86,7 +86,7 @@ Feature: Test all the basic functionality of this question type
     # Set behaviour options
     And I set the following fields to these values:
       | behaviour | immediatefeedback |
-    And I press "Start again with these options"
+    And I press "Save preview options and start again"
 
     # Answer question correctly
     And I press "Check"
@@ -128,26 +128,25 @@ Feature: Test all the basic functionality of this question type
       | Confirmation | Filename | test_backup.mbz |
     And I restore "test_backup.mbz" backup into a new course using this options:
       | Schema | Course name | Course 2 |
-    And I should see "Course 2"
-    And I navigate to "Question bank" in current page administration
+    And I am on the "Course 2 copy 1" "core_question > course question bank" page
     And I should see "Select missing words 001"
 
     # Edit the copy and verify the form field contents.
     And I choose "Edit question" action for "Select missing words 001" in the question bank
     And the following fields match these values:
-      | Question name             | Select missing words 001      |
-      | Question text             | The [[1]] [[2]] on the [[3]]. |
-      | General feedback          | The cat sat on the mat.       |
-      | id_choices_0_answer       | cat                           |
-      | id_choices_1_answer       | sat                           |
-      | id_choices_1_choicegroup  | 2                             |
-      | id_choices_2_answer       | mat                           |
-      | id_choices_3_answer       | dog                           |
-      | id_choices_4_answer       | table                         |
-      | id_choices_5_answer       | ran                           |
-      | id_choices_5_choicegroup  | 2                             |
-      | Hint 1                    | First hint                    |
-      | Hint 2                    | Second hint                   |
+      | Question name            | Select missing words 001      |
+      | Question text            | The [[1]] [[2]] on the [[3]]. |
+      | General feedback         | The cat sat on the mat.       |
+      | id_choices_0_answer      | cat                           |
+      | id_choices_1_answer      | sat                           |
+      | id_choices_1_choicegroup | 2                             |
+      | id_choices_2_answer      | mat                           |
+      | id_choices_3_answer      | dog                           |
+      | id_choices_4_answer      | table                         |
+      | id_choices_5_answer      | ran                           |
+      | id_choices_5_choicegroup | 2                             |
+      | Hint 1                   | First hint                    |
+      | Hint 2                   | Second hint                   |
     And I set the following fields to these values:
       | Question name | Edited question name |
     And I press "id_submitbutton"

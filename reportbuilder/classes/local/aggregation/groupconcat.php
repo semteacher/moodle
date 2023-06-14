@@ -62,16 +62,6 @@ class groupconcat extends base {
     }
 
     /**
-     * We cannot sort this aggregation type
-     *
-     * @param bool $columnsortable
-     * @return bool
-     */
-    public static function sortable(bool $columnsortable): bool {
-        return false;
-    }
-
-    /**
      * Override base method to ensure all SQL fields are concatenated together if there are multiple
      *
      * @param array $sqlfields
@@ -111,6 +101,11 @@ class groupconcat extends base {
      * @return mixed
      */
     public static function format_value($value, array $values, array $callbacks, int $columntype) {
+        $firstvalue = reset($values);
+        if ($firstvalue === null) {
+            return '';
+        }
+
         $formattedvalues = [];
 
         // Store original names of all values that would be present without aggregation.
@@ -118,7 +113,7 @@ class groupconcat extends base {
         $valuenamescount = count($valuenames);
 
         // Loop over each extracted value from the concatenated string.
-        $values = explode(self::FIELD_VALUE_DELIMETER, (string) reset($values));
+        $values = explode(self::FIELD_VALUE_DELIMETER, (string)$firstvalue);
         foreach ($values as $value) {
 
             // Ensure we have equal number of value names/data, account for truncation by DB.
@@ -138,6 +133,7 @@ class groupconcat extends base {
             $formattedvalues[] = parent::format_value($originalvalue, $originalvalues, $callbacks, $columntype);
         }
 
-        return implode(', ', $formattedvalues);
+        $listseparator = get_string('listsep', 'langconfig') . ' ';
+        return implode($listseparator, $formattedvalues);
     }
 }

@@ -196,7 +196,7 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
      *
      * @return ArrayIterator
      */
-    public function getIterator() {
+    public function getIterator(): Traversable {
         $ret = array();
         foreach (self::$coursecatfields as $property => $unused) {
             if ($this->$property !== false) {
@@ -900,7 +900,7 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
         // Trigger a purge for all caches listening for changes to category enrolment.
         cache_helper::purge_by_event('changesincategoryenrolment');
 
-        if (!$CFG->coursecontact || !in_array($roleid, explode(',', $CFG->coursecontact))) {
+        if (empty($CFG->coursecontact) || !in_array($roleid, explode(',', $CFG->coursecontact))) {
             // The role is not one of course contact roles.
             return;
         }
@@ -2179,8 +2179,6 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
                     'objectid' => $childcat->id,
                     'context' => $childcat->get_context()
                 ));
-                $event->set_legacy_logdata(array(SITEID, 'category', 'move', 'editcategory.php?id=' . $childcat->id,
-                    $childcat->id));
                 $event->trigger();
             }
             fix_course_sortorder();
@@ -2371,7 +2369,6 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
                 'objectid' => $this->id,
                 'context' => $this->get_context()
             ));
-            $event->set_legacy_logdata(array(SITEID, 'category', 'move', 'editcategory.php?id=' . $this->id, $this->id));
             $event->trigger();
         }
     }
@@ -2443,7 +2440,6 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
                 'objectid' => $this->id,
                 'context' => $this->get_context()
             ));
-            $event->set_legacy_logdata(array(SITEID, 'category', 'hide', 'editcategory.php?id=' . $this->id, $this->id));
             $event->trigger();
         }
     }
@@ -2502,7 +2498,6 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
                 'objectid' => $this->id,
                 'context' => $this->get_context()
             ));
-            $event->set_legacy_logdata(array(SITEID, 'category', 'show', 'editcategory.php?id=' . $this->id, $this->id));
             $event->trigger();
         }
     }
@@ -2640,10 +2635,11 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
             $thislist = array();
             foreach ($rs as $record) {
                 context_helper::preload_from_record($record);
-                $context = context_coursecat::instance($record->id);
                 $canview = self::can_view_category($record);
+                $context = context_coursecat::instance($record->id);
+                $filtercontext = \context_helper::get_navigation_filter_context($context);
                 $baselist[$record->id] = array(
-                    'name' => $canview ? format_string($record->name, true, array('context' => $context)) : false,
+                    'name' => $canview ? format_string($record->name, true, array('context' => $filtercontext)) : false,
                     'path' => $record->path
                 );
                 if (!$canview || (!empty($requiredcapability) && !has_all_capabilities($requiredcapability, $context))) {
@@ -3065,8 +3061,6 @@ class core_course_category implements renderable, cacheable_object, IteratorAggr
                 'objectid' => $this->id,
                 'context' => $this->get_context()
             ));
-            $event->set_legacy_logdata(array(SITEID, 'category', 'move', 'management.php?categoryid=' . $this->id,
-                $this->id));
             $event->trigger();
 
             // Finally reorder courses.

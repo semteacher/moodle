@@ -13,7 +13,6 @@ class LtiOidcLogin
     public const ERROR_MSG_LAUNCH_URL = 'No launch URL configured';
     public const ERROR_MSG_ISSUER = 'Could not find issuer';
     public const ERROR_MSG_LOGIN_HINT = 'Could not find login hint';
-    public const ERROR_MSG_REGISTRATION = 'Could not find registration details';
 
     private $db;
     private $cache;
@@ -22,9 +21,9 @@ class LtiOidcLogin
     /**
      * Constructor.
      *
-     * @param IDatabase $database instance of the database interface used for looking up registrations and deployments
-     * @param ICache    $cache    Instance of the Cache interface used to loading and storing launches. If non is provided launch data will be store in $_SESSION.
-     * @param ICookie   $cookie   Instance of the Cookie interface used to set and read cookies. Will default to using $_COOKIE and setcookie.
+     * @param IDatabase $database Instance of the Database interface used for looking up registrations and deployments
+     * @param ICache    $cache    instance of the Cache interface used to loading and storing launches
+     * @param ICookie   $cookie   instance of the Cookie interface used to set and read cookies
      */
     public function __construct(IDatabase $database, ICache $cache = null, ICookie $cookie = null)
     {
@@ -113,11 +112,14 @@ class LtiOidcLogin
         }
 
         // Fetch Registration Details.
-        $registration = $this->db->findRegistrationByIssuer($request['iss'], $request['client_id'] ?? null);
+        $clientId = $request['client_id'] ?? null;
+        $registration = $this->db->findRegistrationByIssuer($request['iss'], $clientId);
 
         // Check we got something.
         if (empty($registration)) {
-            throw new OidcException(static::ERROR_MSG_REGISTRATION, 1);
+            $errorMsg = LtiMessageLaunch::getMissingRegistrationErrorMsg($request['iss'], $clientId);
+
+            throw new OidcException($errorMsg, 1);
         }
 
         // Return Registration.

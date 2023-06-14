@@ -23,7 +23,7 @@ namespace tool_admin_presets\event;
  * @category   test
  * @copyright  2021 Sara Arjona (sara@moodle.com)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversDefaultClass \tool_admin_presets\event\preset_exported
+ * @covers     \tool_admin_presets\event\preset_exported
  */
 class preset_exported_test extends \advanced_testcase {
 
@@ -55,7 +55,5 @@ class preset_exported_test extends \advanced_testcase {
         $this->assertInstanceOf('\tool_admin_presets\event\preset_exported', $event);
         $this->assertEquals(\context_system::instance(), $event->get_context());
         $this->assertEquals($presetid, $event->objectid);
-        $expected = [0, 'tool_admin_presets', 'export', '', $presetid, 0];
-        $this->assertEventLegacyLogData($expected, $event);
     }
 }

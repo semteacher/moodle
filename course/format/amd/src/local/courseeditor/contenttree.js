@@ -20,8 +20,8 @@
  * all keybindings and logic is compatible. This class translate the primitive opetations
  * to a bootstrap collapsible structure.
  *
- * @module     core_courseformat/local/courseindex/keyboardnav
- * @class      core_courseformat/local/courseindex/keyboardnav
+ * @module     core_courseformat/local/courseeditor/contenttree
+ * @class      core_courseformat/local/courseeditor/contenttree
  * @copyright  2021 Ferran Recio <ferran@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -61,7 +61,7 @@ export default class extends Tree {
                 return this._getVisibleItems();
             };
         }
-        // All jQuery events can be replaced when MDL-79179 is integrated.
+        // All jQuery events can be replaced when MDL-71979 is integrated.
         this.treeRoot.on('hidden.bs.collapse shown.bs.collapse', () => {
             this.refreshVisibleItemsCache();
         });
@@ -146,7 +146,7 @@ export default class extends Tree {
      * @param {JQuery} item  the jQuery object
      */
     toggleGroup(item) {
-        // All jQuery in this segment of code can be replaced when MDL-79179 is integrated.
+        // All jQuery in this segment of code can be replaced when MDL-71979 is integrated.
         const toggler = item.find(this.selectors.COLLAPSE);
         let collapsibleId = toggler.data('target') ?? toggler.attr('href');
         if (!collapsibleId) {

@@ -15,8 +15,8 @@ abstract class LtiAbstractService
     public function __construct(
         ILtiServiceConnector $serviceConnector,
         ILtiRegistration $registration,
-        array $serviceData)
-    {
+        array $serviceData
+    ) {
         $this->serviceConnector = $serviceConnector;
         $this->registration = $registration;
         $this->serviceData = $serviceData;
@@ -41,7 +41,7 @@ abstract class LtiAbstractService
         return $this->serviceConnector->makeServiceRequest(
             $this->registration,
             $this->getScope(),
-            $request
+            $request,
         );
     }
 

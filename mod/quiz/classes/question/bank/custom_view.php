@@ -72,7 +72,7 @@ class custom_view extends \core_question\local\bank\view {
             'preview_action_column'
         ];
 
-        if (question_get_display_preference('qbshowtext', 0, PARAM_BOOL, new \moodle_url(''))) {
+        if (question_get_display_preference('qbshowtext', 0, PARAM_INT, new \moodle_url(''))) {
             $corequestionbankcolumns[] = 'question_text_row';
         }
 
@@ -201,7 +201,7 @@ class custom_view extends \core_question\local\bank\view {
         echo \html_writer::start_tag('div', ['class' => 'pt-2']);
         if ($canuseall) {
             // Add selected questions to the quiz.
-            $params = array(
+            $params = [
                 'type' => 'submit',
                 'name' => 'add',
                 'class' => 'btn btn-primary',
@@ -210,7 +210,7 @@ class custom_view extends \core_question\local\bank\view {
                 'data-togglegroup' => 'qbank',
                 'data-toggle' => 'action',
                 'disabled' => true,
-            );
+            ];
             echo \html_writer::empty_tag('input', $params);
         }
         echo \html_writer::end_tag('div');

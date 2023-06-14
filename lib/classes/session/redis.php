@@ -139,7 +139,23 @@ class redis extends handler {
         $updatefreq = empty($CFG->session_update_timemodified_frequency) ? 20 : $CFG->session_update_timemodified_frequency;
         $this->timeout = $CFG->sessiontimeout + $updatefreq + MINSECS;
 
-        $this->lockexpire = $CFG->sessiontimeout;
+        // This sets the Redis session lock expiry time to whatever is lower, either
+        // the PHP execution time `max_execution_time`, if the value was defined in
+        // the `php.ini` or the globally configured `sessiontimeout`. Setting it to
+        // the lower of the two will not make things worse it if the execution timeout
+        // is longer than the session timeout.
+        // For the PHP execution time, once the PHP execution time is over, we can be sure
+        // that the lock is no longer actively held so that the lock can expire safely.
+        // Although at `lib/classes/php_time_limit.php::raise(int)`, Moodle can
+        // progressively increase the maximum PHP execution time, this is limited to the
+        // `max_execution_time` value defined in the `php.ini`.
+        // For the session timeout, we assume it is safe to consider the lock to expire
+        // once the session itself expires.
+        // If we unnecessarily hold the lock any longer, it blocks other session requests.
+        $this->lockexpire = ini_get('max_execution_time');
+        if (empty($this->lockexpire) || ($this->lockexpire > (int)$CFG->sessiontimeout)) {
+            $this->lockexpire = (int)$CFG->sessiontimeout;
+        }
         if (isset($CFG->session_redis_lock_expire)) {
             $this->lockexpire = (int)$CFG->session_redis_lock_expire;
         }
@@ -227,7 +243,6 @@ class redis extends handler {
                         throw new RedisException('Unable to select Redis database '.$this->database.'.');
                     }
                 }
-                $this->connection->ping();
                 return true;
             } catch (RedisException $e) {
                 $logstring = "Failed to connect (try {$counter} out of {$maxnumberofretries}) to redis ";
@@ -512,7 +527,7 @@ class redis extends handler {
                 // time. If it is too small we will poll too much and if it is
                 // too large we will waste time waiting for no reason. 100ms is
                 // the default starting point.
-                $delay = rand($this->lockretry, $this->lockretry * 1.1);
+                $delay = rand($this->lockretry, (int)($this->lockretry * 1.1));
             } else {
                 // If we don't get a lock within 5 seconds then there must be a
                 // very long lived process holding the lock so throttle back to

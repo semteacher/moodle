@@ -1009,8 +1009,8 @@ function glossary_get_entries($glossaryid, $entrylist, $pivot = "") {
 /**
  * @global object
  * @global object
- * @param object $concept
- * @param string $courseid
+ * @param string $concept
+ * @param int $courseid
  * @return array
  */
 function glossary_get_entries_search($concept, $courseid) {
@@ -1354,9 +1354,11 @@ function glossary_print_entry_icons($course, $cm, $glossary, $entry, $mode='',$h
  * @param object $hook
  * @param bool $printicons
  * @param bool $aliases
+ * @param bool $printseparator Whether to print a thematic break (separator) at the end of the lower section.
  * @return void
  */
-function  glossary_print_entry_lower_section($course, $cm, $glossary, $entry, $mode, $hook, $printicons, $aliases=true) {
+function glossary_print_entry_lower_section($course, $cm, $glossary, $entry, $mode, $hook, $printicons, $aliases = true,
+        $printseparator = true) {
     if ($aliases) {
         $aliases = glossary_print_entry_aliases($course, $cm, $glossary, $entry, $mode, $hook,'html');
     }
@@ -1381,7 +1383,10 @@ function  glossary_print_entry_lower_section($course, $cm, $glossary, $entry, $m
             echo '</td></tr>';
         }
         echo '</table>';
-        echo "<hr>\n";
+
+        if ($printseparator) {
+            echo "<hr>\n";
+        }
     }
 }
 
@@ -2786,7 +2791,7 @@ function glossary_get_post_actions() {
 /**
  * Implementation of the function for printing the form elements that control
  * whether the course reset functionality affects the glossary.
- * @param object $mform form passed by reference
+ * @param MoodleQuickForm $mform form passed by reference
  */
 function glossary_reset_course_form_definition(&$mform) {
     $mform->addElement('header', 'glossaryheader', get_string('modulenameplural', 'glossary'));

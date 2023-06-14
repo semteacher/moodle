@@ -26,6 +26,7 @@
 
 use core\plugininfo\mod;
 use mod_bigbluebuttonbn\instance;
+use mod_bigbluebuttonbn\local\config;
 use mod_bigbluebuttonbn\logger;
 use mod_bigbluebuttonbn\recording;
 
@@ -49,6 +50,7 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
      */
     public function create_instance($record = null, array $options = null) {
         // Prior to creating the instance, make sure that the BigBlueButton module is enabled.
+        set_config('bigbluebuttonbn_default_dpa_accepted', true);
         $modules = \core_plugin_manager::instance()->get_plugins_of_type('mod');
         if (!$modules['bigbluebuttonbn']->is_enabled()) {
             mod::enable_plugin('bigbluebuttonbn', true);
@@ -256,7 +258,9 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
         ]);
         $mockdata['startTime'] = $data['starttime'] ?? $now;
         $mockdata['endTime'] = $data['endtime'] ?? $mockdata['startTime'] + HOURSECS;
-
+        if (!empty($data['playback'])) {
+            $mockdata['playback'] = json_encode($data['playback']);
+        }
         if (!empty($data['isBreakout'])) {
             // If it is a breakout meeting, we do not have any way to know the real Id of the meeting
             // unless we query the list of submeetings.
@@ -270,6 +274,50 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
         $result = $this->send_mock_request('backoffice/createRecording', [], $mockdata);
 
         return (string) $result->recordID;
+    }
+
+    /**
+     * Utility to send a request to the mock server
+     *
+     * @param string $endpoint
+     * @param array $params
+     * @param array $mockdata
+     * @return SimpleXMLElement|bool
+     * @throws moodle_exception
+     */
+    protected function send_mock_request(string $endpoint, array $params = [], array $mockdata = []): SimpleXMLElement {
+        $url = $this->get_mocked_server_url($endpoint, $params);
+
+        foreach ($mockdata as $key => $value) {
+            if (is_array($value)) {
+                foreach ($value as $subkey => $subvalue) {
+                    $paramname = "{$key}_{$subkey}";
+                    $url->param($paramname, $subvalue);
+                }
+            } else {
+                $url->param($key, $value);
+            }
+        }
+
+        $curl = new \curl();
+        $result = $curl->get($url->out_omit_querystring(), $url->params());
+
+        $retvalue = @simplexml_load_string($result, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NOBLANKS);
+        if ($retvalue === false) {
+            throw new moodle_exception('mockserverconnfailed', 'mod_bigbluebutton');
+        }
+        return $retvalue;
+    }
+
+    /**
+     * Get a URL for a mocked BBB server endpoint.
+     *
+     * @param string $endpoint
+     * @param array $params
+     * @return moodle_url
+     */
+    protected function get_mocked_server_url(string $endpoint = '', array $params = []): moodle_url {
+        return new moodle_url(TEST_MOD_BIGBLUEBUTTONBN_MOCK_SERVER . '/' . $endpoint, $params);
     }
 
     /**
@@ -304,6 +352,12 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
                 'bbb-recording-name' => $instance->get_meeting_name(),
             ],
         ]);
+        if ((boolean) config::get('recordingready_enabled')) {
+            $roomconfig['meta']['bn-recording-ready-url'] = $instance->get_record_ready_url()->out(false);
+        }
+        if ((boolean) config::get('meetingevents_enabled')) {
+            $roomconfig['meta']['analytics-callback-url'] = $instance->get_meeting_event_notification_url()->out(false);
+        }
         if (!empty($roomconfig['isBreakout'])) {
             // If it is a breakout meeting, we do not have any way to know the real Id of the meeting
             // For now we will just send the parent ID and let the mock server deal with the sequence + parentID
@@ -312,9 +366,7 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
         } else {
             $roomconfig['meetingID'] = $meetingid;
         }
-
         $this->send_mock_request('backoffice/createMeeting', [], $roomconfig);
-
         return (object) $roomconfig;
     }
 
@@ -351,47 +403,55 @@ class mod_bigbluebuttonbn_generator extends \testing_module_generator {
     }
 
     /**
-     * Get a URL for a mocked BBB server endpoint.
+     * Set a value in the Mock server
      *
-     * @param string $endpoint
-     * @param array $params
-     * @return moodle_url
+     * @param string $name
+     * @param mixed $value
+     * @return void
+     * @throws moodle_exception
      */
-    protected function get_mocked_server_url(string $endpoint = '', array $params = []): moodle_url {
-        return new moodle_url(TEST_MOD_BIGBLUEBUTTONBN_MOCK_SERVER . '/' . $endpoint, $params);
+    public function set_value(string $name, $value): void {
+        if (defined('TEST_MOD_BIGBLUEBUTTONBN_MOCK_SERVER')) {
+            $this->send_mock_request('backoffice/set', [], ['name' => $name, 'value' => json_encode($value)]);
+        }
     }
 
     /**
-     * Utility to send a request to the mock server
+     * Trigger a meeting event on BBB side
      *
-     * @param string $endpoint
-     * @param array $params
-     * @param array $mockdata
-     * @return SimpleXMLElement|bool
-     * @throws moodle_exception
+     * @param object $user
+     * @param instance $instance
+     * @param string $eventtype
+     * @param string|null $eventdata
+     * @return void
      */
-    protected function send_mock_request(string $endpoint, array $params = [], array $mockdata = []): SimpleXMLElement {
-        $url = $this->get_mocked_server_url($endpoint, $params);
+    public function add_meeting_event(object $user, instance $instance, string $eventtype, string $eventdata = ''): void {
+        $this->send_mock_request('backoffice/addMeetingEvent', [
+                'secret' => \mod_bigbluebuttonbn\local\config::DEFAULT_SHARED_SECRET,
+                'meetingID' => $instance->get_meeting_id(),
+                'attendeeID' => $user->id,
+                'attendeeName' => fullname($user),
+                'eventType' => $eventtype,
+                'eventData' => $eventdata
+            ]
+        );
+    }
 
-        foreach ($mockdata as $key => $value) {
-            if (is_array($value)) {
-                foreach ($value as $subkey => $subvalue) {
-                    $paramname = "{$key}_{$subkey}";
-                    $url->param($paramname, $subvalue);
-                }
-            } else {
-                $url->param($key, $value);
-            }
+    /**
+     * Send all previously store events
+     *
+     * @param instance $instance
+     * @return object|null
+     */
+    public function send_all_events(instance $instance): ?object {
+        if (defined('TEST_MOD_BIGBLUEBUTTONBN_MOCK_SERVER')) {
+            return $this->send_mock_request('backoffice/sendAllEvents', [
+                'meetingID' => $instance->get_meeting_id(),
+                'sendQuery' => false, // We get the result directly here.
+                'secret' => \mod_bigbluebuttonbn\local\config::DEFAULT_SHARED_SECRET,
+            ]);
         }
-
-        $curl = new \curl();
-        $result = $curl->get($url->out_omit_querystring(), $url->params());
-
-        $retvalue = @simplexml_load_string($result, 'SimpleXMLElement', LIBXML_NOCDATA | LIBXML_NOBLANKS);
-        if ($retvalue === false) {
-            throw new moodle_exception('mockserverconnfailed', 'mod_bigbluebutton');
-        }
-        return $retvalue;
+        return null;
     }
 
     /**

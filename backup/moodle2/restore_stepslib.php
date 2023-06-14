@@ -119,18 +119,14 @@ class restore_gradebook_structure_step extends restore_structure_step {
             return false;
         }
 
-        // Identify the backup we're dealing with.
-        $backuprelease = $this->get_task()->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
-        $backupbuild = 0;
-        preg_match('/(\d{8})/', $this->get_task()->get_info()->moodle_release, $matches);
-        if (!empty($matches[1])) {
-            $backupbuild = (int) $matches[1]; // The date of Moodle build at the time of the backup.
-        }
+        $restoretask = $this->get_task();
 
         // On older versions the freeze value has to be converted.
         // We do this from here as it is happening right before the file is read.
         // This only targets the backup files that can contain the legacy freeze.
-        if ($backupbuild > 20150618 && (version_compare($backuprelease, '3.0', '<') || $backupbuild < 20160527)) {
+        if ($restoretask->backup_version_compare(20150618, '>')
+                && $restoretask->backup_release_compare('3.0', '<')
+                || $restoretask->backup_version_compare(20160527, '<')) {
             $this->rewrite_step_backup_file_for_legacy_freeze($fullpath);
         }
 
@@ -505,24 +501,25 @@ class restore_gradebook_structure_step extends restore_structure_step {
     protected function gradebook_calculation_freeze() {
         global $CFG;
         $gradebookcalculationsfreeze = get_config('core', 'gradebook_calculations_freeze_' . $this->get_courseid());
-        preg_match('/(\d{8})/', $this->get_task()->get_info()->moodle_release, $matches);
-        $backupbuild = (int)$matches[1];
-        $backuprelease = $this->get_task()->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
+        $restoretask = $this->get_task();
 
         // Extra credits need adjustments only for backups made between 2.8 release (20141110) and the fix release (20150619).
-        if (!$gradebookcalculationsfreeze && $backupbuild >= 20141110 && $backupbuild < 20150619) {
+        if (!$gradebookcalculationsfreeze && $restoretask->backup_version_compare(20141110, '>=')
+                && $restoretask->backup_version_compare(20150619, '<')) {
             require_once($CFG->libdir . '/db/upgradelib.php');
             upgrade_extra_credit_weightoverride($this->get_courseid());
         }
         // Calculated grade items need recalculating for backups made between 2.8 release (20141110) and the fix release (20150627).
-        if (!$gradebookcalculationsfreeze && $backupbuild >= 20141110 && $backupbuild < 20150627) {
+        if (!$gradebookcalculationsfreeze && $restoretask->backup_version_compare(20141110, '>=')
+                && $restoretask->backup_version_compare(20150627, '<')) {
             require_once($CFG->libdir . '/db/upgradelib.php');
             upgrade_calculated_grade_items($this->get_courseid());
         }
         // Courses from before 3.1 (20160518) may have a letter boundary problem and should be checked for this issue.
         // Backups from before and including 2.9 could have a build number that is greater than 20160518 and should
         // be checked for this problem.
-        if (!$gradebookcalculationsfreeze && ($backupbuild < 20160518 || version_compare($backuprelease, '2.9', '<='))) {
+        if (!$gradebookcalculationsfreeze
+                && ($restoretask->backup_version_compare(20160518, '<') || $restoretask->backup_release_compare('2.9', '<='))) {
             require_once($CFG->libdir . '/db/upgradelib.php');
             upgrade_course_letter_boundary($this->get_courseid());
         }
@@ -767,6 +764,7 @@ class restore_decode_interlinks extends restore_execution_step {
 
     protected function define_execution() {
         // Get the decoder (from the plan)
+        /** @var restore_decode_processor $decoder */
         $decoder = $this->task->get_decoder();
         restore_decode_processor::register_link_decoders($decoder); // Add decoder contents and rules
         // And launch it, everything will be processed
@@ -1142,7 +1140,7 @@ class restore_create_included_users extends restore_execution_step {
     protected function define_execution() {
 
         restore_dbops::create_included_users($this->get_basepath(), $this->get_restoreid(),
-                $this->task->get_userid(), $this->task->get_progress());
+                $this->task->get_userid(), $this->task->get_progress(), $this->task->get_courseid());
     }
 }
 
@@ -1933,6 +1931,9 @@ class restore_course_structure_step extends restore_structure_step {
         $showactivitydatesdefault = ($courseconfig->showactivitydates ?? null);
         $data->showactivitydates = $data->showactivitydates ?? $showactivitydatesdefault;
 
+        $pdffontdefault = ($courseconfig->pdfexportfont ?? null);
+        $data->pdfexportfont = $data->pdfexportfont ?? $pdffontdefault;
+
         $languages = get_string_manager()->get_list_of_translations(); // Get languages for quick search
         if (isset($data->lang) && !array_key_exists($data->lang, $languages)) {
             $data->lang = '';
@@ -1951,6 +1952,10 @@ class restore_course_structure_step extends restore_structure_step {
 
         // Course record ready, update it
         $DB->update_record('course', $data);
+
+        // Apply any course format options that may be saved against the course
+        // entity in earlier-version backups.
+        course_get_format($data)->update_course_format_options($data);
 
         // Role name aliases
         restore_dbops::set_course_role_names($this->get_restoreid(), $this->get_courseid());
@@ -1989,8 +1994,14 @@ class restore_course_structure_step extends restore_structure_step {
     public function process_course_format_option(array $data) : void {
         global $DB;
 
+        if ($data['sectionid']) {
+            // Ignore section-level format options saved course-level in earlier-version backups.
+            return;
+        }
+
         $courseid = $this->get_courseid();
-        $record = $DB->get_record('course_format_options', [ 'courseid' => $courseid, 'name' => $data['name'] ], 'id');
+        $record = $DB->get_record('course_format_options', [ 'courseid' => $courseid, 'name' => $data['name'],
+                'format' => $data['format'], 'sectionid' => 0 ], 'id');
         if ($record !== false) {
             $DB->update_record('course_format_options', (object) [ 'id' => $record->id, 'value' => $data['value'] ]);
         } else {
@@ -3738,6 +3749,7 @@ class restore_activity_competencies_structure_step extends restore_structure_ste
             // Sortorder is ignored by precaution, anyway we should walk through the records in the right order.
             $record = (object) $params;
             $record->ruleoutcome = $data->ruleoutcome;
+            $record->overridegrade = $data->overridegrade;
             $coursemodulecompetency = new \core_competency\course_module_competency(0, $record);
             $coursemodulecompetency->create();
         }
@@ -4212,6 +4224,61 @@ class restore_contentbankcontent_structure_step extends restore_structure_step {
 }
 
 /**
+ * This structure steps restores the xAPI states.
+ */
+class restore_xapistate_structure_step extends restore_structure_step {
+
+    /**
+     * Define structure for xAPI state step
+     */
+    protected function define_structure() {
+        return [new restore_path_element('xapistate', '/states/state')];
+    }
+
+    /**
+     * Define data processed for xAPI state.
+     *
+     * @param array|stdClass $data
+     */
+    public function process_xapistate($data) {
+        global $DB;
+
+        $data = (object)$data;
+        $oldid = $data->id;
+        $exists = false;
+
+        $params = [
+            'component' => $data->component,
+            'itemid' => $this->task->get_contextid(),
+            // Set stateid to 'restored', to let plugins identify the origin of this state is a backup.
+            'stateid' => 'restored',
+            'statedata' => $data->statedata,
+            'registration' => $data->registration,
+            'timecreated' => $data->timecreated,
+            'timemodified' => time(),
+        ];
+
+        // Trying to map users. Users cannot always be mapped, for instance, when copying.
+        $params['userid'] = $this->get_mappingid('user', $data->userid);
+        if (!$params['userid']) {
+            // Leave the userid unchanged when we are restoring the same site.
+            if ($this->task->is_samesite()) {
+                $params['userid'] = $data->userid;
+            }
+            $filter = $params;
+            unset($filter['statedata']);
+            $exists = $DB->record_exists('xapi_states', $filter);
+        }
+
+        if (!$exists && $params['userid']) {
+            // Only insert the record if the user exists or can be mapped.
+            $newitemid = $DB->insert_record('xapi_states', $params);
+            $this->set_mapping('xapi_states', $oldid, $newitemid, true);
+        }
+    }
+}
+
+/**
  * This structure steps restores one instance + positions of one block
  * Note: Positions corresponding to one existing context are restored
  * here, but all the ones having unknown contexts are sent to backup_ids
@@ -4239,7 +4306,8 @@ class restore_block_instance_structure_step extends restore_structure_step {
 
         // Look for the parent contextid
         if (!$data->parentcontextid = $this->get_mappingid('context', $data->parentcontextid)) {
-            throw new restore_step_exception('restore_block_missing_parent_ctx', $data->parentcontextid);
+            // Parent contextid does not exist, ignore this block.
+            return false;
         }
 
         // TODO: it would be nice to use standard plugin supports instead of this instance_allow_multiple()
@@ -4285,14 +4353,17 @@ class restore_block_instance_structure_step extends restore_structure_step {
                 $params['subpagepattern'] = $data->subpagepattern;
             }
 
-            $exists = $DB->record_exists_sql("SELECT bi.id
+            $existingblock = $DB->get_records_sql("SELECT bi.id
                                                 FROM {block_instances} bi
                                                 JOIN {block} b ON b.name = bi.blockname
                                                WHERE bi.blockname = :blockname
                                                  AND $contextsql
                                                  AND bi.pagetypepattern $pagetypepatternsql
                                                  AND $subpagepatternsql", $params);
-            if ($exists) {
+            if (!empty($existingblock)) {
+                // Save the context mapping in case something else is linking to this block's context.
+                $newcontext = context_block::instance(reset($existingblock)->id);
+                $this->set_mapping('context', $oldcontextid, $newcontext->id);
                 // There is at least one very similar block visible on the page where we
                 // are trying to restore the block. In these circumstances the block API
                 // would not allow the user to add another instance of the block, so we
@@ -4311,6 +4382,9 @@ class restore_block_instance_structure_step extends restore_structure_step {
         if ($birecs = $DB->get_records('block_instances', $params)) {
             foreach($birecs as $birec) {
                 if ($birec->configdata == $data->configdata) {
+                    // Save the context mapping in case something else is linking to this block's context.
+                    $newcontext = context_block::instance($birec->id);
+                    $this->set_mapping('context', $oldcontextid, $newcontext->id);
                     return false;
                 }
             }
@@ -4491,6 +4565,10 @@ class restore_module_structure_step extends restore_structure_step {
             $data->availability = upgrade_group_members_only($data->groupingid, $data->availability);
         }
 
+        if (!has_capability('moodle/course:setforcedlanguage', context_course::instance($data->course))) {
+            unset($data->lang);
+        }
+
         // course_module record ready, insert it
         $newitemid = $DB->insert_record('course_modules', $data);
         // save mapping
@@ -4669,7 +4747,11 @@ class restore_userscompletion_structure_step extends restore_structure_step {
 
         $paths = array();
 
+        // Restore completion.
         $paths[] = new restore_path_element('completion', '/completions/completion');
+
+        // Restore completion view.
+        $paths[] = new restore_path_element('completionview', '/completions/completionviews/completionview');
 
         return $paths;
     }
@@ -4699,6 +4781,29 @@ class restore_userscompletion_structure_step extends restore_structure_step {
             // Normal entry where it doesn't exist already
             $DB->insert_record('course_modules_completion', $data);
         }
+
+        // Add viewed to course_modules_viewed.
+        if (isset($data->viewed) && $data->viewed) {
+            $dataview = clone($data);
+            unset($dataview->id);
+            unset($dataview->viewed);
+            $dataview->timecreated = $data->timemodified;
+            $DB->insert_record('course_modules_viewed', $dataview);
+        }
+    }
+
+    /**
+     * Process the completioinview data.
+     * @param array $data The data from the XML file.
+     */
+    protected function process_completionview(array $data) {
+        global $DB;
+
+        $data = (object)$data;
+        $data->coursemoduleid = $this->task->get_moduleid();
+        $data->userid = $this->get_mappingid('user', $data->userid);
+
+        $DB->insert_record('course_modules_viewed', $data);
     }
 }
 
@@ -4760,13 +4865,8 @@ class restore_create_categories_and_questions extends restore_structure_step {
     protected function define_structure() {
 
         // Check if the backup is a pre 4.0 one.
-        $backuprelease = $this->get_task()->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
-        preg_match('/(\d{8})/', $this->get_task()->get_info()->moodle_release, $matches);
-        $backupbuild = (int)$matches[1];
-        $before40 = false;
-        if (version_compare($backuprelease, '4.0', '<') || $backupbuild < 20220202) {
-            $before40 = true;
-        }
+        $restoretask = $this->get_task();
+        $before40 = $restoretask->backup_release_compare('4.0', '<') || $restoretask->backup_version_compare(20220202, '<');
         // Start creating the path, category should be the first one.
         $paths = [];
         $paths [] = new restore_path_element('question_category', '/question_categories/question_category');
@@ -4848,13 +4948,8 @@ class restore_create_categories_and_questions extends restore_structure_step {
 
         // Before 3.5, question categories could be created at top level.
         // From 3.5 onwards, all question categories should be a child of a special category called the "top" category.
-        $backuprelease = $this->get_task()->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
-        preg_match('/(\d{8})/', $this->get_task()->get_info()->moodle_release, $matches);
-        $backupbuild = (int)$matches[1];
-        $before35 = false;
-        if (version_compare($backuprelease, '3.5', '<') || $backupbuild < 20180205) {
-            $before35 = true;
-        }
+        $restoretask = $this->get_task();
+        $before35 = $restoretask->backup_release_compare('3.5', '<') || $restoretask->backup_version_compare(20180205, '<');
         if (empty($mapping->info->parent) && $before35) {
             $top = question_get_top_category($data->contextid, true);
             $data->parent = $top->id;
@@ -5002,14 +5097,8 @@ class restore_create_categories_and_questions extends restore_structure_step {
         $oldid = $data->id;
 
         // Check if the backup is a pre 4.0 one.
-        $backuprelease = $this->get_task()->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
-        preg_match('/(\d{8})/', $this->get_task()->get_info()->moodle_release, $matches);
-        $backupbuild = (int)$matches[1];
-        $before40 = false;
-        if (version_compare($backuprelease, '4.0', '<') || $backupbuild < 20220202) {
-            $before40 = true;
-        }
-        if ($before40) {
+        $restoretask = $this->get_task();
+        if ($restoretask->backup_release_compare('4.0', '<') || $restoretask->backup_version_compare(20220202, '<')) {
             // Check we have one mapping for this question.
             if (!$questionmapping = $this->get_mapping('question', $oldid)) {
                 return; // No mapping = this question doesn't need to be created/mapped.
@@ -5234,13 +5323,7 @@ class restore_move_module_questions_categories extends restore_execution_step {
     protected function define_execution() {
         global $DB;
 
-        $backuprelease = $this->task->get_info()->backup_release; // The major version: 2.9, 3.0, 3.10...
-        preg_match('/(\d{8})/', $this->task->get_info()->moodle_release, $matches);
-        $backupbuild = (int)$matches[1];
-        $after35 = false;
-        if (version_compare($backuprelease, '3.5', '>=') && $backupbuild > 20180205) {
-            $after35 = true;
-        }
+        $after35 = $this->task->backup_release_compare('3.5', '>=') && $this->task->backup_version_compare(20180205, '>');
 
         $contexts = restore_dbops::restore_get_question_banks($this->get_restoreid(), CONTEXT_MODULE);
         foreach ($contexts as $contextid => $contextlevel) {
@@ -5254,6 +5337,7 @@ class restore_move_module_questions_categories extends restore_execution_step {
                                                        AND parentitemid = ?", array($this->get_restoreid(), $contextid));
                 $top = question_get_top_category($newcontext->newitemid, true);
                 $oldtopid = 0;
+                $categoryids = [];
                 foreach ($modulecats as $modulecat) {
                     // Before 3.5, question categories could be created at top level.
                     // From 3.5 onwards, all question categories should be a child of a special category called the "top" category.
@@ -5269,12 +5353,37 @@ class restore_move_module_questions_categories extends restore_execution_step {
                             $cat->parent = $top->id;
                         }
                         $DB->update_record('question_categories', $cat);
+                        $categoryids[] = (int)$cat->id;
                     }
 
                     // And set new contextid (and maybe update newitemid) also in question_category mapping (will be
                     // used by {@link restore_create_question_files} later.
                     restore_dbops::set_backup_ids_record($this->get_restoreid(), 'question_category', $modulecat->itemid,
                             $modulecat->newitemid, $newcontext->newitemid);
+                }
+
+                // Update the context id of any tags applied to any questions in these categories.
+                if ($categoryids) {
+                    [$categorysql, $categoryidparams] = $DB->get_in_or_equal($categoryids, SQL_PARAMS_NAMED);
+                    $sqlupdate = "UPDATE {tag_instance}
+                                     SET contextid = :newcontext
+                                   WHERE component = :component
+                                         AND itemtype = :itemtype
+                                         AND itemid IN (SELECT DISTINCT bi.newitemid as questionid
+                                                          FROM {backup_ids_temp} bi
+                                                          JOIN {question} q ON q.id = bi.newitemid
+                                                          JOIN {question_versions} qv ON qv.questionid = q.id
+                                                          JOIN {question_bank_entries} qbe ON qbe.id = qv.questionbankentryid
+                                                         WHERE bi.backupid = :backupid AND bi.itemname = 'question_created'
+                                                               AND qbe.questioncategoryid {$categorysql}) ";
+                    $params = [
+                        'newcontext' => $newcontext->newitemid,
+                        'component' => 'core_question',
+                        'itemtype' => 'question',
+                        'backupid' => $this->get_restoreid(),
+                    ];
+                    $params += $categoryidparams;
+                    $DB->execute($sqlupdate, $params);
                 }
 
                 // Now set the parent id for the question categories that were in the top category in the course context
@@ -5353,7 +5462,7 @@ class restore_create_question_files extends restore_execution_step {
      *
      * @param int             $oldctxid Old context id.
      * @param int             $newctxid New context id.
-     * @param \core\progress  $progress Progress object to use.
+     * @param \core\progress\base  $progress Progress object to use.
      */
     private function send_common_files($oldctxid, $newctxid, $progress) {
         // Add common question files (question and question_answer ones).
@@ -5381,7 +5490,7 @@ class restore_create_question_files extends restore_execution_step {
      * @param text            $qtype The qtype name to send.
      * @param int             $oldctxid Old context id.
      * @param int             $newctxid New context id.
-     * @param \core\progress  $progress Progress object to use.
+     * @param \core\progress\base  $progress Progress object to use.
      */
     private function send_qtype_files($qtype, $oldctxid, $newctxid, $progress) {
         if (!isset($this->qtypecomponentscache[$qtype])) {
@@ -5425,17 +5534,22 @@ class restore_process_file_aliases_queue extends restore_execution_step {
     protected function define_execution() {
         global $DB;
 
-        $this->log('processing file aliases queue', backup::LOG_DEBUG);
-
         $fs = get_file_storage();
 
         // Load the queue.
+        $aliascount = $DB->count_records('backup_ids_temp',
+            ['backupid' => $this->get_restoreid(), 'itemname' => 'file_aliases_queue']);
         $rs = $DB->get_recordset('backup_ids_temp',
-            array('backupid' => $this->get_restoreid(), 'itemname' => 'file_aliases_queue'),
+            ['backupid' => $this->get_restoreid(), 'itemname' => 'file_aliases_queue'],
             '', 'info');
+
+        $this->log('processing file aliases queue. ' . $aliascount . ' entries.', backup::LOG_DEBUG);
+        $progress = $this->task->get_progress();
+        $progress->start_progress('Processing file aliases queue', $aliascount);
 
         // Iterate over aliases in the queue.
         foreach ($rs as $record) {
+            $progress->increment_progress();
             $info = backup_controller_dbops::decode_backup_temp_info($record->info);
 
             // Try to pick a repository instance that should serve the alias.
@@ -5446,7 +5560,8 @@ class restore_process_file_aliases_queue extends restore_execution_step {
                 continue;
             }
 
-            if ($info->oldfile->repositorytype === 'local' or $info->oldfile->repositorytype === 'coursefiles') {
+            if ($info->oldfile->repositorytype === 'local' || $info->oldfile->repositorytype === 'coursefiles'
+                    || $info->oldfile->repositorytype === 'contentbank') {
                 // Aliases to Server files and Legacy course files may refer to a file
                 // contained in the backup file or to some existing file (if we are on the
                 // same site).
@@ -5559,6 +5674,7 @@ class restore_process_file_aliases_queue extends restore_execution_step {
                 }
             }
         }
+        $progress->end_progress();
         $rs->close();
     }
 
@@ -5609,7 +5725,8 @@ class restore_process_file_aliases_queue extends restore_execution_step {
 
             // Both Server files and Legacy course files repositories have a single
             // instance at the system context to use. Let us try to find it.
-            if ($info->oldfile->repositorytype === 'local' or $info->oldfile->repositorytype === 'coursefiles') {
+            if ($info->oldfile->repositorytype === 'local' || $info->oldfile->repositorytype === 'coursefiles'
+                    || $info->oldfile->repositorytype === 'contentbank') {
                 $sql = "SELECT ri.id
                           FROM {repository} r
                           JOIN {repository_instances} ri ON ri.typeid = r.id
@@ -6081,6 +6198,9 @@ abstract class restore_questions_activity_structure_step extends restore_activit
     use restore_questions_attempt_data_trait;
     use restore_question_reference_data_trait;
     use restore_question_set_reference_data_trait;
+
+    /** @var \question_engine_attempt_upgrader manages upgrading all the question attempts. */
+    private $attemptupgrader;
 
     /**
      * Attach below $element (usually attempts) the needed restore_path_elements

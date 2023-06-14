@@ -1,4 +1,4 @@
-@core @core_grades @gradereport_singleview
+@core @core_grades @gradereport_singleview @javascript
 Feature: We can use Single view
   As a teacher
   In order to view and edit grades
@@ -57,10 +57,11 @@ Feature: We can use Single view
     And I am on "Course 1" course homepage
     Given I navigate to "View > Grader report" in the course gradebook
 
-  @javascript
   Scenario: I can update grades, add feedback and exclude grades.
     Given I navigate to "View > Single view" in the course gradebook
-    And I select "Student" from the "Select user..." singleselect
+    And I click on "Users" "link" in the ".page-toggler" "css_element"
+    And I click on "Student" in the "user" search widget
+    And I turn editing mode on
     And I set the field "Override for Test assignment one" to "1"
     When I set the following fields to these values:
         | Grade for Test assignment one | 10.00 |
@@ -76,7 +77,8 @@ Feature: We can use Single view
     Then I should see "Grades were set for 1 items"
     And the field "Grade for Test grade item" matches value "45.00"
     And the field "Grade for Course total" matches value "55.00"
-    And I click on "Show grades for Test assignment three" "link"
+    And I open the action menu in "Test assignment three" "table_row"
+    And I choose "Show all grades" in the open action menu
     And I click on "Override for Ann, Jill, Grainne, Beauchamp" "checkbox"
     And I set the following fields to these values:
         | Grade for Ann, Jill, Grainne, Beauchamp | 12.05 |
@@ -86,49 +88,61 @@ Feature: We can use Single view
     Then I should see "Grades were set for 2 items"
     And the field "Grade for Ann, Jill, Grainne, Beauchamp" matches value "12.05"
     And the field "Exclude for Jane, Nina, Niamh, Cholmondely" matches value "1"
-    And I select "new grade item 1" from the "Select grade item..." singleselect
+    And I click on "new grade item 1" in the "grade" search widget
     And I set the field "Grade for Ann, Jill, Grainne, Beauchamp" to "Very good"
     And I press "Save"
     Then I should see "Grades were set for 1 items"
     And the following should exist in the "generaltable" table:
-        | First name (Alternate name) Surname | Grade |
+        | First name (Alternate name) Last name | Grade |
         | Ann, Jill, Grainne, Beauchamp | Very good |
     And I log out
     And I log in as "teacher2"
     And I am on "Course 1" course homepage
     Given I navigate to "View > Single view" in the course gradebook
-    And I select "Student" from the "Select user..." singleselect
+    And I click on "Users" "link" in the ".page-toggler" "css_element"
+    And I click on "Student" in the "user" search widget
+    And I turn editing mode on
     And the "Exclude for Test assignment one" "checkbox" should be disabled
     And the "Override for Test assignment one" "checkbox" should be enabled
 
   Scenario: Single view links work on grade report.
-    Given I follow "Single view for Test assignment one"
-    Then I should see "Test assignment one"
-    Then I navigate to "View > Grader report" in the course gradebook
-    And I follow "Single view for Ann, Jill, Grainne, Beauchamp"
+    Given I click on grade item menu "Test assignment one" of type "gradeitem" on "grader" page
+    And I choose "Single view for this item" in the open action menu
+    And I should see "Test assignment one"
+    When I navigate to "View > Grader report" in the course gradebook
+    And I click on user menu "Grainne Beauchamp"
+    And I choose "Single view for this user" in the open action menu
     Then I should see "Gronya,Beecham"
 
   Scenario: I can bulk update grades.
-    Given I follow "Single view for Ann, Jill, Grainne, Beauchamp"
-    Then I should see "Gronya,Beecham"
-    When I set the field "For" to "All grades"
-    And I set the field "Insert value" to "1.0"
-    And I set the field "Perform bulk insert" to "1"
-    And I press "Save"
+    Given I click on user menu "Grainne Beauchamp"
+    And I choose "Single view for this user" in the open action menu
+    And I should see "Gronya,Beecham"
+    When I turn editing mode on
+    And I click on "Actions" "link"
+    And I click on "Bulk insert" "link"
+    And I click on "I understand that my unsaved changes will be lost." "checkbox"
+    And I click on "All grades" "radio"
+    And I set the field "Insert new grade" to "1.0"
+    And I click on "Save" "button" in the ".modal-dialog" "css_element"
     Then I should see "Grades were set for 6 items"
 
   Scenario: I can bulk update grades with custom decimal separator
     Given the following "language customisations" exist:
       | component       | stringid | value |
       | core_langconfig | decsep   | #     |
-    And I follow "Single view for Ann, Jill, Grainne, Beauchamp"
+    And I click on user menu "Grainne Beauchamp"
+    And I choose "Single view for this user" in the open action menu
     And I should see "Gronya,Beecham"
-    When I set the field "For" to "All grades"
-    And I set the field "Insert value" to "1#25"
-    And I set the field "Perform bulk insert" to "1"
-    And I press "Save"
+    When I turn editing mode on
+    And I click on "Actions" "link"
+    And I click on "Bulk insert" "link"
+    And I click on "I understand that my unsaved changes will be lost." "checkbox"
+    And I click on "All grades" "radio"
+    And I set the field "Insert new grade" to "1#25"
+    And I click on "Save" "button" in the ".modal-dialog" "css_element"
     Then I should see "Grades were set for 6 items"
-    # Custome scale, cast to int
+    # Custom scale, cast to int
     And the field "Grade for new grade item 1" matches value "Disappointing"
     # Value grade, float with custom decsep.
     And the field "Grade for Test assignment one" matches value "1#25"
@@ -136,22 +150,24 @@ Feature: We can use Single view
     And the field "Grade for Test grade item" matches value "1#00"
 
   Scenario: Navigation works in the Single view.
-    Given I follow "Single view for Ann, Jill, Grainne, Beauchamp"
+    Given I click on user menu "Grainne Beauchamp"
+    And I choose "Single view for this user" in the open action menu
     Then I should see "Gronya,Beecham"
     And I follow "Nee,Chumlee"
     Then I should see "Nee,Chumlee"
     And I follow "Gronya,Beecham"
     Then I should see "Gronya,Beecham"
-    And I click on "Show grades for Test assignment four" "link"
+    And I open the action menu in "Test assignment four" "table_row"
+    And I choose "Show all grades" in the open action menu
     Then I should see "Test assignment four"
     And I follow "Test assignment three"
     Then I should see "Test assignment three"
     And I follow "Test assignment four"
     Then I should see "Test assignment four"
 
-  Scenario: Activities are clickable only when
-    it has a valid activity page.
-    Given I follow "Single view for Ann, Jill, Grainne, Beauchamp"
+  Scenario: Activities are clickable only when it has a valid activity page.
+    Given I click on user menu "Grainne Beauchamp"
+    And I choose "Single view for this user" in the open action menu
     And "new grade item 1" "link" should not exist in the "//tbody//tr[position()=1]//td[position()=2]" "xpath_element"
     Then "Category total" "link" should not exist in the "//tbody//tr[position()=2]//td[position()=2]" "xpath_element"
     And "Course total" "link" should not exist in the "//tbody//tr[position()=last()]//td[position()=2]" "xpath_element"

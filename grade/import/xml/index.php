@@ -16,8 +16,10 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 require_once('../../../config.php');
-require_once('lib.php');
-require_once('grade_import_form.php');
+require_once($CFG->libdir . '/gradelib.php');
+require_once($CFG->dirroot . '/grade/lib.php');
+require_once($CFG->dirroot . '/grade/import/grade_import_form.php');
+require_once($CFG->dirroot . '/grade/import/lib.php');
 
 $id = required_param('id', PARAM_INT); // course id
 
@@ -87,7 +89,7 @@ if ($data = $mform->get_data()) {
     }
 }
 
-$actionbar = new \core_grades\output\import_action_bar($context, $PAGE->url, 'xml');
+$actionbar = new \core_grades\output\import_action_bar($context, null, 'xml');
 print_grade_page_head($COURSE->id, 'import', 'xml', get_string('importxml', 'grades'),
     false, false, true, 'importxml', 'gradeimport_xml', null, $actionbar);
 

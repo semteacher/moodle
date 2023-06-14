@@ -17,15 +17,7 @@
 namespace qbank_statistics;
 
 use core_question\statistics\questions\all_calculated_for_qubaid_condition;
-use quiz_statistics_report;
-
-defined('MOODLE_INTERNAL') || die();
-
-require_once($CFG->dirroot . '/mod/quiz/report/statistics/statisticslib.php');
-require_once($CFG->dirroot . '/mod/quiz/report/default.php');
-require_once($CFG->dirroot . '/mod/quiz/report/statistics/report.php');
-require_once($CFG->dirroot . '/mod/quiz/report/reportlib.php');
-require_once($CFG->dirroot . '/mod/quiz/attemptlib.php');
+use core_component;
 
 /**
  * Helper for statistics
@@ -48,106 +40,132 @@ class helper {
     private const NEED_FOR_REVISION_UPPER_THRESHOLD = 50;
 
     /**
-     * Return ids of all quizzes that use the question
+     * For a list of questions find all the places, defined by (component, contextid) where there are attempts.
      *
-     * @param int $questionid id of the question
-     * @return array list of quizids
-     * @throws \dml_exception
+     * @param int[] $questionids array of question ids that we are interested in.
+     * @return \stdClass[] list of objects with fields ->component and ->contextid.
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
-    public static function get_quizzes(int $questionid): array {
+    private static function get_all_places_where_questions_were_attempted(array $questionids): array {
         global $DB;
 
-        $quizzes = $DB->get_fieldset_sql("
-             SELECT DISTINCT qa.quiz as id
-                        FROM {quiz_attempts} qa
-                        JOIN {question_usages} qu ON qu.id = qa.uniqueid
-                        JOIN {question_attempts} qatt ON qatt.questionusageid = qu.id
-                       WHERE qatt.questionid = :questionid",
-            ['questionid' => $questionid]
-        );
-        return $quizzes;
-    }
+        [$questionidcondition, $params] = $DB->get_in_or_equal($questionids);
+        // The MIN(qu.id) is just to ensure that the rows have a unique key.
+        $places = $DB->get_records_sql("
+                SELECT MIN(qu.id) AS somethingunique, qu.component, qu.contextid, " .
+                       \context_helper::get_preload_record_columns_sql('ctx') . "
+                  FROM {question_usages} qu
+                  JOIN {question_attempts} qa ON qa.questionusageid = qu.id
+                  JOIN {context} ctx ON ctx.id = qu.contextid
+                 WHERE qa.questionid $questionidcondition
+              GROUP BY qu.component, qu.contextid, " .
+                       implode(', ', array_keys(\context_helper::get_preload_record_columns('ctx'))) . "
+              ORDER BY qu.contextid ASC
+                ", $params);
 
-    /**
-     * Load question stats from a quiz
-     *
-     * @param int $quizid quiz object or its id
-     * @return all_calculated_for_qubaid_condition
-     */
-    private static function load_question_stats(int $quizid): all_calculated_for_qubaid_condition {
-        // Turn to quiz object.
-        $quiz = new \stdClass();
-        $quiz->id = $quizid;
-        // All questions, no groups.
-        $report = new quiz_statistics_report();
-        $questions = $report->load_and_initialise_questions_for_calculations($quiz);
-        $qubaids = quiz_statistics_qubaids_condition($quiz->id, new \core\dml\sql_join());
-        $progress = new \core\progress\none();
-        $qcalc = new \core_question\statistics\questions\calculator($questions, $progress);
-        $quizcalc = new \quiz_statistics\calculator($progress);
-        if ($quizcalc->get_last_calculated_time($qubaids) === false) {
-            $questionstats = $qcalc->calculate($qubaids);
-        } else {
-            $questionstats = $qcalc->get_cached($qubaids);
+        // Strip out the unwanted ids.
+        $places = array_values($places);
+        foreach ($places as $place) {
+            unset($place->somethingunique);
+            \context_helper::preload_from_record($place);
         }
-        return $questionstats;
+
+        return $places;
     }
 
     /**
-     * Load a specified stats item for a question
+     * Load the question statistics for all the attempts belonging to a particular component in a particular context.
      *
-     * @param int $quizid quiz id
-     * @param int $questionid question id
-     * @param string $item a stats item
-     * @return float|int
+     * @param string $component frankenstyle component name, e.g. 'mod_quiz'.
+     * @param \context $context the context to load the statistics for.
+     * @return all_calculated_for_qubaid_condition|null question statistics.
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
-    public static function load_question_stats_item(int $quizid, int $questionid, string $item): ?float {
-        $questionstats = self::load_question_stats($quizid);
-        // Find in main question.
-        foreach ($questionstats->questionstats as $stats) {
+    private static function load_statistics_for_place(string $component, \context $context): ?all_calculated_for_qubaid_condition {
+        // This check is basically if (component_exists).
+        if (empty(core_component::get_component_directory($component))) {
+            return null;
+        }
+
+        if (!component_callback_exists($component, 'calculate_question_stats')) {
+            return null;
+        }
+
+        return component_callback($component, 'calculate_question_stats', [$context]);
+    }
+
+    /**
+     * Extract the value for one question and one type of statistic from a set of statistics.
+     *
+     * @param all_calculated_for_qubaid_condition $statistics the batch of statistics.
+     * @param int $questionid a question id.
+     * @param string $item one of the field names in all_calculated_for_qubaid_condition, e.g. 'facility'.
+     * @return float|null the required value.
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
+     */
+    private static function extract_item_value(all_calculated_for_qubaid_condition $statistics,
+            int $questionid, string $item): ?float {
+
+        // Look in main questions.
+        foreach ($statistics->questionstats as $stats) {
             if ($stats->questionid == $questionid && isset($stats->$item)) {
                 return $stats->$item;
             }
         }
-        // If not found, find in sub questions.
-        foreach ($questionstats->subquestionstats as $stats) {
+
+        // If not found, look in sub questions.
+        foreach ($statistics->subquestionstats as $stats) {
             if ($stats->questionid == $questionid && isset($stats->$item)) {
                 return $stats->$item;
             }
         }
+
         return null;
     }
 
     /**
-     * Calculate average for a stats item on a question.
+     * Calculate average for a stats item on a list of questions.
      *
-     * @param int $questionid id of the question
-     * @param string $item stats item
-     * @return float|null
+     * @param int[] $questionids list of ids of the questions we are interested in.
+     * @param string $item one of the field names in all_calculated_for_qubaid_condition, e.g. 'facility'.
+     * @return array array keys are question ids and the corresponding values are the average values.
+     *      Only questions for which there are data are included.
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
-    private static function calculate_average_question_stats_item(int $questionid, string $item): ?float {
-        $quizzes = self::get_quizzes($questionid);
+    private static function calculate_average_question_stats_item(array $questionids, string $item): array {
+        $places = self::get_all_places_where_questions_were_attempted($questionids);
 
-        $sum = 0;
-        $quizcount = count($quizzes);
-        foreach ($quizzes as $quizid) {
-            $value = self::load_question_stats_item($quizid, $questionid, $item);
-            if (!is_null($value)) {
-                $sum += $value;
-            } else {
-                // Exclude this value when it is null.
-                $quizcount--;
+        $counts = [];
+        $sums = [];
+
+        foreach ($places as $place) {
+            $statistics = self::load_statistics_for_place($place->component,
+                    \context::instance_by_id($place->contextid));
+            if ($statistics === null) {
+                continue;
+            }
+
+            foreach ($questionids as $questionid) {
+                $value = self::extract_item_value($statistics, $questionid, $item);
+                if ($value === null) {
+                    continue;
+                }
+
+                $counts[$questionid] = ($counts[$questionid] ?? 0) + 1;
+                $sums[$questionid] = ($sums[$questionid] ?? 0) + $value;
             }
         }
 
         // Return null if there is no quizzes.
-        if (empty($quizcount)) {
-            return null;
+        $averages = [];
+        foreach ($sums as $questionid => $sum) {
+            $averages[$questionid] = $sum / $counts[$questionid];
         }
-
-        // Average value per quiz.
-        $average = $sum / $quizcount;
-        return $average;
+        return $averages;
     }
 
     /**
@@ -155,9 +173,14 @@ class helper {
      *
      * @param int $questionid
      * @return float|null
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
     public static function calculate_average_question_facility(int $questionid): ?float {
-        return self::calculate_average_question_stats_item($questionid, 'facility');
+        debugging('Deprecated: please use statistics_bulk_loader instead, ' .
+                'or get_required_statistics_fields in your question bank column class.', DEBUG_DEVELOPER);
+        $averages = self::calculate_average_question_stats_item([$questionid], 'facility');
+        return $averages[$questionid] ?? null;
     }
 
     /**
@@ -165,9 +188,14 @@ class helper {
      *
      * @param int $questionid question id
      * @return float|null
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
     public static function calculate_average_question_discriminative_efficiency(int $questionid): ?float {
-        return self::calculate_average_question_stats_item($questionid, 'discriminativeefficiency');
+        debugging('Deprecated: please use statistics_bulk_loader instead, ' .
+                'or get_required_statistics_fields in your question bank column class.', DEBUG_DEVELOPER);
+        $averages = self::calculate_average_question_stats_item([$questionid], 'discriminativeefficiency');
+        return $averages[$questionid] ?? null;
     }
 
     /**
@@ -175,9 +203,14 @@ class helper {
      *
      * @param int $questionid question id
      * @return float|null
+     * @deprecated since Moodle 4.3 please use the method from statistics_bulk_loader.
+     * @todo MDL-78090 Final deprecation in Moodle 4.7
      */
     public static function calculate_average_question_discrimination_index(int $questionid): ?float {
-        return self::calculate_average_question_stats_item($questionid, 'discriminationindex');
+        debugging('Deprecated: please use statistics_bulk_loader instead, ' .
+                'or get_required_statistics_fields in your question bank column class.', DEBUG_DEVELOPER);
+        $averages = self::calculate_average_question_stats_item([$questionid], 'discriminationindex');
+        return $averages[$questionid] ?? null;
     }
 
     /**
