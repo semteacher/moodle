@@ -1180,6 +1180,7 @@ $string['sitepolicyhandlerplugin'] = '{$a->name} ({$a->component})';
 $string['sitepolicyguest'] = 'Site policy URL for guests';
 $string['sitepolicyguest_help'] = 'The URL of the site policy that all guests must see and agree to before accessing the site. Note that this setting will only have an effect if the site policy handler is set to default (core).';
 $string['sitesectionhelp'] = 'If selected, a topic section will be displayed on the site\'s front page.';
+$string['sixtyfourbitsrequired'] = 'It has been detected that your site is not using a 64-bit PHP version. You are required to upgrade your system (operating system, PHP...) before installing this Moodle version.';
 $string['sixtyfourbitswarning'] = 'It has been detected that your site is not using a 64-bit PHP version. It is recommended that you upgrade your site to ensure future compatibility.';
 $string['slasharguments'] = 'Use slash arguments';
 $string['slashargumentswarning'] = 'It is recommended that the use of slash arguments is enabled. In future it will be required. For more details, see the documentation <a href="https://docs.moodle.org/en/admin/environment/slasharguments">Using slash arguments</a>.';
@@ -1346,12 +1347,14 @@ $string['unsupporteddbfilepertable'] = 'For full support of UTF-8 both MySQL and
 $string['unsupporteddblargeprefix'] = 'For full support of UTF-8 both MySQL and MariaDB require you to change your MySQL setting \'innodb_large_prefix\' to \'ON\'. See the documentation for further details.';
 $string['unsupporteddbstorageengine'] = 'The database storage engine being used is no longer supported.';
 $string['unsupporteddbtablerowformat'] = 'Your database has tables using Antelope as the file format. You are recommended to convert the tables to the Barracuda file format. See the documentation <a href="https://docs.moodle.org/en/cli">Administration via command line</a> for details of a tool for converting InnoDB tables to Barracuda.';
-$string['unsupportedphpversion7'] = 'PHP version 7 is not supported.';
-$string['unsupportedphpversion71'] = 'PHP version 7.1 is not supported.';
-$string['unsupportedphpversion72'] = 'PHP version 7.2 is not supported.';
-$string['unsupportedphpversion73'] = 'PHP version 7.3 is not supported.';
-$string['unsupportedphpversion74'] = 'PHP version 7.4 is not supported.';
-$string['unsupportedphpversion80'] = 'PHP version 8.0 is not supported.';
+$string['unsupportedphpversion7'] = 'PHP version 7 and higher are not supported.';
+$string['unsupportedphpversion71'] = 'PHP version 7.1 and higher are not supported.';
+$string['unsupportedphpversion72'] = 'PHP version 7.2 and higher are not supported.';
+$string['unsupportedphpversion73'] = 'PHP version 7.3 and higher are not supported.';
+$string['unsupportedphpversion74'] = 'PHP version 7.4 and higher are not supported.';
+$string['unsupportedphpversion80'] = 'PHP version 8.0 and higher are not supported.';
+$string['unsupportedphpversion81'] = 'PHP version 8.1 and higher are not supported.';
+$string['unsupportedphpversion82'] = 'PHP version 8.2 and higher are not supported.';
 $string['unsuspenduser'] = 'Activate user account';
 $string['updateaccounts'] = 'Update existing accounts';
 $string['updatecomponent'] = 'Update component';
@@ -1458,7 +1461,8 @@ $string['xmlrpcmnetenabled'] = 'It has been detected that the Moodle Networking 
 $string['xmlrpcwebserviceenabled'] = 'It has been detected that the XML-RPC Web Service protocol is enabled on your site. This feature relies on the PHP XML-RPC extension which is no longer maintained by PHP.';
 $string['yuicomboloading'] = 'YUI combo loading';
 $string['ziprequired'] = 'The Zip PHP extension is now required by Moodle, info-ZIP binaries or PclZip library are not used anymore.';
-
+$string['modassignmentinuse'] = 'Your site is still using the Assignment 2.2 plugin. Before upgrading you must 1) backup any Assignment 2.2 activities that you want to keep and restore them as Assignment activities, and 2) delete all Assignment 2.2 data from the database.';
+$string['modassignmentsubpluginsexist'] = 'Assignment 2.2. subplugins may be present. The mod/assignment folder and all of its subplugins need to be removed before upgrading.';
 
 $string['caching'] = 'Caching';
 $string['cachesettings'] = 'Cache settings';
