@@ -142,7 +142,7 @@ module.exports = function(grunt) {
     const path = require('path');
     const tasks = {};
     const async = require('async');
-    const DOMParser = require('xmldom').DOMParser;
+    const DOMParser = require('@xmldom/xmldom').DOMParser;
     const xpath = require('xpath');
     const semver = require('semver');
     const watchman = require('fb-watchman');
@@ -229,8 +229,8 @@ module.exports = function(grunt) {
      * @return {String} The rewritten destination path.
      */
     var babelRename = function(destPath, srcPath) {
-        destPath = srcPath.replace('src', 'build');
-        destPath = destPath.replace('.js', '.min.js');
+        destPath = srcPath.replace(`amd/src`, `amd/build`);
+        destPath = destPath.replace(/\.js$/, '.min.js');
         return destPath;
     };
 

@@ -206,7 +206,10 @@ define('PARAM_RAW_TRIMMED', 'raw_trimmed');
 define('PARAM_SAFEDIR',  'safedir');
 
 /**
- * PARAM_SAFEPATH - several PARAM_SAFEDIR joined by "/", suitable for include() and require(), plugin paths, etc.
+ * PARAM_SAFEPATH - several PARAM_SAFEDIR joined by "/", suitable for include() and require(), plugin paths
+ * and other references to Moodle code files.
+ *
+ * This is NOT intended to be used for absolute paths or any user uploaded files.
  */
 define('PARAM_SAFEPATH',  'safepath');
 
@@ -978,18 +981,8 @@ function clean_param($param, $type) {
             return preg_replace('/[^a-zA-Z0-9_-]/i', '', $param);
 
         case PARAM_SAFEPATH:
-            // Replace MS \ separators.
-            $param = str_replace('\\', '/', $param);
-            // Remove any number of ../ to prevent path traversal.
-            $param = preg_replace('/\.\.+\//', '', $param);
-            // Remove everything not a-zA-Z0-9/:_- .
-            $param = preg_replace('/[^a-zA-Z0-9\/:_-]/i', '', $param);
-            // Remove leading slash.
-            $param = ltrim($param, '/');
-            if ($param === '.') {
-                $param = '';
-            }
-            return $param;
+            // Remove everything not a-zA-Z0-9/_- .
+            return preg_replace('/[^a-zA-Z0-9\/_-]/i', '', $param);
 
         case PARAM_FILE:
             // Strip all suspicious characters from filename.
@@ -1070,8 +1063,9 @@ function clean_param($param, $type) {
                 } else if (preg_match('/^' . preg_quote($CFG->wwwroot . '/', '/') . '/i', $param)) {
                     // Absolute, and matches our wwwroot.
                 } else {
+
                     // Relative - let's make sure there are no tricks.
-                    if (validateUrlSyntax('/' . $param, 's-u-P-a-p-f+q?r?')) {
+                    if (validateUrlSyntax('/' . $param, 's-u-P-a-p-f+q?r?') && !preg_match('/javascript:/i', $param)) {
                         // Looks ok.
                     } else {
                         $param = '';
@@ -9020,11 +9014,12 @@ function make_unique_id_code($extra = '') {
  *
  * @param string $addr    The address you are checking
  * @param string $subnetstr    The string of subnet addresses
+ * @param bool $checkallzeros    The state to whether check for 0.0.0.0
  * @return bool
  */
-function address_in_subnet($addr, $subnetstr) {
+function address_in_subnet($addr, $subnetstr, $checkallzeros = false) {
 
-    if ($addr == '0.0.0.0') {
+    if ($addr == '0.0.0.0' && !$checkallzeros) {
         return false;
     }
     $subnets = explode(',', $subnetstr);
