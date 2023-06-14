@@ -2360,7 +2360,8 @@ function calendar_edit_event_allowed($event, $manualedit = false) {
         return has_capability('moodle/calendar:manageentries', $event->context);
     } else if (!empty($event->userid) && $event->userid == $USER->id) {
         // If course is not set, but userid id set, it's a user event.
-        return (has_capability('moodle/calendar:manageownentries', $event->context));
+        return (has_capability('moodle/calendar:manageownentries',
+            context_user::instance($event->userid)));
     } else if (!empty($event->userid)) {
         return calendar_can_manage_user_event($event);
     }
@@ -2445,7 +2446,7 @@ function calendar_get_default_courses($courseid = null, $fields = '*', $canmanag
 
         $courses = get_courses('all', 'c.shortname', implode(',', $prefixedfields));
     } else {
-        $courses = enrol_get_users_courses($userid, true, $fields);
+        $courses = enrol_get_users_courses($userid, true, $fields, 'c.shortname');
     }
 
     if ($courseid && $courseid != SITEID) {
@@ -2579,7 +2580,7 @@ function calendar_format_event_location(calendar_event $event): string {
 function calendar_show_event_type($type, $user = null) {
     $default = CALENDAR_EVENT_SITE + CALENDAR_EVENT_COURSE + CALENDAR_EVENT_GROUP + CALENDAR_EVENT_USER;
 
-    if (get_user_preferences('calendar_persistflt', 0, $user) === 0) {
+    if ((int)get_user_preferences('calendar_persistflt', 0, $user) === 0) {
         global $SESSION;
         if (!isset($SESSION->calendarshoweventtype)) {
             $SESSION->calendarshoweventtype = $default;
@@ -2602,7 +2603,7 @@ function calendar_show_event_type($type, $user = null) {
  * @param stdClass|int $user moodle user object or id, null means current user
  */
 function calendar_set_event_type_display($type, $display = null, $user = null) {
-    $persist = get_user_preferences('calendar_persistflt', 0, $user);
+    $persist = (int)get_user_preferences('calendar_persistflt', 0, $user);
     $default = CALENDAR_EVENT_SITE + CALENDAR_EVENT_COURSE + CALENDAR_EVENT_GROUP
             + CALENDAR_EVENT_USER + CALENDAR_EVENT_COURSECAT;
     if ($persist === 0) {
@@ -3091,11 +3092,21 @@ function calendar_import_events_from_ical(iCalendar $ical, int $subscriptionid =
         \core_php_time_limit::raise(300);
     }
 
+    // Start with a safe default timezone.
+    $timezone = 'UTC';
+
     // Grab the timezone from the iCalendar file to be used later.
     if (isset($ical->properties['X-WR-TIMEZONE'][0]->value)) {
         $timezone = $ical->properties['X-WR-TIMEZONE'][0]->value;
-    } else {
-        $timezone = 'UTC';
+
+    } else if (isset($ical->properties['PRODID'][0]->value)) {
+        // If the timezone was not found, check to se if this is MS exchange / Office 365 which uses Windows timezones.
+        if (strncmp($ical->properties['PRODID'][0]->value, 'Microsoft', 9) == 0) {
+            if (isset($ical->components['VTIMEZONE'][0]->properties['TZID'][0]->value)) {
+                $tzname = $ical->components['VTIMEZONE'][0]->properties['TZID'][0]->value;
+                $timezone = IntlTimeZone::getIDForWindowsID($tzname);
+            }
+        }
     }
 
     $icaluuids = [];

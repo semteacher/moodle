@@ -227,7 +227,6 @@ class redis extends handler {
                         throw new RedisException('Unable to select Redis database '.$this->database.'.');
                     }
                 }
-                $this->connection->ping();
                 return true;
             } catch (RedisException $e) {
                 $logstring = "Failed to connect (try {$counter} out of {$maxnumberofretries}) to redis ";
@@ -512,7 +511,7 @@ class redis extends handler {
                 // time. If it is too small we will poll too much and if it is
                 // too large we will waste time waiting for no reason. 100ms is
                 // the default starting point.
-                $delay = rand($this->lockretry, $this->lockretry * 1.1);
+                $delay = rand($this->lockretry, (int)($this->lockretry * 1.1));
             } else {
                 // If we don't get a lock within 5 seconds then there must be a
                 // very long lived process holding the lock so throttle back to

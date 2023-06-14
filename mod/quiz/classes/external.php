@@ -1009,8 +1009,9 @@ class mod_quiz_external extends external_api {
             if ($displayoptions->marks >= question_display_options::MARK_AND_MAX) {
                 $question['mark'] = $attemptobj->get_question_mark($slot);
             }
-
-            $questions[] = $question;
+            if ($attemptobj->check_page_access($attemptobj->get_question_page($slot), false)) {
+                $questions[] = $question;
+            }
         }
         return $questions;
     }
@@ -1049,6 +1050,7 @@ class mod_quiz_external extends external_api {
      * @throws moodle_quiz_exceptions
      */
     public static function get_attempt_data($attemptid, $page, $preflightdata = array()) {
+        global $PAGE;
 
         $warnings = array();
 
@@ -1066,6 +1068,10 @@ class mod_quiz_external extends external_api {
         } else {
             $nextpage = $params['page'] + 1;
         }
+
+        // TODO: Remove the code once the long-term solution (MDL-76728) has been applied.
+        // Set a default URL to stop the debugging output.
+        $PAGE->set_url('/fake/url');
 
         $result = array();
         $result['attempt'] = $attemptobj->get_attempt();

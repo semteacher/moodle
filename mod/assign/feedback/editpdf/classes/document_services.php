@@ -438,9 +438,13 @@ EOD;
         $fs->delete_area_files($record->contextid, $record->component, $record->filearea, $record->itemid);
 
         $files = array();
+        $images = $pdf->get_images();
         for ($i = 0; $i < $pagecount; $i++) {
             try {
-                $image = $pdf->get_image($i);
+                if (empty($images[$i])) {
+                    throw new \moodle_exception('error image');
+                }
+                $image = $images[$i];
                 if (!$resetrotation) {
                     $pagerotation = page_editor::get_page_rotation($grade->id, $i);
                     $degree = !empty($pagerotation) ? $pagerotation->degree : 0;
@@ -576,14 +580,26 @@ EOD;
             }
         }
 
+        // This should never happen, there should be a version of the pages available
+        // whenever we are requesting the readonly version.
+        if (empty($pages) && $readonly) {
+            throw new \moodle_exception('Could not find readonly pages for grade ' . $grade->id);
+        }
+
+        // There are two situations where the number of page images generated does not
+        // match the number of pages in the PDF:
+        //
+        // 1. The document conversion adhoc task was interrupted somehow (node died, solar flare, etc)
+        // 2. The submission has been updated by the student
+        //
+        // In the case of 1. we need to regenerate the pages, see MDL-66626.
+        // In the case of 2. we should do nothing, see MDL-45580.
+        //
+        // To differentiate between 1. and 2. we can check if the submission has been modified since the
+        // pages were generated. If it has, then we're in situation 2.
         $totalpagesforattempt = self::page_number_for_attempt($assignment, $userid, $attemptnumber, false);
-        // Here we are comparing the total number of images against the total number of pages from the combined PDF.
-        if (empty($pages) || count($pages) != $totalpagesforattempt) {
-            if ($readonly) {
-                // This should never happen, there should be a version of the pages available
-                // whenever we are requesting the readonly version.
-                throw new \moodle_exception('Could not find readonly pages for grade ' . $grade->id);
-            }
+        $submissionmodified = isset($pagemodified) && $submission->timemodified > $pagemodified;
+        if (empty($pages) || (count($pages) != $totalpagesforattempt && !$submissionmodified)) {
             $pages = self::generate_page_images_for_attempt($assignment, $userid, $attemptnumber, $resetrotation);
         }
 
@@ -916,10 +932,13 @@ EOD;
         $oldfile = $fs->get_file($record->contextid, $record->component, $record->filearea,
             $record->itemid, $record->filepath, $record->filename);
 
-        $newhash = sha1($newfilepath);
-
-        // Delete old file if exists.
-        if ($oldfile && $newhash !== $oldfile->get_contenthash()) {
+        if ($oldfile) {
+            $newhash = \file_storage::hash_from_path($newfilepath);
+            if ($newhash === $oldfile->get_contenthash()) {
+                // Use existing file if contenthash match.
+                return $oldfile;
+            }
+            // Delete existing file.
             $oldfile->delete();
         }
 

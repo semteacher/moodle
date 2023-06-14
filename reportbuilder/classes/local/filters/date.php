@@ -58,6 +58,12 @@ class date extends base {
     /** @var int Date in the next [X relative date unit(s)] */
     public const DATE_NEXT = 6;
 
+    /** @var int Date in the past */
+    public const DATE_PAST = 7;
+
+    /** @var int Date in the future */
+    public const DATE_FUTURE = 8;
+
     /** @var int Relative date unit for a day */
     public const DATE_UNIT_DAY = 1;
 
@@ -84,6 +90,8 @@ class date extends base {
             self::DATE_LAST => new lang_string('filterdatelast', 'core_reportbuilder'),
             self::DATE_CURRENT => new lang_string('filterdatecurrent', 'core_reportbuilder'),
             self::DATE_NEXT => new lang_string('filterdatenext', 'core_reportbuilder'),
+            self::DATE_PAST => new lang_string('filterdatepast', 'core_reportbuilder'),
+            self::DATE_FUTURE => new lang_string('filterdatefuture', 'core_reportbuilder'),
         ];
 
         return $this->filter->restrict_limited_operators($operators);
@@ -97,6 +105,8 @@ class date extends base {
     public function setup_form(MoodleQuickForm $mform): void {
         // Operator selector.
         $operatorlabel = get_string('filterfieldoperator', 'core_reportbuilder', $this->get_header());
+        $typesnounit = [self::DATE_ANY, self::DATE_NOT_EMPTY, self::DATE_EMPTY, self::DATE_RANGE,
+            self::DATE_PAST, self::DATE_FUTURE];
 
         $elements[] = $mform->createElement('select', "{$this->name}_operator", $operatorlabel, $this->get_operators());
         $mform->setType("{$this->name}_operator", PARAM_INT);
@@ -108,11 +118,7 @@ class date extends base {
         $elements[] = $mform->createElement('text', "{$this->name}_value", $valuelabel, ['size' => 3]);
         $mform->setType("{$this->name}_value", PARAM_INT);
         $mform->setDefault("{$this->name}_value", 1);
-        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'eq', self::DATE_ANY);
-        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'eq', self::DATE_NOT_EMPTY);
-        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'eq', self::DATE_EMPTY);
-        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'eq', self::DATE_RANGE);
-        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'eq', self::DATE_CURRENT);
+        $mform->hideIf("{$this->name}_value", "{$this->name}_operator", 'in', array_merge($typesnounit, [self::DATE_CURRENT]));
 
         // Unit selector for last and next operators.
         $unitlabel = get_string('filterdurationunit', 'core_reportbuilder', $this->get_header());
@@ -126,10 +132,7 @@ class date extends base {
         $elements[] = $mform->createElement('select', "{$this->name}_unit", $unitlabel, $units);
         $mform->setType("{$this->name}_unit", PARAM_INT);
         $mform->setDefault("{$this->name}_unit", self::DATE_UNIT_DAY);
-        $mform->hideIf("{$this->name}_unit", "{$this->name}_operator", 'eq', self::DATE_ANY);
-        $mform->hideIf("{$this->name}_unit", "{$this->name}_operator", 'eq', self::DATE_NOT_EMPTY);
-        $mform->hideIf("{$this->name}_unit", "{$this->name}_operator", 'eq', self::DATE_EMPTY);
-        $mform->hideIf("{$this->name}_unit", "{$this->name}_operator", 'eq', self::DATE_RANGE);
+        $mform->hideIf("{$this->name}_unit", "{$this->name}_operator", 'in', $typesnounit);
 
         // Add operator/value/unit group.
         $mform->addGroup($elements, "{$this->name}_group", '', '', false);
@@ -164,29 +167,30 @@ class date extends base {
 
         switch ($operator) {
             case self::DATE_NOT_EMPTY:
-                $sql = "{$fieldsql} IS NOT NULL AND {$fieldsql} <> 0";
+                $sql = "COALESCE({$fieldsql}, 0) <> 0";
                 break;
             case self::DATE_EMPTY:
-                $sql = "{$fieldsql} IS NULL OR {$fieldsql} = 0";
+                $sql = "COALESCE({$fieldsql}, 0) = 0";
                 break;
             case self::DATE_RANGE:
-                $clauses = [];
+                $sql = '';
 
                 $datefrom = (int)($values["{$this->name}_from"] ?? 0);
-                if ($datefrom > 0) {
-                    $paramdatefrom = database::generate_param_name();
-                    $clauses[] = "{$fieldsql} >= :{$paramdatefrom}";
-                    $params[$paramdatefrom] = $datefrom;
-                }
-
                 $dateto = (int)($values["{$this->name}_to"] ?? 0);
-                if ($dateto > 0) {
-                    $paramdateto = database::generate_param_name();
-                    $clauses[] = "{$fieldsql} < :{$paramdateto}";
+
+                [$paramdatefrom, $paramdateto] = database::generate_param_names(2);
+
+                if ($datefrom > 0 && $dateto > 0) {
+                    $sql = "{$fieldsql} BETWEEN :{$paramdatefrom} AND :{$paramdateto}";
+                    $params[$paramdatefrom] = $datefrom;
+                    $params[$paramdateto] = $dateto;
+                } else if ($datefrom > 0) {
+                    $sql = "{$fieldsql} >= :{$paramdatefrom}";
+                    $params[$paramdatefrom] = $datefrom;
+                } else if ($dateto > 0) {
+                    $sql = "{$fieldsql} < :{$paramdateto}";
                     $params[$paramdateto] = $dateto;
                 }
-
-                $sql = implode(' AND ', $clauses);
 
                 break;
             // Relative helper method can handle these three cases.
@@ -201,13 +205,23 @@ class date extends base {
 
                 // Generate parameters and SQL clause for the relative date comparison.
                 [$paramdatefrom, $paramdateto] = database::generate_param_names(2);
-                $sql = "{$fieldsql} >= :{$paramdatefrom} AND {$fieldsql} <= :{$paramdateto}";
+                $sql = "{$fieldsql} BETWEEN :{$paramdatefrom} AND :{$paramdateto}";
 
                 [
                     $params[$paramdatefrom],
                     $params[$paramdateto],
                 ] = self::get_relative_timeframe($operator, $dateunitvalue, $dateunit);
 
+                break;
+            case self::DATE_PAST:
+                $param = database::generate_param_name();
+                $sql = "{$fieldsql} < :{$param}";
+                $params[$param] = time();
+                break;
+            case self::DATE_FUTURE:
+                $param = database::generate_param_name();
+                $sql = "{$fieldsql} > :{$param}";
+                $params[$param] = time();
                 break;
             default:
                 // Invalid or inactive filter.
@@ -243,8 +257,18 @@ class date extends base {
                 break;
             case self::DATE_UNIT_WEEK:
                 if ($operator === self::DATE_CURRENT) {
-                    $datestart = $datestart->modify('monday this week')->setTime(0, 0);
-                    $dateend = $dateend->modify('sunday this week')->setTime(23, 59, 59);
+                    // The first day of the week is determined by site calendar configuration/preferences.
+                    $startweekday = \core_calendar\type_factory::get_calendar_instance()->get_starting_weekday();
+                    $weekdays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+                    // If calculated start of week is after today (today is Tues/start of week is Weds), move back a week.
+                    $datestartnow = $datestart->getTimestamp();
+                    $datestart = $datestart->modify($weekdays[$startweekday] . ' this week')->setTime(0, 0);
+                    if ($datestart->getTimestamp() > $datestartnow) {
+                        $datestart = $datestart->modify('-1 week');
+                    }
+
+                    $dateend = $datestart->modify('+6 day')->setTime(23, 59, 59);
                 } else if ($operator === self::DATE_LAST) {
                     $datestart = $datestart->modify("-{$dateunitvalue} week");
                 } else if ($operator === self::DATE_NEXT) {
@@ -279,6 +303,18 @@ class date extends base {
         return [
             $datestart->getTimestamp(),
             $dateend->getTimestamp(),
+        ];
+    }
+
+    /**
+     * Return sample filter values
+     *
+     * @return array
+     */
+    public function get_sample_values(): array {
+        return [
+            "{$this->name}_operator" => self::DATE_CURRENT,
+            "{$this->name}_unit" => self::DATE_UNIT_WEEK,
         ];
     }
 }

@@ -50,7 +50,7 @@
 }
 
 .mform fieldset {
-    margin-bottom: $spacer / 2;
+    margin-bottom: $spacer * 0.5;
     border-bottom: $border-width solid $table-border-color;
 }
 
@@ -264,7 +264,7 @@ fieldset.coursesearchbox label {
     vertical-align: bottom;
 }
 .form-autocomplete-selection {
-    margin: $input-padding-y-sm;
+    margin: $input-padding-y-sm 0;
     // Padding top and bottom, plus mb-1 and the 100% lineheight.
     min-height: 2 * $input-padding-y-sm + 2 * $font-size-base;
 }
@@ -327,8 +327,7 @@ fieldset.coursesearchbox label {
 }
 
 .form-autocomplete-selection [data-active-selection=true] {
-    padding: 0.5em;
-    font-size: large;
+    box-shadow: $input-btn-focus-box-shadow;
 }
 
 select.form-control {
@@ -413,7 +412,7 @@ textarea[data-auto-rows] {
     @include border-radius($card-border-radius);
     border: $card-border-width solid $card-border-color;
     padding: $card-spacer-x;
-    margin-left: $grid-gutter-width / 2;
+    margin-left: $grid-gutter-width * 0.5;
     max-width: 30rem;
 }
 

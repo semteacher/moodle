@@ -22,16 +22,12 @@ Feature: Use the qbank plugin manager page for deletequestion
     When I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I should see "Delete question"
     And I click on "Disable" "link" in the "Delete question" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    Then I should not see "Delete" in the "region-main" "region"
+    And I am on the "Test quiz" "mod_quiz > question bank" page
+    Then the "Delete" action should not exist for the "First question" question in the question bank
     And I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I click on "Enable" "link" in the "Delete question" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
-    And I click on ".dropdown-toggle" "css_element" in the "First question" "table_row"
-    And I should see "Delete" in the "region-main" "region"
+    And I am on the "Test quiz" "mod_quiz > question bank" page
+    And the "Delete" action should exist for the "First question" question in the question bank
 
   @javascript
   Scenario: Enable/disable delete questions bulk action from the base view
@@ -39,22 +35,18 @@ Feature: Use the qbank plugin manager page for deletequestion
     When I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I should see "Delete question"
     And I click on "Disable" "link" in the "Delete question" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
+    And I am on the "Test quiz" "mod_quiz > question bank" page
     And I click on "With selected" "button"
     Then I should not see question bulk action "deleteselected"
     And I navigate to "Plugins > Question bank plugins > Manage question bank plugins" in site administration
     And I click on "Enable" "link" in the "Delete question" "table_row"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
+    And I am on the "Test quiz" "mod_quiz > question bank" page
     And I click on "With selected" "button"
     And I should see question bulk action "deleteselected"
 
   @javascript
   Scenario: I should not see the deleted questions in the base view
-    Given I log in as "admin"
-    And I am on the "Test quiz" "quiz activity" page
-    And I navigate to "Question bank" in current page administration
+    Given I am on the "Test quiz" "mod_quiz > question bank" page logged in as "admin"
     And I click on "First question" "checkbox"
     And I click on "First question second" "checkbox"
     And I click on "With selected" "button"
@@ -62,3 +54,20 @@ Feature: Use the qbank plugin manager page for deletequestion
     And I click on "Delete" "button" in the "Confirm" "dialogue"
     Then I should not see "First question"
     And I should not see "First question second"
+
+  @javascript
+  Scenario: I should be able to delete a question when filtered using tags
+    Given I am on the "First question" "core_question > edit" page logged in as "admin"
+    And I set the following fields to these values:
+      | Tags | foo |
+    And I click on "Save changes" "button"
+    And I am on the "Test quiz" "mod_quiz > question bank" page
+    And I open the autocomplete suggestions list
+    And I click on "foo" item in the autocomplete list
+    And "foo" "autocomplete_selection" should exist
+    And I click on "First question" "checkbox"
+    And I click on "With selected" "button"
+    And I click on question bulk action "deleteselected"
+    When I click on "Delete" "button" in the "Confirm" "dialogue"
+    Then I should not see "Third question"
+    And "foo" "autocomplete_selection" should exist

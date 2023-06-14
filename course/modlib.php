@@ -70,6 +70,11 @@ function add_moduleinfo($moduleinfo, $course, $mform = null) {
     if (isset($moduleinfo->downloadcontent)) {
         $newcm->downloadcontent = $moduleinfo->downloadcontent;
     }
+    if (has_capability('moodle/course:setforcedlanguage', context_course::instance($course->id))) {
+        $newcm->lang = $moduleinfo->lang ?? null;
+    } else {
+        $newcm->lang = null;
+    }
     $newcm->groupmode        = $moduleinfo->groupmode;
     $newcm->groupingid       = $moduleinfo->groupingid;
     $completion = new completion_info($course);
@@ -552,6 +557,13 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
     $moduleinfo->course = $course->id;
     $moduleinfo = set_moduleinfo_defaults($moduleinfo);
 
+    $modcontext = context_module::instance($moduleinfo->coursemodule);
+    if (has_capability('moodle/course:setforcedlanguage', $modcontext)) {
+        $cm->lang = $moduleinfo->lang ?? null;
+    } else {
+        unset($cm->lang);
+    }
+
     if (!empty($course->groupmodeforce) or !isset($moduleinfo->groupmode)) {
         $moduleinfo->groupmode = $cm->groupmode; // Keep original.
     }
@@ -610,8 +622,6 @@ function update_moduleinfo($cm, $moduleinfo, $course, $mform = null) {
     }
 
     $DB->update_record('course_modules', $cm);
-
-    $modcontext = context_module::instance($moduleinfo->coursemodule);
 
     // Update embedded links and save files.
     if (plugin_supports('mod', $moduleinfo->modulename, FEATURE_MOD_INTRO, true)) {
@@ -745,6 +755,7 @@ function get_moduleinfo_data($cm, $course) {
     $data->completiongradeitemnumber = $cm->completiongradeitemnumber;
     $data->showdescription    = $cm->showdescription;
     $data->downloadcontent    = $cm->downloadcontent;
+    $data->lang               = $cm->lang;
     $data->tags               = core_tag_tag::get_item_tags_array('core', 'course_modules', $cm->id);
     if (!empty($CFG->enableavailability)) {
         $data->availabilityconditionsjson = $cm->availability;
@@ -855,7 +866,7 @@ function prepare_new_moduleinfo_data($course, $modulename, $section) {
     if (plugin_supports('mod', $data->modulename, FEATURE_MOD_INTRO, true)) {
         $draftid_editor = file_get_submitted_draft_itemid('introeditor');
         file_prepare_draft_area($draftid_editor, null, null, null, null, array('subdirs'=>true));
-        $data->introeditor = array('text'=>'', 'format'=>FORMAT_HTML, 'itemid'=>$draftid_editor); // TODO: add better default
+        $data->introeditor = array('text' => '', 'format' => editors_get_preferred_format(), 'itemid' => $draftid_editor);
     }
 
     if (plugin_supports('mod', $data->modulename, FEATURE_ADVANCED_GRADING, false)

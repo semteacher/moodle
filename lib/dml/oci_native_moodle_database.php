@@ -245,12 +245,12 @@ class oci_native_moodle_database extends moodle_database {
     /**
      * Called before each db query.
      * @param string $sql
-     * @param array array of parameters
+     * @param array|null $params An array of parameters.
      * @param int $type type of query
      * @param mixed $extrainfo driver specific extra information
      * @return void
      */
-    protected function query_start($sql, array $params=null, $type, $extrainfo=null) {
+    protected function query_start($sql, ?array $params, $type, $extrainfo=null) {
         parent::query_start($sql, $params, $type, $extrainfo);
         // oci driver tents to send debug to output, we do not need that ;-)
         $this->last_error_reporting = error_reporting(0);
@@ -689,15 +689,13 @@ class oci_native_moodle_database extends moodle_database {
         if (is_bool($value)) { // Always, convert boolean to int
             $value = (int)$value;
 
-        } else if ($column->meta_type == 'B') { // BLOB detected, we return 'blob' array instead of raw value to allow
-            if (!is_null($value)) {             // binding/executing code later to know about its nature
-                $value = array('blob' => $value);
-            }
+        } else if ($column->meta_type == 'B' && !is_null($value)) {
+            // Not null BLOB detected, we return 'blob' array instead for later handing on binding.
+            $value = array('blob' => $value);
 
-        } else if ($column->meta_type == 'X' && strlen($value) > 4000) { // CLOB detected (>4000 optimisation), we return 'clob'
-            if (!is_null($value)) {                                      // array instead of raw value to allow binding/
-                $value = array('clob' => (string)$value);                // executing code later to know about its nature
-            }
+        } else if ($column->meta_type == 'X' && !is_null($value) && strlen($value) > 4000) {
+            // Not null CLOB detected (>4000 optimisation), we return 'clob' array instead for later handing on binding.
+            $value = array('clob' => (string)$value);
 
         } else if ($value === '') {
             if ($column->meta_type == 'I' or $column->meta_type == 'F' or $column->meta_type == 'N') {
@@ -962,7 +960,7 @@ class oci_native_moodle_database extends moodle_database {
                     // passed in an arbitrary sql (not processed by normalise_value() ever,
                     // and let's handle it as such. This will provide proper binding of CLOBs in
                     // conditions and other raw SQLs not covered by the above function.
-                    if (strlen($value) > 4000) {
+                    if (!is_null($value) && strlen($value) > 4000) {
                         $lob = oci_new_descriptor($this->oci, OCI_DTYPE_LOB);
                         if ($descriptors === null) {
                             throw new coding_exception('moodle_database::bind_params() $descriptors not specified for clob');
@@ -1651,6 +1649,19 @@ class oci_native_moodle_database extends moodle_database {
     public function sql_group_concat(string $field, string $separator = ', ', string $sort = ''): string {
         $fieldsort = $sort ?: '1';
         return "LISTAGG({$field}, '{$separator}') WITHIN GROUP (ORDER BY {$fieldsort})";
+    }
+
+    /**
+     * Returns the SQL text to be used to order by columns, standardising the return
+     * pattern of null values across database types to sort nulls first when ascending
+     * and last when descending.
+     *
+     * @param string $fieldname The name of the field we need to sort by.
+     * @param int $sort An order to sort the results in.
+     * @return string The piece of SQL code to be used in your statement.
+     */
+    public function sql_order_by_null(string $fieldname, int $sort = SORT_ASC): string {
+        return parent::sql_order_by_null($fieldname, $sort) . ' NULLS ' . ($sort == SORT_ASC ? 'FIRST' : 'LAST');
     }
 
     /**

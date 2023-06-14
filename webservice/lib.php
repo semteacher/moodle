@@ -684,7 +684,8 @@ class webservice {
             }
         }
 
-        if (empty($servicecaps)) {
+        // Bail out early if there's nothing to process.
+        if (empty($users) || empty($servicecaps)) {
             return [];
         }
 
@@ -898,7 +899,7 @@ class webservice_access_exception extends moodle_exception {
 /**
  * Check if a protocol is enabled
  *
- * @param string $protocol name of WS protocol ('rest', 'soap', 'xmlrpc'...)
+ * @param string $protocol name of WS protocol ('rest', 'soap', ...)
  * @return bool true if the protocol is enabled
  */
 function webservice_protocol_is_enabled($protocol) {

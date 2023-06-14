@@ -132,10 +132,10 @@ class number extends base {
             case self::ANY_VALUE:
                 return ['', []];
             case self::IS_NOT_EMPTY:
-                $res = "{$fieldsql} IS NOT NULL AND {$fieldsql} <> 0";
+                $res = "COALESCE({$fieldsql}, 0) <> 0";
                 break;
             case self::IS_EMPTY:
-                $res = "{$fieldsql} IS NULL OR {$fieldsql} = 0";
+                $res = "COALESCE({$fieldsql}, 0) = 0";
                 break;
             case self::LESS_THAN:
                 $res = "{$fieldsql} < :{$param}";
@@ -158,7 +158,7 @@ class number extends base {
                 $params[$param] = $value1;
                 break;
             case self::RANGE:
-                $res = "({$fieldsql} >= :{$param} AND {$fieldsql} <= :{$param2})";
+                $res = "{$fieldsql} BETWEEN :{$param} AND :{$param2}";
                 $params[$param] = $value1;
                 $params[$param2] = $value2;
                 break;
@@ -196,5 +196,17 @@ class number extends base {
         }
 
         return true;
+    }
+
+    /**
+     * Return sample filter values
+     *
+     * @return array
+     */
+    public function get_sample_values(): array {
+        return [
+            "{$this->name}_operator" => self::GREATER_THAN,
+            "{$this->name}_value1" => 1,
+        ];
     }
 }
