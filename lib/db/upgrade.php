@@ -2219,7 +2219,7 @@ privatefiles,moodle|/user/files.php';
         // Creating temporary field questionid to populate the data in question version table.
         // This will make sure the appropriate question id is inserted the version table without making any complex joins.
         $table = new xmldb_table('question_bank_entries');
-        $field = new xmldb_field('questionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_TYPE_INTEGER);
+        $field = new xmldb_field('questionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
         if (!$dbman->field_exists($table, $field)) {
             $dbman->add_field($table, $field);
         }
@@ -2268,7 +2268,7 @@ privatefiles,moodle|/user/files.php';
 
         // Dropping temporary field questionid.
         $table = new xmldb_table('question_bank_entries');
-        $field = new xmldb_field('questionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_TYPE_INTEGER);
+        $field = new xmldb_field('questionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL);
         if ($dbman->field_exists($table, $field)) {
             $dbman->drop_field($table, $field);
         }
@@ -2332,10 +2332,16 @@ privatefiles,moodle|/user/files.php';
         $runinsert = function (int $lastslot, array $tagstrings) use ($DB) {
             $conditiondata = $DB->get_field('question_set_references', 'filtercondition',
                 ['itemid' => $lastslot, 'component' => 'mod_quiz', 'questionarea' => 'slot']);
-            $condition = json_decode($conditiondata);
-            $condition->tags = $tagstrings;
-            $DB->set_field('question_set_references', 'filtercondition', json_encode($condition),
-                ['itemid' => $lastslot, 'component' => 'mod_quiz', 'questionarea' => 'slot']);
+
+            // It is possible to have leftover tags in the database, without a corresponding
+            // slot, because of an old bugs (e.g. MDL-76193). Therefore, if the slot is not found,
+            // we can safely discard these tags.
+            if (!empty($conditiondata)) {
+                $condition = json_decode($conditiondata);
+                $condition->tags = $tagstrings;
+                $DB->set_field('question_set_references', 'filtercondition', json_encode($condition),
+                        ['itemid' => $lastslot, 'component' => 'mod_quiz', 'questionarea' => 'slot']);
+            }
         };
 
         foreach ($slottags as $tag) {
@@ -2877,6 +2883,185 @@ privatefiles,moodle|/user/files.php';
 
         // Main savepoint reached.
         upgrade_main_savepoint(true, 2022061500.00);
+
+    }
+
+    if ($oldversion < 2022072900.00) {
+        // Call the helper function that updates the foreign keys and indexes in MDL-49795.
+        upgrade_add_foreign_key_and_indexes();
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022072900.00);
+    }
+
+    if ($oldversion < 2022081200.01) {
+
+        // Define field lang to be added to course_modules.
+        $table = new xmldb_table('course_modules');
+        $field = new xmldb_field('lang', XMLDB_TYPE_CHAR, '30', null, null, null, null, 'downloadcontent');
+
+        // Conditionally launch add field lang.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022081200.01);
+    }
+
+    if ($oldversion < 2022091000.01) {
+        $table = new xmldb_table('h5p');
+        $indexpathnamehash = new xmldb_index('pathnamehash_idx', XMLDB_INDEX_NOTUNIQUE, ['pathnamehash']);
+
+        if (!$dbman->index_exists($table, $indexpathnamehash)) {
+            $dbman->add_index($table, $indexpathnamehash);
+        }
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022091000.01);
+    }
+
+    if ($oldversion < 2022092200.01) {
+
+        // Remove any orphaned tag instance records (pointing to non-existing context).
+        $DB->delete_records_select('tag_instance', 'NOT EXISTS (
+            SELECT ctx.id FROM {context} ctx WHERE ctx.id = {tag_instance}.contextid
+        )');
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022092200.01);
+    }
+
+    if ($oldversion < 2022101400.01) {
+        $table = new xmldb_table('competency_modulecomp');
+        $field = new xmldb_field('overridegrade', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'ruleoutcome');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022101400.01);
+    }
+
+    if ($oldversion < 2022101400.03) {
+        // Define table to store completion viewed.
+        $table = new xmldb_table('course_modules_viewed');
+
+        // Adding fields to table course_modules_viewed.
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('coursemoduleid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null, 'id');
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null, 'coursemoduleid');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null, 'userid');
+
+        // Adding keys to table course_modules_viewed.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+
+        // Adding indexes to table course_modules_viewed.
+        $table->add_index('coursemoduleid', XMLDB_INDEX_NOTUNIQUE, ['coursemoduleid']);
+        $table->add_index('userid-coursemoduleid', XMLDB_INDEX_UNIQUE, ['userid', 'coursemoduleid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022101400.03);
+    }
+
+    if ($oldversion < 2022101400.04) {
+        // Add legacy data to the new table.
+        $transaction = $DB->start_delegated_transaction();
+        upgrade_set_timeout(3600);
+        $sql = "INSERT INTO {course_modules_viewed}
+                            (userid, coursemoduleid, timecreated)
+                     SELECT userid, coursemoduleid, timemodified
+                       FROM {course_modules_completion}
+                      WHERE viewed = 1";
+        $DB->execute($sql);
+        $transaction->allow_commit();
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022101400.04);
+    }
+
+    if ($oldversion < 2022101400.05) {
+        // Define field viewed to be dropped from course_modules_completion.
+        $table = new xmldb_table('course_modules_completion');
+        $field = new xmldb_field('viewed');
+
+        // Conditionally launch drop field viewed.
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022101400.05);
+    }
+
+    if ($oldversion < 2022102800.01) {
+        // For sites with "contact site support" already available (4.0.x), maintain existing functionality.
+        if ($oldversion >= 2022041900.00) {
+            set_config('supportavailability', CONTACT_SUPPORT_ANYONE);
+        } else {
+            // Sites which did not previously have the "contact site support" feature default to it requiring authentication.
+            set_config('supportavailability', CONTACT_SUPPORT_AUTHENTICATED);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022102800.01);
+    }
+
+    if ($oldversion < 2022110600.00) {
+        // If webservice_xmlrpc isn't any longer installed, remove its configuration,
+        // capabilities and presence in other settings.
+        if (!file_exists($CFG->dirroot . '/webservice/xmlrpc/version.php')) {
+            // No DB structures to delete in this plugin.
+
+            // Remove capabilities.
+            capabilities_cleanup('webservice_xmlrpc');
+
+            // Remove own configuration.
+            unset_all_config_for_plugin('webservice_xmlrpc');
+
+            // Remove it from the enabled protocols if it was there.
+            $protos = get_config('core', 'webserviceprotocols');
+            $protoarr = explode(',', $protos);
+            $protoarr = array_filter($protoarr, function($ele) {
+                return trim($ele) !== 'xmlrpc';
+            });
+            $protos = implode(',', $protoarr);
+            set_config('webserviceprotocols', $protos);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022110600.00);
+    }
+
+    // Automatically generated Moodle v4.1.0 release upgrade line.
+    // Put any upgrade step following this.
+
+    if ($oldversion < 2022112800.03) {
+
+        // Remove any orphaned role assignment records (pointing to non-existing roles).
+        $DB->delete_records_select('role_assignments', 'NOT EXISTS (
+            SELECT r.id FROM {role} r WHERE r.id = {role_assignments}.roleid
+        )');
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022112800.03);
+    }
+
+    if ($oldversion < 2022112803.03) {
+        // Add public key field to user_devices table.
+        $table = new xmldb_table('user_devices');
+        $field = new xmldb_field('publickey', XMLDB_TYPE_TEXT, null, null, null, null, null, 'uuid');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2022112803.03);
     }
 
     return true;

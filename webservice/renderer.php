@@ -497,6 +497,8 @@ EOF;
     /**
      * Create indented XML-RPC  param description
      *
+     * @todo MDL-76078 - Incorrect inter-communication, core cannot have plugin dependencies like this.
+     *
      * @param external_description $paramdescription the description structure of the web service function parameters
      * @param string $indentation Indentation in the generated HTML code; should contain only spaces.
      * @return string the html to diplay
@@ -575,6 +577,8 @@ EOF;
     /**
      * Return indented REST param description
      *
+     * @todo MDL-76078 - Incorrect inter-communication, core cannot have plugin dependencies like this.
+     *
      * @param external_description $paramdescription the description structure of the web service function parameters
      * @param string $paramstring parameter
      * @return string the html to diplay
@@ -619,6 +623,8 @@ EOF;
 
     /**
      * Displays all the documentation
+     *
+     * @todo MDL-76078 - Incorrect inter-communication, core cannot have plugin dependencies like this.
      *
      * @param array $functions external_description of all the web service functions
      * @param boolean $printableformat true if we want to display the documentation in a printable format
@@ -727,7 +733,7 @@ EOF;
                     $documentationhtml .= $this->colored_box_with_pre_tag(
                                     get_string('phpparam', 'webservice'),
                                     htmlentities('[' . $paramname . '] =>'
-                                            . $this->xmlrpc_param_description_html($paramdesc)),
+                                            . $this->xmlrpc_param_description_html($paramdesc), ENT_COMPAT),
                                     'DFEEE7');
                 }
                 // POST format for the REST protocol for the argument
@@ -735,7 +741,7 @@ EOF;
                     $documentationhtml .= $this->colored_box_with_pre_tag(
                                     get_string('restparam', 'webservice'),
                                     htmlentities($this->rest_param_description_html(
-                                                    $paramdesc, $paramname)),
+                                                    $paramdesc, $paramname), ENT_COMPAT),
                                     'FEEBE5');
                 }
                 $documentationhtml .= html_writer::end_tag('span');
@@ -765,7 +771,7 @@ EOF;
                     $documentationhtml .= $this->colored_box_with_pre_tag(
                                     get_string('phpresponse', 'webservice'),
                                     htmlentities($this->xmlrpc_param_description_html(
-                                                    $description->returns_desc)),
+                                                    $description->returns_desc), ENT_COMPAT),
                                     'DFEEE7');
                 }
                 // XML response for the REST protocol
@@ -777,7 +783,7 @@ EOF;
                     $restresponse .="</RESPONSE>" . $brakeline;
                     $documentationhtml .= $this->colored_box_with_pre_tag(
                                     get_string('restcode', 'webservice'),
-                                    htmlentities($restresponse),
+                                    htmlentities($restresponse, ENT_COMPAT),
                                     'FEEBE5');
                 }
             }
@@ -801,7 +807,7 @@ EOF;
 EOF;
                 $documentationhtml .= $this->colored_box_with_pre_tag(
                                 get_string('restexception', 'webservice'),
-                                htmlentities($restexceptiontext),
+                                htmlentities($restexceptiontext, ENT_COMPAT),
                                 'FEEBE5');
 
                 $documentationhtml .= html_writer::end_tag('span');

@@ -518,9 +518,9 @@ function file_rewrite_pluginfile_urls($text, $file, $contextid, $component, $fil
     }
 
     if (!empty($options['reverse'])) {
-        return str_replace($baseurl, '@@PLUGINFILE@@/', $text);
+        return str_replace($baseurl, '@@PLUGINFILE@@/', $text ?? '');
     } else {
-        return str_replace('@@PLUGINFILE@@/', $baseurl, $text);
+        return str_replace('@@PLUGINFILE@@/', $baseurl, $text ?? '');
     }
 }
 
@@ -785,7 +785,7 @@ function file_get_drafarea_files($draftitemid, $filepath = '/') {
             }
             // find the file this draft file was created from and count all references in local
             // system pointing to that file
-            $source = @unserialize($file->get_source());
+            $source = @unserialize($file->get_source() ?? '');
             if (isset($source->original)) {
                 $item->refcount = $fs->search_references_count($source->original);
             }
@@ -905,7 +905,7 @@ function file_get_submitted_draft_itemid($elname) {
  * @return stored_file
  */
 function file_restore_source_field_from_draft_file($storedfile) {
-    $source = @unserialize($storedfile->get_source());
+    $source = @unserialize($storedfile->get_source() ?? '');
     if (!empty($source)) {
         if (is_object($source)) {
             $restoredsource = $source->source;
@@ -928,7 +928,7 @@ function file_remove_editor_orphaned_files($editor) {
     // Find those draft files included in the text, and generate their hashes.
     $context = context_user::instance($USER->id);
     $baseurl = $CFG->wwwroot . '/draftfile.php/' . $context->id . '/user/draft/' . $editor['itemid'] . '/';
-    $pattern = "/" . preg_quote($baseurl, '/') . "(.+?)[\?\"']/";
+    $pattern = "/" . preg_quote($baseurl, '/') . "(.+?)[\?\"'<>\s:\\\\]/";
     preg_match_all($pattern, $editor['text'], $matches);
     $usedfilehashes = [];
     foreach ($matches[1] as $matchedfilename) {
@@ -1199,7 +1199,7 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
             // Let's check if we can update this file or we need to delete and create.
             if ($newfile->is_directory()) {
                 // Directories are always ok to just update.
-            } else if (($source = @unserialize($newfile->get_source())) && isset($source->original)) {
+            } else if (($source = @unserialize($newfile->get_source() ?? '')) && isset($source->original)) {
                 // File has the 'original' - we need to update the file (it may even have not been changed at all).
                 $original = file_storage::unpack_reference($source->original);
                 if ($original['filename'] !== $oldfile->get_filename() || $original['filepath'] !== $oldfile->get_filepath()) {
@@ -1235,7 +1235,7 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
             // Field files.source for draftarea files contains serialised object with source and original information.
             // We only store the source part of it for non-draft file area.
             $newsource = $newfile->get_source();
-            if ($source = @unserialize($newfile->get_source())) {
+            if ($source = @unserialize($newfile->get_source() ?? '')) {
                 $newsource = $source->source;
             }
             if ($oldfile->get_source() !== $newsource) {
@@ -1269,7 +1269,7 @@ function file_save_draft_area_files($draftitemid, $contextid, $component, $filea
         // the size and subdirectory tests are extra safety only, the UI should prevent it
         foreach ($newhashes as $file) {
             $file_record = array('contextid'=>$contextid, 'component'=>$component, 'filearea'=>$filearea, 'itemid'=>$itemid, 'timemodified'=>time());
-            if ($source = @unserialize($file->get_source())) {
+            if ($source = @unserialize($file->get_source() ?? '')) {
                 // Field files.source for draftarea files contains serialised object with source and original information.
                 // We only store the source part of it for non-draft file area.
                 $file_record['source'] = $source->source;
@@ -1478,7 +1478,7 @@ function format_postdata_for_curlcall($postdata) {
                 $currentdata = urlencode($k);
                 format_array_postdata_for_curlcall($v, $currentdata, $data);
             }  else {
-                $data[] = urlencode($k).'='.urlencode($v);
+                $data[] = urlencode($k).'='.urlencode($v ?? '');
             }
         }
         $convertedpostdata = implode('&', $data);
@@ -1771,7 +1771,7 @@ function mimeinfo($element, $filename) {
     $mimeinfo = & get_mimetypes_array();
     static $iconpostfixes = array(256=>'-256', 128=>'-128', 96=>'-96', 80=>'-80', 72=>'-72', 64=>'-64', 48=>'-48', 32=>'-32', 24=>'-24', 16=>'');
 
-    $filetype = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $filetype = strtolower(pathinfo($filename ?? '', PATHINFO_EXTENSION));
     if (empty($filetype)) {
         $filetype = 'xxx'; // file without extension
     }
@@ -2028,8 +2028,8 @@ function get_mimetype_description($obj, $capitalise=false) {
     }
 
     // MIME types may include + symbol but this is not permitted in string ids.
-    $safemimetype = str_replace('+', '_', $mimetype);
-    $safemimetypestr = str_replace('+', '_', $mimetypestr);
+    $safemimetype = str_replace('+', '_', $mimetype ?? '');
+    $safemimetypestr = str_replace('+', '_', $mimetypestr ?? '');
     $customdescription = mimeinfo('customdescription', $filename);
     if ($customdescription) {
         // Call format_string on the custom description so that multilang
@@ -2919,7 +2919,7 @@ function file_overwrite_existing_draftfile(stored_file $newfile, stored_file $ex
 
     $fs = get_file_storage();
     // Remember original file source field.
-    $source = @unserialize($existingfile->get_source());
+    $source = @unserialize($existingfile->get_source() ?? '');
     // Remember the original sortorder.
     $sortorder = $existingfile->get_sortorder();
     if ($newfile->is_external_file()) {
@@ -2943,7 +2943,7 @@ function file_overwrite_existing_draftfile(stored_file $newfile, stored_file $ex
     $newfile = $fs->create_file_from_storedfile($newfilerecord, $newfile);
     // Preserve original file location (stored in source field) for handling references.
     if (isset($source->original)) {
-        if (!($newfilesource = @unserialize($newfile->get_source()))) {
+        if (!($newfilesource = @unserialize($newfile->get_source() ?? ''))) {
             $newfilesource = new stdClass();
         }
         $newfilesource->original = $source->original;
@@ -3215,7 +3215,14 @@ class curl {
                     $this->proxy_type = CURLPROXY_SOCKS5;
                 } else {
                     $this->proxy_type = CURLPROXY_HTTP;
-                    $this->setopt(array('httpproxytunnel'=>false));
+                    $this->setopt([
+                        'httpproxytunnel' => false,
+                    ]);
+                    if (defined('CURLOPT_SUPPRESS_CONNECT_HEADERS')) {
+                        $this->setopt([
+                            'suppress_connect_headers' => true,
+                        ]);
+                    }
                 }
                 $this->setopt(array('proxytype'=>$this->proxy_type));
             }
@@ -3332,7 +3339,11 @@ class curl {
                     throw new coding_exception('Curl options should be defined using strings, not constant values.');
                 }
                 if (stripos($name, 'CURLOPT_') === false) {
-                    $name = strtoupper('CURLOPT_'.$name);
+                    // Only prefix with CURLOPT_ if the option doesn't contain CURLINFO_,
+                    // which is a valid prefix for at least one option CURLINFO_HEADER_OUT.
+                    if (stripos($name, 'CURLINFO_') === false) {
+                        $name = strtoupper('CURLOPT_'.$name);
+                    }
                 } else {
                     $name = strtoupper($name);
                 }
@@ -4201,14 +4212,14 @@ class curl {
         $crlf = "\r\n";
         return preg_replace(
                 // HTTP version and status code (ignore value of code).
-                '~^HTTP/1\..*' . $crlf .
+                '~^HTTP/[1-9](\.[0-9])?.*' . $crlf .
                 // Header name: character between 33 and 126 decimal, except colon.
                 // Colon. Header value: any character except \r and \n. CRLF.
                 '(?:[\x21-\x39\x3b-\x7e]+:[^' . $crlf . ']+' . $crlf . ')*' .
                 // Headers are terminated by another CRLF (blank line).
                 $crlf .
                 // Second HTTP status code, this time must be 200.
-                '(HTTP/1.[01] 200 )~', '$1', $input);
+                '(HTTP/[1-9](\.[0-9])? 200)~', '$2', $input);
     }
 }
 
@@ -5129,16 +5140,26 @@ function file_pluginfile($relativepath, $forcedownload, $preview = null, $offlin
             send_file_not_found();
         }
 
+        $componentargs = fullclone($args);
         $itemid = (int)array_shift($args);
         $filename = array_pop($args);
         $filepath = $args ? '/'.implode('/', $args).'/' : '/';
-        if (!$file = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename) or
-            $file->is_directory()) {
-            send_file_not_found();
-        }
 
         \core\session\manager::write_close(); // Unlock session during file serving.
-        send_stored_file($file, 0, 0, true, $sendfileoptions); // must force download - security!
+
+        $contenttype = $DB->get_field('contentbank_content', 'contenttype', ['id' => $itemid]);
+        if (component_class_callback("\\{$contenttype}\\contenttype", 'pluginfile',
+                [$course, null, $context, $filearea, $componentargs, $forcedownload, $sendfileoptions], false) === false) {
+
+            if (!$file = $fs->get_file($context->id, $component, $filearea, $itemid, $filepath, $filename) or
+
+                $file->is_directory()) {
+                send_file_not_found();
+
+            } else {
+                send_stored_file($file, 0, 0, true, $sendfileoptions); // Must force download - security!
+            }
+        }
     } else if (strpos($component, 'mod_') === 0) {
         $modname = substr($component, 4);
         if (!file_exists("$CFG->dirroot/mod/$modname/lib.php")) {

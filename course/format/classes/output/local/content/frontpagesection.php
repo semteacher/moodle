@@ -79,14 +79,12 @@ class frontpagesection implements named_templatable, renderable {
         global $USER;
 
         $format = $this->format;
-        $course = $format->get_course();
-        $context = context_course::instance($course->id);
         $section = $this->section;
 
         $sectionoutput = new $this->sectionclass($format, $section);
         $sectionoutput->hide_controls();
 
-        if (trim($section->name) == '') {
+        if (trim($section->name ?? '') == '') {
             $sectionoutput->hide_title();
         }
 
@@ -94,7 +92,7 @@ class frontpagesection implements named_templatable, renderable {
             'sections' => [$sectionoutput->export_for_template($output)],
         ];
 
-        if ($format->show_editor() && has_capability('moodle/course:update', $context)) {
+        if ($format->show_editor(['moodle/course:update'])) {
             $data->showsettings = true;
             $data->settingsurl = new moodle_url('/course/editsection.php', ['id' => $section->id]);
         }

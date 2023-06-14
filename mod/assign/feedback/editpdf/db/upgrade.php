@@ -82,5 +82,26 @@ function xmldb_assignfeedback_editpdf_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2022061000, 'assignfeedback', 'editpdf');
     }
 
+    if ($oldversion < 2022082200) {
+        // Conversion records need to be removed in order for conversions to restart.
+        $DB->delete_records('file_conversion');
+
+        // Schedule an adhoc task to fix existing stale conversions.
+        $task = new \assignfeedback_editpdf\task\bump_submission_for_stale_conversions();
+        \core\task\manager::queue_adhoc_task($task);
+
+        upgrade_plugin_savepoint(true, 2022082200, 'assignfeedback', 'editpdf');
+    }
+
+    // Automatically generated Moodle v4.1.0 release upgrade line.
+    // Put any upgrade step following this.
+
+    if ($oldversion < 2022112801) {
+        $task = new \assignfeedback_editpdf\task\remove_orphaned_editpdf_files();
+        \core\task\manager::queue_adhoc_task($task);
+
+        upgrade_plugin_savepoint(true, 2022112801, 'assignfeedback', 'editpdf');
+    }
+
     return true;
 }

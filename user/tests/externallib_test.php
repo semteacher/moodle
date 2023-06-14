@@ -29,6 +29,7 @@ namespace core_user;
 use core_files_external;
 use core_user_external;
 use externallib_advanced_testcase;
+use external_api;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -356,6 +357,12 @@ class externallib_test extends externallib_advanced_testcase {
         $this->getDataGenerator()->enrol_user($return->user2->id, $return->course->id, $return->roleid, 'manual');
         $this->getDataGenerator()->enrol_user($USER->id, $return->course->id, $return->roleid, 'manual');
 
+        $group1 = $this->getDataGenerator()->create_group(['courseid' => $return->course->id, 'name' => 'G1']);
+        $group2 = $this->getDataGenerator()->create_group(['courseid' => $return->course->id, 'name' => 'G2']);
+
+        groups_add_member($group1->id, $return->user1->id);
+        groups_add_member($group2->id, $return->user2->id);
+
         return $return;
     }
 
@@ -399,6 +406,9 @@ class externallib_test extends externallib_advanced_testcase {
 
         // We need to execute the return values cleaning process to simulate the web service server.
         $enrolledusers = \external_api::clean_returnvalue(core_user_external::get_course_user_profiles_returns(), $enrolledusers);
+        // Check we get the requested user and that is in a group.
+        $this->assertCount(1, $enrolledusers);
+        $this->assertCount(1, $enrolledusers[0]['groups']);
 
         foreach($enrolledusers as $enrolleduser) {
             if ($enrolleduser['username'] == $data->user1->username) {
@@ -1013,6 +1023,55 @@ class externallib_test extends externallib_advanced_testcase {
         $this->assertNotEmpty($file);
     }
 
+
+    /**
+     * Test add_user_private_files quota
+     */
+    public function test_add_user_private_files_quota() {
+        global $USER, $CFG, $DB;
+
+        $this->resetAfterTest(true);
+
+        $context = \context_system::instance();
+        $roleid = $this->assignUserCapability('moodle/user:manageownfiles', $context->id);
+
+        $context = \context_user::instance($USER->id);
+        $contextid = $context->id;
+        $component = "user";
+        $filearea = "draft";
+        $itemid = 0;
+        $filepath = "/";
+        $filename = "Simple.txt";
+        $filecontent = base64_encode("Let us create a nice simple file");
+        $contextlevel = null;
+        $instanceid = null;
+        $browser = get_file_browser();
+
+        // Call the files api to create a file.
+        $draftfile = core_files_external::upload($contextid, $component, $filearea, $itemid, $filepath,
+            $filename, $filecontent, $contextlevel, $instanceid);
+        $draftfile = \external_api::clean_returnvalue(core_files_external::upload_returns(), $draftfile);
+        $draftid = $draftfile['itemid'];
+
+        // Call the external function to add the file to private files.
+        core_user_external::add_user_private_files($draftid);
+
+        // Force the quota so we are sure it won't be space to add the new file.
+        $fileareainfo = file_get_file_area_info($contextid, 'user', 'private');
+        $CFG->userquota = $fileareainfo['filesize_without_references'] + 1;
+
+        // Generate a new draftitemid for the same testfile.
+        $draftfile = core_files_external::upload($contextid, $component, $filearea, $itemid, $filepath,
+            $filename, $filecontent, $contextlevel, $instanceid);
+        $draftid = $draftfile['itemid'];
+
+        $this->expectException('moodle_exception');
+        $this->expectExceptionMessage(get_string('maxareabytes', 'error'));
+
+        // Call the external function to include the new file.
+        core_user_external::add_user_private_files($draftid);
+    }
+
     /**
      * Test add user device
      */
@@ -1028,7 +1087,8 @@ class externallib_test extends externallib_advanced_testcase {
                 'platform' => 'Android',
                 'version' => '4.2.2',
                 'pushid' => 'apushdkasdfj4835',
-                'uuid' => 'asdnfl348qlksfaasef859'
+                'uuid' => 'asdnfl348qlksfaasef859',
+                'publickey' => null,
                 );
 
         // Call the external function.
@@ -1049,9 +1109,10 @@ class externallib_test extends externallib_advanced_testcase {
 
         // Test update an existing device.
         $device['pushid'] = 'different than before';
+        $device['publickey'] = 'MFsxCzAJBgNVBAYTAkZSMRMwEQYDVQQ';
         $warnings = core_user_external::add_user_device($device['appid'], $device['name'], $device['model'], $device['platform'],
-                                                        $device['version'], $device['pushid'], $device['uuid']);
-        $warnings = \external_api::clean_returnvalue(core_user_external::add_user_device_returns(), $warnings);
+            $device['version'], $device['pushid'], $device['uuid'], $device['publickey']);
+        $warnings = external_api::clean_returnvalue(core_user_external::add_user_device_returns(), $warnings);
 
         $this->assertEquals(1, $DB->count_records('user_devices'));
         $updated = $DB->get_record('user_devices', array('pushid' => $device['pushid']));
@@ -1674,5 +1735,37 @@ class externallib_test extends externallib_advanced_testcase {
             $this->assertEquals(1, count($user['extrafields']));
             $this->assertEquals('email', $user['extrafields'][0]['name']);
         }
+    }
+
+    /**
+     * Test verifying that update_user_preferences prevents changes to the default homepage for other users.
+     */
+    public function test_update_user_preferences_homepage_permission_callback() {
+        global $DB;
+        $this->resetAfterTest();
+
+        $user = self::getDataGenerator()->create_user();
+        $this->setUser($user);
+        $adminuser = get_admin();
+
+        // Allow user selection of the default homepage via preferences.
+        set_config('defaulthomepage', HOMEPAGE_USER);
+
+        // Try to save another user's home page preference which uses the permissioncallback.
+        $preferences = [
+            [
+                'name' => 'user_home_page_preference',
+                'value' => '3',
+                'userid' => $adminuser->id,
+            ]
+        ];
+        $result = core_user_external::set_user_preferences($preferences);
+        $result = \external_api::clean_returnvalue(core_user_external::set_user_preferences_returns(), $result);
+        $this->assertCount(1, $result['warnings']);
+        $this->assertCount(0, $result['saved']);
+
+        // Verify no change to the preference, checking from DB to avoid cache.
+        $this->assertEquals(null, $DB->get_field('user_preferences', 'value',
+            ['userid' => $adminuser->id, 'name' => 'user_home_page_preference']));
     }
 }
