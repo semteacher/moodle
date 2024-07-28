@@ -222,7 +222,7 @@ function tool_mobile_standard_footer_html() {
     global $CFG;
     $output = '';
     if (!empty($CFG->enablemobilewebservice) && $url = tool_mobile_create_app_download_url()) {
-        $output .= html_writer::link($url, get_string('getmoodleonyourmobile', 'tool_mobile'));
+        $output .= html_writer::link($url, get_string('getmoodleonyourmobile', 'tool_mobile'), ['class' => 'mobilelink']);
     }
     return $output;
 }
@@ -263,5 +263,18 @@ function tool_mobile_pre_processor_message_send($procname, $data) {
         }
 
         $data->fullmessagehtml .= html_writer::tag('p', get_string('readingthisemailgettheapp', 'tool_mobile', $url->out()));
+    }
+}
+
+/**
+ * Callback to add headers before the HTTP headers are sent.
+ *
+ */
+function tool_mobile_before_http_headers() {
+    global $CFG;
+
+    // Set Partitioned and Secure attributes to the MoodleSession cookie if the user is using the Moodle app.
+    if (\core_useragent::is_moodle_app()) {
+        \core\session\utility\cookie_helper::add_attributes_to_cookie_response_header('MoodleSession'.$CFG->sessioncookie, ['Secure', 'Partitioned']);
     }
 }

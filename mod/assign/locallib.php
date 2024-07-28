@@ -4118,7 +4118,7 @@ class assign {
             // and show errors.
             $mform->is_validated();
         }
-        $o .= $this->get_renderer()->heading(get_string('gradenoun'), 3);
+
         $o .= $this->get_renderer()->render(new assign_form('gradingform', $mform));
 
         if (count($allsubmissions) > 1) {
@@ -4304,7 +4304,7 @@ class assign {
                                                '',
                                                array('class'=>'gradeform'));
         }
-        $o .= $this->get_renderer()->heading(get_string('gradenoun'), 3);
+
         $o .= $this->get_renderer()->render(new assign_form('gradingform', $mform));
 
         if (count($allsubmissions) > 1 && $attemptnumber == -1) {
@@ -6785,7 +6785,15 @@ class assign {
             return false;
         }
 
-        if ($instance->requiresubmissionstatement && empty($data->submissionstatement) && $USER->id == $userid) {
+        $adminconfig = $this->get_admin_config();
+
+        $submissionstatement = '';
+        if ($instance->requiresubmissionstatement) {
+            $submissionstatement = $this->get_submissionstatement($adminconfig, $instance, $this->context);
+        }
+
+        if (!empty($submissionstatement) && $instance->requiresubmissionstatement
+                && empty($data->submissionstatement) && $USER->id == $userid) {
             return false;
         }
 
@@ -7968,9 +7976,12 @@ class assign {
             $gradingstatus = $this->get_grading_status($userid);
             if ($gradingstatus != ASSIGN_MARKING_WORKFLOW_STATE_RELEASED) {
                 if ($grade->grade && $grade->grade != -1) {
-                    $assigngradestring = html_writer::span(
-                        make_grades_menu($settings->grade)[grade_floatval($grade->grade)], 'currentgrade'
-                    );
+                    if ($settings->grade > 0) {
+                        $assigngradestring = format_float($grade->grade, $this->get_grade_item()->get_decimals());
+                    } else {
+                        $assigngradestring = make_grades_menu($settings->grade)[grade_floatval($grade->grade)];
+                    }
+                    $assigngradestring = html_writer::span($assigngradestring, 'currentgrade');
                     $label = get_string('currentassigngrade', 'assign');
                     $mform->addElement('static', 'currentassigngrade', $label, $assigngradestring);
                 }
@@ -9489,20 +9500,22 @@ class assign {
         $confirm = optional_param('confirm', 0, PARAM_BOOL);
 
         if ($confirm) {
-            confirm_sesskey();
-
-            // Fix the grades.
-            $this->fix_null_grades();
-            unset_config('has_rescaled_null_grades_' . $instance->id, 'assign');
-
-            // Display the notice.
-            $o .= $this->get_renderer()->notification(get_string('fixrescalednullgradesdone', 'assign'), 'notifysuccess');
+            if (confirm_sesskey()) {
+                // Fix the grades.
+                $this->fix_null_grades();
+                unset_config('has_rescaled_null_grades_' . $instance->id, 'assign');
+                // Display the success notice.
+                $o .= $this->get_renderer()->notification(get_string('fixrescalednullgradesdone', 'assign'), 'notifysuccess');
+            } else {
+                // If the sesskey is not valid, then display the error notice.
+                $o .= $this->get_renderer()->notification(get_string('invalidsesskey', 'error'), 'notifyerror');
+            }
             $url = new moodle_url(
                 '/mod/assign/view.php',
-                array(
+                [
                     'id' => $this->get_course_module()->id,
-                    'action' => 'grading'
-                )
+                    'action' => 'grading',
+                ],
             );
             $o .= $this->get_renderer()->continue_button($url);
         } else {

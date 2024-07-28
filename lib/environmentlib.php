@@ -1251,7 +1251,7 @@ class environment_results {
      */
     var $error_code;
     /**
-     * @var string required/optional
+     * @var string required/optional/recommended.
      */
     var $level;
     /**
@@ -1548,8 +1548,9 @@ function get_level($element) {
     $level = 'required';
     if (isset($element['@']['level'])) {
         $level = $element['@']['level'];
-        if (!in_array($level, array('required', 'optional'))) {
-            debugging('The level of a check in the environment.xml file must be "required" or "optional".', DEBUG_DEVELOPER);
+        if (!in_array($level, ['required', 'optional', 'recommended'])) {
+            debugging('The level of a check in the environment.xml file must be "required", "optional" or "recommended".',
+                DEBUG_DEVELOPER);
             $level = 'required';
         }
     } else {
@@ -1685,4 +1686,15 @@ function restrict_php_version_81($result) {
  */
 function restrict_php_version_82($result) {
     return restrict_php_version($result, '8.2');
+}
+
+/**
+ * Check if the current PHP version is greater than or equal to
+ * PHP version 8.3
+ *
+ * @param object $result an environment_results instance
+ * @return bool result of version check
+ */
+function restrict_php_version_83($result) {
+    return restrict_php_version($result, '8.3');
 }

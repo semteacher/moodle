@@ -10,28 +10,18 @@ Feature: Completion pass grade  view activity completion in the forum activity
       | student1 | Vinnie    | Student1 | student1@example.com |
       | teacher1 | Darrell   | Teacher1 | teacher1@example.com |
     And the following "courses" exist:
-      | fullname | shortname | category |
-      | Course 1 | C1        | 0        |
+      | fullname | shortname | category | enablecompletion |
+      | Course 1 | C1        | 0        | 1                |
     And the following "course enrolments" exist:
       | user | course | role           |
       | student1 | C1 | student        |
       | teacher1 | C1 | editingteacher |
-    And I log in as "teacher1"
-    And I am on "Course 1" course homepage
-    And I navigate to "Settings" in current page administration
-    And I expand all fieldsets
-    And I set the following fields to these values:
-      | Enable completion tracking | Yes |
-      | Show activity completion conditions | Yes |
-    And I press "Save and display"
     And the following "activity" exists:
       | activity | forum         |
       | course   | C1            |
       | idnumber | mh1           |
       | name     | Music history |
-      | section  | 1             |
-    And I am on the "Music history" "forum activity" page
-    And I navigate to "Settings" in current page administration
+    And I am on the "Music history" "forum activity editing" page logged in as teacher1
     And I expand all fieldsets
     And I set the following fields to these values:
       | Whole forum grading > Type            | Point                                             |
@@ -47,7 +37,6 @@ Feature: Completion pass grade  view activity completion in the forum activity
       | completionrepliesenabled              | 1                                                 |
       | completionreplies                     | 1                                                 |
     And I press "Save and display"
-    And I log out
 
   Scenario: View automatic completion items as a teacher
     Given I am on the "Music history" "forum activity" page logged in as teacher1
@@ -87,14 +76,12 @@ Feature: Completion pass grade  view activity completion in the forum activity
     And the "Post replies: 1" completion condition of "Music history" is displayed as "done"
     And the "Receive a grade" completion condition of "Music history" is displayed as "todo"
     And the "Receive a passing grade" completion condition of "Music history" is displayed as "todo"
-    And I log out
     # Grade the student
     And I am on the "Music history" "forum activity" page logged in as teacher1
     And I press "Grade users"
     And I set the field "grade" to "33"
     And I press "Save"
     And I press "Close grader"
-    And I log out
     # All conditions should now be completed.
     When I am on the "Music history" "forum activity" page logged in as student1
     Then the "View" completion condition of "Music history" is displayed as "done"
@@ -133,14 +120,12 @@ Feature: Completion pass grade  view activity completion in the forum activity
     And the "Post replies: 1" completion condition of "Music history" is displayed as "done"
     And the "Receive a grade" completion condition of "Music history" is displayed as "todo"
     And the "Receive a passing grade" completion condition of "Music history" is displayed as "todo"
-    And I log out
     # Grade the student
     And I am on the "Music history" "forum activity" page logged in as teacher1
     And I press "Grade users"
     And I set the field "grade" to "60"
     And I press "Save"
     And I press "Close grader"
-    And I log out
     # All conditions should now be completed.
     When I am on the "Music history" "forum activity" page logged in as student1
     Then the "View" completion condition of "Music history" is displayed as "done"
