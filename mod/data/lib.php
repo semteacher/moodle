@@ -326,6 +326,8 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
         global $DB;
 
         if (!empty($this->field->id)) {
+            $manager = manager::create_from_instance($this->data);
+
             // Get the field before we delete it.
             $field = $DB->get_record('data_fields', array('id' => $this->field->id));
 
@@ -341,6 +343,11 @@ class data_field_base {     // Base class for Database Field Types (see field/*/
                     'dataid' => $this->data->id
                  )
             ));
+
+            if (!$manager->has_fields() && $manager->has_records()) {
+                $DB->delete_records('data_records', ['dataid' => $this->data->id]);
+            }
+
             $event->add_record_snapshot('data_fields', $field);
             $event->trigger();
         }
@@ -944,6 +951,7 @@ function data_get_field_from_id($fieldid, $data){
 function data_get_field_new($type, $data) {
     global $CFG;
 
+    $type = clean_param($type, PARAM_ALPHA);
     $filepath = $CFG->dirroot.'/mod/data/field/'.$type.'/field.class.php';
     // It should never access this method if the subfield class doesn't exist.
     if (!file_exists($filepath)) {
@@ -971,6 +979,7 @@ function data_get_field($field, $data, $cm=null) {
     if (!isset($field->type)) {
         return new data_field_base($field);
     }
+    $field->type = clean_param($field->type, PARAM_ALPHA);
     $filepath = $CFG->dirroot.'/mod/data/field/'.$field->type.'/field.class.php';
     if (!file_exists($filepath)) {
         return new data_field_base($field);
@@ -2174,7 +2183,6 @@ function data_print_header($course, $cm, $data, $currenttab='', string $actionba
 
     global $CFG, $displaynoticegood, $displaynoticebad, $OUTPUT, $PAGE, $USER;
 
-    $PAGE->set_title($data->name);
     echo $OUTPUT->header();
 
     echo $actionbar;
