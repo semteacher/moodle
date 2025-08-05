@@ -24,11 +24,11 @@ namespace core\event;
  * @copyright  2014 Petr Skoda
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class user_password_updated_test extends \advanced_testcase {
+final class user_password_updated_test extends \advanced_testcase {
     /**
      * Test the event.
      */
-    public function test_event() {
+    public function test_event(): void {
         $this->resetAfterTest();
 
         $user1 = $this->getDataGenerator()->create_user();

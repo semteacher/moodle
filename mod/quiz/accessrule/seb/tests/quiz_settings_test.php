@@ -31,7 +31,7 @@ require_once(__DIR__ . '/test_helper_trait.php');
  * @copyright 2020 Catalyst IT
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class quiz_settings_test extends \advanced_testcase {
+final class quiz_settings_test extends \advanced_testcase {
     use \quizaccess_seb_test_helper_trait;
 
     /** @var context_module $context Test context. */
@@ -61,7 +61,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that config is generated immediately prior to saving quiz settings.
      */
-    public function test_config_is_created_from_quiz_settings() {
+    public function test_config_is_created_from_quiz_settings(): void {
         // Test settings to populate the in the object.
         $settings = $this->get_test_settings([
             'quizid' => $this->quiz->id,
@@ -82,6 +82,7 @@ class quiz_settings_test extends \advanced_testcase {
 <plist version=\"1.0\"><dict><key>showTaskBar</key><true/><key>allowWlan</key><false/><key>showReloadButton</key><true/>"
                 . "<key>showTime</key><false/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><true/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><true/><key>browserMediaCaptureMicrophone</key><true/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><true/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>hashedQuitPassword</key>"
                 . "<string>9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</string><key>URLFilterRules</key>"
@@ -95,7 +96,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that config string gets updated from quiz settings.
      */
-    public function test_config_is_updated_from_quiz_settings() {
+    public function test_config_is_updated_from_quiz_settings(): void {
         // Test settings to populate the in the object.
         $settings = $this->get_test_settings([
             'quizid' => $this->quiz->id,
@@ -115,6 +116,7 @@ class quiz_settings_test extends \advanced_testcase {
 <plist version=\"1.0\"><dict><key>showTaskBar</key><true/><key>allowWlan</key><false/><key>showReloadButton</key><true/>"
             . "<key>showTime</key><false/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
             . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><true/><key>audioMute</key><false/>"
+            . "<key>browserMediaCaptureCamera</key><true/><key>browserMediaCaptureMicrophone</key><true/>"
             . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><true/>"
             . "<key>URLFilterEnableContentFilter</key><false/><key>hashedQuitPassword</key>"
             . "<string>9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</string><key>URLFilterRules</key>"
@@ -132,6 +134,7 @@ class quiz_settings_test extends \advanced_testcase {
 <plist version=\"1.0\"><dict><key>showTaskBar</key><true/><key>allowWlan</key><false/><key>showReloadButton</key><true/>"
             . "<key>showTime</key><false/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
             . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><true/><key>audioMute</key><false/>"
+            . "<key>browserMediaCaptureCamera</key><true/><key>browserMediaCaptureMicrophone</key><true/>"
             . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><true/>"
             . "<key>URLFilterEnableContentFilter</key><true/><key>hashedQuitPassword</key>"
             . "<string>9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08</string><key>URLFilterRules</key>"
@@ -145,12 +148,12 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that config key is generated immediately prior to saving quiz settings.
      */
-    public function test_config_key_is_created_from_quiz_settings() {
+    public function test_config_key_is_created_from_quiz_settings(): void {
         $settings = $this->get_test_settings();
 
         $quizsettings = new seb_quiz_settings(0, $settings);
         $configkey = $quizsettings->get_config_key();
-        $this->assertEquals("65ff7a3b8aec80e58fbe2e7968826c33cbf0ac444a748055ebe665829cbf4201",
+        $this->assertEquals("24712dcecc69a2ca8ad19f4f8928375038f087e13ce9f504cfc4496846aaaf27",
             $configkey
         );
     }
@@ -158,17 +161,17 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that config key is generated immediately prior to saving quiz settings.
      */
-    public function test_config_key_is_updated_from_quiz_settings() {
+    public function test_config_key_is_updated_from_quiz_settings(): void {
         $settings = $this->get_test_settings();
 
         $quizsettings = new seb_quiz_settings(0, $settings);
         $configkey = $quizsettings->get_config_key();
-        $this->assertEquals("65ff7a3b8aec80e58fbe2e7968826c33cbf0ac444a748055ebe665829cbf4201",
+        $this->assertEquals("24712dcecc69a2ca8ad19f4f8928375038f087e13ce9f504cfc4496846aaaf27",
                 $configkey);
 
         $quizsettings->set('filterembeddedcontent', 1); // Alter the settings.
         $configkey = $quizsettings->get_config_key();
-        $this->assertEquals("d975b8a2ec4472495a8be7c64d7c8cc960dbb62472d5e88a8847ac0e5d77e533",
+        $this->assertEquals("e2f6dc2a6ddb9bdfa7530dc8afbae996499c34a954e1c635c4fed894e47c1abc",
             $configkey);
     }
 
@@ -180,7 +183,7 @@ class quiz_settings_test extends \advanced_testcase {
      *
      * @dataProvider filter_rules_provider
      */
-    public function test_filter_rules_added_to_config(\stdClass $settings, string $expectedxml) {
+    public function test_filter_rules_added_to_config(\stdClass $settings, string $expectedxml): void {
         $quizsettings = new seb_quiz_settings(0, $settings);
         $config = $quizsettings->get_config();
         $this->assertEquals($expectedxml, $config);
@@ -189,7 +192,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that browser keys are validated and retrieved as an array instead of string.
      */
-    public function test_browser_exam_keys_are_retrieved_as_array() {
+    public function test_browser_exam_keys_are_retrieved_as_array(): void {
         $quizsettings = new seb_quiz_settings();
         $quizsettings->set('allowedbrowserexamkeys', "one two,three\nfour");
         $retrievedkeys = $quizsettings->get('allowedbrowserexamkeys');
@@ -204,7 +207,7 @@ class quiz_settings_test extends \advanced_testcase {
      *
      * @dataProvider bad_browser_exam_key_provider
      */
-    public function test_browser_exam_keys_validation_errors($bek, $expectederrorstring) {
+    public function test_browser_exam_keys_validation_errors($bek, $expectederrorstring): void {
         $quizsettings = new seb_quiz_settings();
         $quizsettings->set('allowedbrowserexamkeys', $bek);
         $quizsettings->validate();
@@ -215,7 +218,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that uploaded seb file gets converted to config string.
      */
-    public function test_config_file_uploaded_converted_to_config() {
+    public function test_config_file_uploaded_converted_to_config(): void {
         $url = new \moodle_url("/mod/quiz/view.php", ['id' => $this->quiz->cmid]);
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                 . "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
@@ -233,7 +236,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test test_no_config_file_uploaded
      */
-    public function test_no_config_file_uploaded() {
+    public function test_no_config_file_uploaded(): void {
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $quizsettings->set('requiresafeexambrowser', settings_provider::USE_SEB_UPLOAD_CONFIG);
         $cmid = $quizsettings->get('cmid');
@@ -274,7 +277,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_TEMPLATE and have it override settings from the template when they are set.
      */
-    public function test_using_seb_template_override_settings_when_they_set_in_template() {
+    public function test_using_seb_template_override_settings_when_they_set_in_template(): void {
         $xml = $this->get_config_xml(true, 'password');
         $template = $this->create_template($xml);
 
@@ -313,7 +316,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_TEMPLATE and have it override settings from the template when they are not set.
      */
-    public function test_using_seb_template_override_settings_when_not_set_in_template() {
+    public function test_using_seb_template_override_settings_when_not_set_in_template(): void {
         $xml = $this->get_config_xml();
         $template = $this->create_template($xml);
 
@@ -346,7 +349,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_UPLOAD_CONFIG and use settings from the file if they are set.
      */
-    public function test_using_own_config_settings_are_not_overridden_if_set() {
+    public function test_using_own_config_settings_are_not_overridden_if_set(): void {
         $xml = $this->get_config_xml(true, 'password');
         $this->create_module_test_file($xml, $this->quiz->cmid);
 
@@ -383,7 +386,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_UPLOAD_CONFIG and use settings from the file if they are not set.
      */
-    public function test_using_own_config_settings_are_not_overridden_if_not_set() {
+    public function test_using_own_config_settings_are_not_overridden_if_not_set(): void {
         $xml = $this->get_config_xml();
         $this->create_module_test_file($xml, $this->quiz->cmid);
 
@@ -418,7 +421,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_TEMPLATE populates the linkquitseb setting if a quitURL is found.
      */
-    public function test_template_has_quit_url_set() {
+    public function test_template_has_quit_url_set(): void {
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             . "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
             . "<plist version=\"1.0\"><dict><key>hashedQuitPassword</key><string>hashedpassword</string>"
@@ -441,7 +444,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test using USE_SEB_UPLOAD_CONFIG populates the linkquitseb setting if a quitURL is found.
      */
-    public function test_config_file_uploaded_has_quit_url_set() {
+    public function test_config_file_uploaded_has_quit_url_set(): void {
         $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
             . "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
             . "<plist version=\"1.0\"><dict><key>hashedQuitPassword</key><string>hashedpassword</string>"
@@ -462,7 +465,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test template id set correctly.
      */
-    public function test_templateid_set_correctly_when_save_settings() {
+    public function test_templateid_set_correctly_when_save_settings(): void {
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $this->assertEquals(0, $quizsettings->get('templateid'));
 
@@ -499,7 +502,7 @@ class quiz_settings_test extends \advanced_testcase {
         $this->save_settings_with_optional_template($quizsettings, settings_provider::USE_SEB_TEMPLATE, $templateid);
 
         // Case for USE_SEB_UPLOAD_CONFIG, ensure template id reverts to 0.
-        $xml = file_get_contents(__DIR__ . '/fixtures/unencrypted.seb');
+        $xml = file_get_contents(self::get_fixture_path(__NAMESPACE__, 'unencrypted.seb'));
         $this->create_module_test_file($xml, $this->quiz->cmid);
         $this->save_settings_with_optional_template($quizsettings, settings_provider::USE_SEB_UPLOAD_CONFIG);
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
@@ -531,7 +534,7 @@ class quiz_settings_test extends \advanced_testcase {
      *
      * @return array
      */
-    public function bad_browser_exam_key_provider() : array {
+    public static function bad_browser_exam_key_provider(): array {
         return [
             'Short string' => ['fdsf434r',
                     'A key should be a 64-character hex string.'],
@@ -547,7 +550,7 @@ class quiz_settings_test extends \advanced_testcase {
      *
      * @return array Test data.
      */
-    public function filter_rules_provider() : array {
+    public static function filter_rules_provider(): array {
         return [
             'enabled simple expessions' => [
                 (object) [
@@ -565,6 +568,7 @@ class quiz_settings_test extends \advanced_testcase {
                 . "<key>allowWlan</key><false/><key>showReloadButton</key>"
                 . "<true/><key>showTime</key><true/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><false/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><false/><key>browserMediaCaptureMicrophone</key><false/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><false/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>URLFilterRules</key><array>"
                 . "<dict><key>action</key><integer>1</integer><key>active</key><true/>"
@@ -593,6 +597,7 @@ class quiz_settings_test extends \advanced_testcase {
                 . "<key>allowWlan</key><false/><key>showReloadButton</key>"
                 . "<true/><key>showTime</key><true/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><false/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><false/><key>browserMediaCaptureMicrophone</key><false/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><false/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>URLFilterRules</key><array>"
                 . "<dict><key>action</key><integer>0</integer><key>active</key><true/>"
@@ -621,6 +626,7 @@ class quiz_settings_test extends \advanced_testcase {
                 . "<key>allowWlan</key><false/><key>showReloadButton</key>"
                 . "<true/><key>showTime</key><true/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><false/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><false/><key>browserMediaCaptureMicrophone</key><false/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><false/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>URLFilterRules</key><array>"
                 . "<dict><key>action</key><integer>1</integer><key>active</key><true/>"
@@ -649,6 +655,7 @@ class quiz_settings_test extends \advanced_testcase {
                 . "<key>allowWlan</key><false/><key>showReloadButton</key>"
                 . "<true/><key>showTime</key><true/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><false/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><false/><key>browserMediaCaptureMicrophone</key><false/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><false/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>URLFilterRules</key><array>"
                 . "<dict><key>action</key><integer>0</integer><key>active</key><true/>"
@@ -677,6 +684,7 @@ class quiz_settings_test extends \advanced_testcase {
                 . "<key>allowWlan</key><false/><key>showReloadButton</key>"
                 . "<true/><key>showTime</key><true/><key>showInputLanguage</key><true/><key>allowQuit</key><true/>"
                 . "<key>quitURLConfirm</key><true/><key>audioControlEnabled</key><false/><key>audioMute</key><false/>"
+                . "<key>browserMediaCaptureCamera</key><false/><key>browserMediaCaptureMicrophone</key><false/>"
                 . "<key>allowSpellCheck</key><false/><key>browserWindowAllowReload</key><true/><key>URLFilterEnable</key><false/>"
                 . "<key>URLFilterEnableContentFilter</key><false/><key>URLFilterRules</key><array><dict><key>action</key>"
                 . "<integer>1</integer><key>active</key><true/><key>expression</key><string>*</string>"
@@ -697,7 +705,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that config and config key are null when expected.
      */
-    public function test_generates_config_values_as_null_when_expected() {
+    public function test_generates_config_values_as_null_when_expected(): void {
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $this->assertNotNull($quizsettings->get_config());
         $this->assertNotNull($quizsettings->get_config_key());
@@ -709,7 +717,7 @@ class quiz_settings_test extends \advanced_testcase {
         $this->assertNull($quizsettings->get_config());
 
         $quizsettings->set('requiresafeexambrowser', settings_provider::USE_SEB_UPLOAD_CONFIG);
-        $xml = file_get_contents(__DIR__ . '/fixtures/unencrypted.seb');
+        $xml = file_get_contents(self::get_fixture_path(__NAMESPACE__, 'unencrypted.seb'));
         $this->create_module_test_file($xml, $this->quiz->cmid);
         $quizsettings->save();
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
@@ -733,7 +741,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that quizsettings cache exists after creation.
      */
-    public function test_quizsettings_cache_exists_after_creation() {
+    public function test_quizsettings_cache_exists_after_creation(): void {
         $expected = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $this->assertEquals($expected->to_record(), \cache::make('quizaccess_seb', 'quizsettings')->get($this->quiz->id));
     }
@@ -741,7 +749,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that quizsettings cache gets deleted after deletion.
      */
-    public function test_quizsettings_cache_purged_after_deletion() {
+    public function test_quizsettings_cache_purged_after_deletion(): void {
         $this->assertNotEmpty(\cache::make('quizaccess_seb', 'quizsettings')->get($this->quiz->id));
 
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
@@ -753,7 +761,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that we can get seb_quiz_settings by quiz id.
      */
-    public function test_get_quiz_settings_by_quiz_id() {
+    public function test_get_quiz_settings_by_quiz_id(): void {
         $expected = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
 
         $this->assertEquals($expected->to_record(), seb_quiz_settings::get_by_quiz_id($this->quiz->id)->to_record());
@@ -773,14 +781,14 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that SEB config cache exists after creation of the quiz.
      */
-    public function test_config_cache_exists_after_creation() {
+    public function test_config_cache_exists_after_creation(): void {
         $this->assertNotEmpty(\cache::make('quizaccess_seb', 'config')->get($this->quiz->id));
     }
 
     /**
      * Test that SEB config cache gets deleted after deletion.
      */
-    public function test_config_cache_purged_after_deletion() {
+    public function test_config_cache_purged_after_deletion(): void {
         $this->assertNotEmpty(\cache::make('quizaccess_seb', 'config')->get($this->quiz->id));
 
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
@@ -792,7 +800,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that we can get SEB config by quiz id.
      */
-    public function test_get_config_by_quiz_id() {
+    public function test_get_config_by_quiz_id(): void {
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $expected = $quizsettings->get_config();
 
@@ -813,14 +821,14 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that SEB config key cache exists after creation of the quiz.
      */
-    public function test_config_key_cache_exists_after_creation() {
+    public function test_config_key_cache_exists_after_creation(): void {
         $this->assertNotEmpty(\cache::make('quizaccess_seb', 'configkey')->get($this->quiz->id));
     }
 
     /**
      * Test that SEB config key cache gets deleted after deletion.
      */
-    public function test_config_key_cache_purged_after_deletion() {
+    public function test_config_key_cache_purged_after_deletion(): void {
         $this->assertNotEmpty(\cache::make('quizaccess_seb', 'configkey')->get($this->quiz->id));
 
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
@@ -832,7 +840,7 @@ class quiz_settings_test extends \advanced_testcase {
     /**
      * Test that we can get SEB config key by quiz id.
      */
-    public function test_get_config_key_by_quiz_id() {
+    public function test_get_config_key_by_quiz_id(): void {
         $quizsettings = seb_quiz_settings::get_record(['quizid' => $this->quiz->id]);
         $expected = $quizsettings->get_config_key();
 

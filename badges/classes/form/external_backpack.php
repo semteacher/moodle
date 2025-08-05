@@ -14,15 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
-/**
- * External backpack form
- *
- * @package    core_badges
- * @copyright  2019 Damyon Wiese
- * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-
 namespace core_badges\form;
+
 defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->libdir.'/formslib.php');
@@ -93,8 +86,8 @@ class external_backpack extends \moodleform {
         $mform->hideIf('backpackemail', 'includeauthdetails');
         $mform->hideIf('backpackemail', 'apiversion', 'in', [OPEN_BADGES_V2P1]);
         $mform->hideIf('password', 'includeauthdetails');
-        $mform->hideIf('password', 'apiversion', 'in', [OPEN_BADGES_V1, OPEN_BADGES_V2P1]);
-        $mform->hideIf('backpackapiurl', 'apiversion', 'in', [OPEN_BADGES_V1, OPEN_BADGES_V2P1]);
+        $mform->hideIf('password', 'apiversion', 'in', [OPEN_BADGES_V2P1]);
+        $mform->hideIf('backpackapiurl', 'apiversion', 'in', [OPEN_BADGES_V2P1]);
 
         // Disable short forms.
         $mform->setDisableShortforms();
@@ -162,9 +155,11 @@ class external_backpack extends \moodleform {
         $mform = $this->_form;
         $emailstring = get_string('email');
         $passwordstring = get_string('password');
+        $showpasswordhelp = false;
         if (!isset($this->_customdata['userbackpack'])) {
             $emailstring = get_string('defaultissuercontact', 'core_badges');
             $passwordstring = get_string('defaultissuerpassword', 'core_badges');
+            $showpasswordhelp = true;
         }
 
         $mform->addElement('text', 'backpackemail', $emailstring);
@@ -174,7 +169,9 @@ class external_backpack extends \moodleform {
         if ($includepassword) {
             $mform->addElement('passwordunmask', 'password', $passwordstring);
             $mform->setType('password', PARAM_RAW);
-            $mform->addHelpButton('password', 'defaultissuerpassword', 'badges');
+            if ($showpasswordhelp) {
+                $mform->addHelpButton('password', 'defaultissuerpassword', 'badges');
+            }
         }
     }
 }

@@ -24,6 +24,6 @@ Added:
  * index.html - prevent directory browsing on misconfigured servers
  * readme_moodle.txt - this file ;-)
 
-Notes:
- * 2023-02-10 Applied patch https://github.com/ADOdb/ADOdb/pull/928 to avoid PHP 8.2 deprecations.
-   See MDL-76413 for more details.
+Changelog:
+ * MDL-85375:
+   - Fix SQL injection in pg_insert_id() - https://github.com/ADOdb/ADOdb/commit/11107d6d6e5160b62e05dff8a3a2678cf0e3a426

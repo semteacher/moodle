@@ -29,11 +29,11 @@ require_once($CFG->dirroot.'/user/lib.php');
  * @copyright  2013 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class userlib_test extends \advanced_testcase {
+final class userlib_test extends \advanced_testcase {
     /**
      * Test user_get_user_details_courses
      */
-    public function test_user_get_user_details_courses() {
+    public function test_user_get_user_details_courses(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -75,7 +75,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Verify return when course groupmode set to 'no groups'.
      */
-    public function test_user_get_user_details_courses_groupmode_nogroups() {
+    public function test_user_get_user_details_courses_groupmode_nogroups(): void {
         $this->resetAfterTest();
 
         // Enrol 2 users into a course with groupmode set to 'no groups'.
@@ -95,7 +95,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Verify return when course groupmode set to 'separate groups'.
      */
-    public function test_user_get_user_details_courses_groupmode_separate() {
+    public function test_user_get_user_details_courses_groupmode_separate(): void {
         $this->resetAfterTest();
 
         // Enrol 2 users into a course with groupmode set to 'separate groups'.
@@ -113,7 +113,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Verify return when course groupmode set to 'visible groups'.
      */
-    public function test_user_get_user_details_courses_groupmode_visible() {
+    public function test_user_get_user_details_courses_groupmode_visible(): void {
         $this->resetAfterTest();
 
         // Enrol 2 users into a course with groupmode set to 'visible groups'.
@@ -135,7 +135,7 @@ class userlib_test extends \advanced_testcase {
      *
      * @covers ::user_get_user_details_courses
      */
-    public function test_user_get_user_details_courses_limit_return() {
+    public function test_user_get_user_details_courses_limit_return(): void {
         $this->resetAfterTest();
 
         // Setup some data.
@@ -176,7 +176,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test user_update_user.
      */
-    public function test_user_update_user() {
+    public function test_user_update_user(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -250,7 +250,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test create_users.
      */
-    public function test_create_users() {
+    public function test_create_users(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -365,7 +365,7 @@ class userlib_test extends \advanced_testcase {
      * @param string $username Invalid username
      * @param string $expectmessage Expected exception message
      */
-    public function test_create_user_invalid_username($username, $expectmessage) {
+    public function test_create_user_invalid_username($username, $expectmessage): void {
         global $CFG;
 
         $this->resetAfterTest();
@@ -386,7 +386,7 @@ class userlib_test extends \advanced_testcase {
      *
      * @return array
      */
-    public function data_create_user_invalid_username() {
+    public static function data_create_user_invalid_username(): array {
         return [
             'empty_string' => [
                 '',
@@ -410,7 +410,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test function user_count_login_failures().
      */
-    public function test_user_count_login_failures() {
+    public function test_user_count_login_failures(): void {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
         $this->assertEquals(0, get_user_preferences('login_failed_count_since_success', 0, $user));
@@ -434,7 +434,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test function user_add_password_history().
      */
-    public function test_user_add_password_history() {
+    public function test_user_add_password_history(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -508,7 +508,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test function user_add_password_history().
      */
-    public function test_user_is_previously_used_password() {
+    public function test_user_is_previously_used_password(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -576,7 +576,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test that password history is deleted together with user.
      */
-    public function test_delete_of_hashes_on_user_delete() {
+    public function test_delete_of_hashes_on_user_delete(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -604,7 +604,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test user_list_view function
      */
-    public function test_user_list_view() {
+    public function test_user_list_view(): void {
 
         $this->resetAfterTest();
 
@@ -633,7 +633,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test setting the user menu avatar size.
      */
-    public function test_user_menu_custom_avatar_size() {
+    public function test_user_menu_custom_avatar_size(): void {
         global $PAGE;
         $this->resetAfterTest(true);
 
@@ -653,7 +653,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test user_can_view_profile
      */
-    public function test_user_can_view_profile() {
+    public function test_user_can_view_profile(): void {
         global $DB, $CFG;
 
         $this->resetAfterTest();
@@ -828,7 +828,7 @@ class userlib_test extends \advanced_testcase {
     /**
      * Test user_get_user_details
      */
-    public function test_user_get_user_details() {
+    public function test_user_get_user_details(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -850,16 +850,21 @@ class userlib_test extends \advanced_testcase {
         accesslib_clear_all_caches_for_unit_testing();
 
         // Get student details as a user with super system capabilities.
+        $this->setAdminUser();
         $result = user_get_user_details($student, $course1);
         $this->assertEquals($student->id, $result['id']);
         $this->assertEquals($studentfullname, $result['fullname']);
+        $this->assertEquals($student->firstname, $result['firstname']);
+        $this->assertEquals($student->lastname, $result['lastname']);
         $this->assertEquals($course1->id, $result['enrolledcourses'][0]['id']);
 
-        $this->setUser($teacher);
         // Get student details as a user who can only see this user in a course.
+        $this->setUser($teacher);
         $result = user_get_user_details($student, $course1);
         $this->assertEquals($student->id, $result['id']);
         $this->assertEquals($studentfullname, $result['fullname']);
+        $this->assertEquals($student->firstname, $result['firstname']);
+        $this->assertEquals($student->lastname, $result['lastname']);
         $this->assertEquals($course1->id, $result['enrolledcourses'][0]['id']);
 
         // Get student details with required fields.
@@ -867,6 +872,23 @@ class userlib_test extends \advanced_testcase {
         $this->assertCount(2, $result);
         $this->assertEquals($student->id, $result['id']);
         $this->assertEquals($studentfullname, $result['fullname']);
+        $this->assertArrayNotHasKey('firstname', $result);
+        $this->assertArrayNotHasKey('lastname', $result);
+        $this->assertArrayNotHasKey('enrolledcourses', $result);
+
+        // Change fullname display format for a user with viewfullnames capability.
+        set_config('fullnamedisplay', 'firstname');
+        $result = user_get_user_details($student, $course1);
+        $this->assertEquals($studentfullname, $result['fullname']);
+        $this->assertEquals($student->firstname, $result['firstname']);
+        $this->assertEquals($student->lastname, $result['lastname']);
+
+        // Now check for a user without viewfullnames capability.
+        $this->setUser($student);
+        $result = user_get_user_details($teacher, $course1);
+        $this->assertEquals($teacher->firstname, $result['fullname']);
+        $this->assertEquals($teacher->firstname, $result['firstname']);
+        $this->assertArrayNotHasKey('lastname', $result);
 
         // Get exception for invalid required fields.
         $this->expectException('moodle_exception');
@@ -879,7 +901,7 @@ class userlib_test extends \advanced_testcase {
      * Ensure the fields "auth, confirmed, idnumber, lang, theme, timezone and mailformat" are present when
      * calling user_get_user_details() function.
      */
-    public function test_user_get_user_details_missing_fields() {
+    public function test_user_get_user_details_missing_fields(): void {
         global $CFG;
 
         $this->resetAfterTest(true);
@@ -892,6 +914,7 @@ class userlib_test extends \advanced_testcase {
                                                           'theme'      => $CFG->theme,
                                                           'timezone'   => '5',
                                                           'mailformat' => '0',
+                                                          'trackforums' => '1',
                                                       ]);
 
         // Fields that should get by default.
@@ -903,13 +926,14 @@ class userlib_test extends \advanced_testcase {
         self::assertSame($CFG->theme, $got['theme']);
         self::assertSame('5', $got['timezone']);
         self::assertSame('0', $got['mailformat']);
+        self::assertSame('1', $got['trackforums']);
     }
 
     /**
      * Test user_get_user_details_permissions.
      * @covers ::user_get_user_details
      */
-    public function test_user_get_user_details_permissions() {
+    public function test_user_get_user_details_permissions(): void {
         global $CFG;
 
         $this->resetAfterTest();
@@ -941,30 +965,33 @@ class userlib_test extends \advanced_testcase {
 
         // Get student details with required fields.
         $result = user_get_user_details($student1, $course, array('id', 'fullname', 'timezone', 'city', 'address', 'idnumber'));
-        $this->assertCount(4, $result); // Ensure address (never returned), idnumber (identity field) are not returned here.
+        $this->assertCount(5, $result); // Ensure idnumber (identity field) is not returned here.
         $this->assertEquals($student1->id, $result['id']);
         $this->assertEquals($student1fullname, $result['fullname']);
         $this->assertEquals($student1->timezone, $result['timezone']);
         $this->assertEquals($student1->city, $result['city']);
+        $this->assertEquals($student1->address, $result['address']);
 
         // Set new identity fields and hidden fields and try to retrieve them without permission.
         $CFG->showuseridentity = $CFG->showuseridentity . ',idnumber';
         $CFG->hiddenuserfields = 'city';
         $result = user_get_user_details($student1, $course, array('id', 'fullname', 'timezone', 'city', 'address', 'idnumber'));
-        $this->assertCount(3, $result); // Ensure address, city and idnumber are not returned here.
+        $this->assertCount(4, $result); // Ensure city and idnumber are not returned here.
         $this->assertEquals($student1->id, $result['id']);
         $this->assertEquals($student1fullname, $result['fullname']);
         $this->assertEquals($student1->timezone, $result['timezone']);
+        $this->assertEquals($student1->address, $result['address']);
 
         // Now, teacher should have permission to see the idnumber and city fields.
         $this->setUser($teacher);
         $result = user_get_user_details($student1, $course, array('id', 'fullname', 'timezone', 'city', 'address', 'idnumber'));
-        $this->assertCount(5, $result); // Ensure address is not returned here.
+        $this->assertCount(6, $result);
         $this->assertEquals($student1->id, $result['id']);
         $this->assertEquals($student1fullname, $result['fullname']);
         $this->assertEquals($student1->timezone, $result['timezone']);
         $this->assertEquals($student1->idnumber, $result['idnumber']);
         $this->assertEquals($student1->city, $result['city']);
+        $this->assertEquals($student1->address, $result['address']);
 
         // And admins can see anything.
         $this->setAdminUser();
@@ -982,7 +1009,7 @@ class userlib_test extends \advanced_testcase {
      * Test user_get_user_details_groups.
      * @covers ::user_get_user_details
      */
-    public function test_user_get_user_details_groups() {
+    public function test_user_get_user_details_groups(): void {
         $this->resetAfterTest();
 
         // Create user and modify user profile.
@@ -1042,5 +1069,40 @@ class userlib_test extends \advanced_testcase {
         $this->assertCount(3, $result);
         $this->assertCount(1, $result['groups']);
         $this->assertEquals($group2->id, $result['groups'][0]['id']);
+    }
+
+    /**
+     * Verifies that the get_name_placeholders function correctly generates
+     * an array of name placeholders for a given user object.
+     *
+     * @covers ::get_name_placeholders()
+     */
+    public function test_get_name_placeholders(): void {
+        $this->resetAfterTest();
+
+        // Set format for fullname and alternativefullname.
+        set_config('fullnamedisplay', 'firstname, lastname');
+        set_config('alternativefullnameformat', 'firstnamephonetic lastnamephonetic');
+
+        // Create the target user.
+        $user = $this->getDataGenerator()->create_user([
+                'firstname' => 'FN',
+                'lastname' => 'LN',
+                'firstnamephonetic' => 'FNP',
+                'lastnamephonetic' => 'LNP',
+                'middlename' => 'MN',
+                'alternatename' => 'AN',
+                ]);
+
+        // Add user name fields to $a as an object based on $user.
+        $a = new \stdClass();
+        $placeholders = \core_user::get_name_placeholders($user);
+        foreach ($placeholders as $field => $value) {
+            $a->{$field} = $value;
+        }
+        $this->assertEquals("Hello $a->firstname", "Hello FN");
+        $this->assertEquals("Bonjour $a->fullname", "Bonjour FN, LN");
+        $this->assertEquals("Privyet $a->alternativefullname", "Privyet FNP LNP");
+        $this->assertEquals("Hola $a->alternatename '$a->middlename' $a->lastname", "Hola AN 'MN' LN");
     }
 }

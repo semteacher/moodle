@@ -33,13 +33,14 @@ namespace booktool_exportimscp\event;
  * @copyright  2013 Frédéric Massart
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class events_test extends \advanced_testcase {
+final class events_test extends \advanced_testcase {
 
     public function setUp(): void {
+        parent::setUp();
         $this->resetAfterTest();
     }
 
-    public function test_book_exported() {
+    public function test_book_exported(): void {
         // There is no proper API to call to test the event, so what we are
         // doing here is simply making sure that the events returns the right information.
 

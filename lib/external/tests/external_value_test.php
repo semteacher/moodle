@@ -27,14 +27,14 @@ use advanced_testcase;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @coversDefaultClass external_value
  */
-class external_value_test extends advanced_testcase {
+final class external_value_test extends advanced_testcase {
 
     /**
      * Data provider for the required param test.
      *
      * @return array[]
      */
-    public function required_param_provider(): array {
+    public static function required_param_provider(): array {
         return [
             [ VALUE_DEFAULT, false ],
             [ VALUE_REQUIRED, false ],
@@ -54,7 +54,7 @@ class external_value_test extends advanced_testcase {
      * @param mixed $requiredstr The string value of the $required param in the debugging message.
      * @return void
      */
-    public function test_required_param_validation($required, $debuggingexpected, $requiredstr = '') {
+    public function test_required_param_validation($required, $debuggingexpected, $requiredstr = ''): void {
         $externalvalue = new external_value(PARAM_INT, 'Cool description', $required);
         if ($debuggingexpected) {
             $this->assertDebuggingCalled("Invalid \$required parameter value: '{$requiredstr}' .

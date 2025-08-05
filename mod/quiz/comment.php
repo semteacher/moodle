@@ -23,6 +23,8 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use mod_quiz\output\attempt_summary_information;
+
 require_once('../../config.php');
 require_once('locallib.php');
 
@@ -55,29 +57,24 @@ $output = $PAGE->get_renderer('mod_quiz');
 echo $output->header();
 
 // Prepare summary information about this question attempt.
-$summarydata = [];
-
+$summary = new attempt_summary_information();
+// Set the caption.
+$summary->set_caption(get_string('summaryofattempt', 'quiz'));
 // Student name.
 $userpicture = new user_picture($student);
 $userpicture->courseid = $attemptobj->get_courseid();
-$summarydata['user'] = [
-    'title'   => $userpicture,
-    'content' => new action_link(new moodle_url('/user/view.php', [
-            'id' => $student->id, 'course' => $attemptobj->get_courseid()]),
-            fullname($student, true)),
-];
+$summary->add_item('user', $userpicture, new action_link(
+        new moodle_url('/user/view.php', [ 'id' => $student->id, 'course' => $attemptobj->get_courseid()]),
+        fullname($student, true)));
 
 // Quiz name.
-$summarydata['quizname'] = [
-    'title'   => get_string('modulename', 'quiz'),
-    'content' => format_string($attemptobj->get_quiz_name()),
-];
+$summary->add_item('quizname', get_string('modulename', 'quiz'), format_string($attemptobj->get_quiz_name()));
 
 // Question name.
-$summarydata['questionname'] = [
-    'title'   => get_string('question', 'quiz'),
-    'content' => $attemptobj->get_question_name($slot),
-];
+$summary->add_item('questionname', get_string('question', 'quiz'), $attemptobj->get_question_name($slot));
+
+// Error message in case of input invalid mark.
+$submiterror = false;
 
 // Process any data that was submitted.
 if (data_submitted() && confirm_sesskey()) {
@@ -103,12 +100,18 @@ if (data_submitted() && confirm_sesskey()) {
         echo $output->notification(get_string('changessaved'), 'notifysuccess');
         close_window(2, true);
         die;
+    } else {
+        $submiterror = true;
     }
 }
 
 // Print quiz information.
-echo $output->review_summary_table($summarydata, 0);
+echo html_writer::div($output->render($summary), 'mb-3');
 
+// Display notification if current mark is invalid.
+if ($submiterror) {
+    echo $output->notification(get_string('savemanualgradingfailed', 'quiz'), \core\output\notification::NOTIFY_ERROR);
+}
 // Print the comment form.
 echo '<form method="post" class="mform" id="manualgradingform" action="' .
         $CFG->wwwroot . '/mod/quiz/comment.php">';

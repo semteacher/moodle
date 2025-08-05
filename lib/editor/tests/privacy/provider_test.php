@@ -36,12 +36,12 @@ defined('MOODLE_INTERNAL') || die();
  * @copyright  2018 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider_test extends \core_privacy\tests\provider_testcase {
+final class provider_test extends \core_privacy\tests\provider_testcase {
 
     /**
      * When no preference exists, there should be no export.
      */
-    public function test_no_preference() {
+    public function test_no_preference(): void {
         global $USER;
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -55,7 +55,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * When preference exists but is empty, there should be no export.
      */
-    public function test_empty_preference() {
+    public function test_empty_preference(): void {
         $this->resetAfterTest();
 
         // Create test user, add some preferences.
@@ -77,7 +77,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * When an editor is set, the name of that editor will be reported.
      */
-    public function test_editor_atto() {
+    public function test_editor_atto(): void {
         $this->resetAfterTest();
 
         // Create test user, add some preferences.

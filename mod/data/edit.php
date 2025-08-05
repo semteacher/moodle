@@ -80,11 +80,6 @@ if ($manager->can_manage_templates()) {
     }
 }
 
-if ($rid) {
-    // When editing an existing record, we require the session key.
-    require_sesskey();
-}
-
 // Get Group information for permission testing and record creation.
 $currentgroup = groups_get_activity_group($cm);
 $groupmode = groups_get_activity_groupmode($cm);
@@ -122,8 +117,18 @@ if ($rid) {
 }
 
 $PAGE->add_body_class('mediumwidth');
-$PAGE->set_title($data->name);
-$PAGE->set_heading($course->fullname);
+if ($rid) {
+    $pagename = get_string('editentry', 'data');
+} else {
+    $pagename = get_string('newentry', 'data');
+}
+$PAGE->navbar->add($pagename);
+$titleparts = [
+    $pagename,
+    format_string($data->name),
+    format_string($course->fullname),
+];
+$PAGE->set_title(implode(moodle_page::TITLE_SEPARATOR, $titleparts));
 $PAGE->force_settings_menu(true);
 $PAGE->set_secondary_active_tab('modulepage');
 $PAGE->activityheader->disable();
@@ -184,11 +189,7 @@ echo '<input name="rid" value="'.$rid.'" type="hidden" />';
 echo '<input name="sesskey" value="'.sesskey().'" type="hidden" />';
 echo $OUTPUT->box_start('generalbox boxaligncenter boxwidthwide');
 
-if (!$rid){
-    echo $OUTPUT->heading(get_string('newentry','data'));
-} else {
-    echo $OUTPUT->heading(get_string('editentry','data'));
-}
+echo $OUTPUT->heading($pagename);
 
 $template = $manager->get_template($mode);
 echo $template->parse_add_entry($processeddata, $rid, $datarecord);

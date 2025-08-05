@@ -25,13 +25,13 @@ namespace core;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @coversDefaultClass \core_renderer
  */
-class outputrenderers_test extends \advanced_testcase {
+final class outputrenderers_test extends \advanced_testcase {
     /**
      * Test generated url from course image.
      *
      * @covers ::get_generated_url_for_course
      */
-    public function test_get_generated_url_for_course_image() {
+    public function test_get_generated_url_for_course_image(): void {
         global $OUTPUT;
 
         $this->resetAfterTest();

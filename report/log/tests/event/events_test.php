@@ -33,12 +33,13 @@ namespace report_log\event;
  * @copyright  2014 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
-class events_test extends \advanced_testcase {
+final class events_test extends \advanced_testcase {
 
     /**
      * Setup testcase.
      */
     public function setUp(): void {
+        parent::setUp();
         $this->setAdminUser();
         $this->resetAfterTest();
     }
@@ -49,7 +50,7 @@ class events_test extends \advanced_testcase {
      * It's not possible to use the moodle API to simulate the viewing of log report, so here we
      * simply create the event and trigger it.
      */
-    public function test_report_viewed() {
+    public function test_report_viewed(): void {
         $course = $this->getDataGenerator()->create_course();
         $context = \context_course::instance($course->id);
 
@@ -77,7 +78,7 @@ class events_test extends \advanced_testcase {
      * It's not possible to use the moodle API to simulate the viewing of user log report, so here we
      * simply create the event and trigger it.
      */
-    public function test_user_report_viewed() {
+    public function test_user_report_viewed(): void {
         $user = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
         $context = \context_course::instance($course->id);

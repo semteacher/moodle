@@ -20,6 +20,7 @@ use advanced_testcase;
 use context;
 use context_module;
 use core_question\statistics\questions\all_calculated_for_qubaid_condition;
+use quiz_statistics\tests\statistics_helper;
 use core_question_generator;
 use Generator;
 use mod_quiz\quiz_attempt;
@@ -35,7 +36,8 @@ use ReflectionMethod;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers \core_question\local\statistics\statistics_bulk_loader
  */
-class statistics_bulk_loader_test extends advanced_testcase {
+final class statistics_bulk_loader_test extends advanced_testcase {
+    use \mod_quiz\tests\question_helper_test_trait;
 
     /** @var float Delta used when comparing statistics values out-of 1. */
     protected const DELTA = 0.00005;
@@ -49,11 +51,11 @@ class statistics_bulk_loader_test extends advanced_testcase {
      * @covers ::get_all_places_where_questions_were_attempted
      */
     public function test_get_all_places_where_questions_were_attempted(): void {
+        global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();
 
         $rcm = new ReflectionMethod(statistics_bulk_loader::class, 'get_all_places_where_questions_were_attempted');
-        $rcm->setAccessible(true);
 
         // Create a course.
         $course = $this->getDataGenerator()->create_course();
@@ -110,7 +112,7 @@ class statistics_bulk_loader_test extends advanced_testcase {
         $this->assertEquals((object) ['component' => 'mod_quiz', 'contextid' => $quiz2context->id], $q2places[0]);
 
         // Add a random question to quiz3.
-        quiz_add_random_questions($quiz3, 0, $cat->id, 1, false);
+        $this->add_random_questions($quiz3->id, 0, $cat->id, 1, false);
         $this->submit_quiz($quiz3, [1 => ['answer' => 'willbewrong']]);
 
         // Quiz 3 will now be in one of these arrays.
@@ -122,6 +124,19 @@ class statistics_bulk_loader_test extends advanced_testcase {
             $newplace = end($q2places);
         }
         $this->assertEquals((object) ['component' => 'mod_quiz', 'contextid' => $quiz3context->id], $newplace);
+
+        // Simulate the situation where the context for quiz3 is gone from the database, without
+        // the corresponding attempt data being properly cleaned up. Ensure this does not cause errors.
+        $DB->delete_records('context', ['id' => context_module::instance($quiz3->cmid)->id]);
+        accesslib_clear_all_caches_for_unit_testing();
+        // Same asserts as above, before we added quiz3.
+        $q1places = $rcm->invoke(null, [$question1->id]);
+        $this->assertCount(2, $q1places);
+        $this->assertEquals((object) ['component' => 'mod_quiz', 'contextid' => $quiz1context->id], $q1places[0]);
+        $this->assertEquals((object) ['component' => 'mod_quiz', 'contextid' => $quiz2context->id], $q1places[1]);
+        $q2places = $rcm->invoke(null, [$question2->id]);
+        $this->assertCount(1, $q2places);
+        $this->assertEquals((object) ['component' => 'mod_quiz', 'contextid' => $quiz2context->id], $q2places[0]);
     }
 
     /**
@@ -201,7 +216,7 @@ class statistics_bulk_loader_test extends advanced_testcase {
      *
      * @return array
      */
-    private function generate_attempt_answers(array $correctanswerflags): array {
+    private static function generate_attempt_answers(array $correctanswerflags): array {
         $attempt = [];
         for ($i = 1; $i <= 4; $i++) {
             if (isset($correctanswerflags) && $correctanswerflags[$i - 1] == 1) {
@@ -235,8 +250,7 @@ class statistics_bulk_loader_test extends advanced_testcase {
 
         // Calculate the statistics.
         $this->expectOutputRegex('~.*Calculations completed.*~');
-        $statisticstask = new \quiz_statistics\task\recalculate();
-        $statisticstask->execute();
+        statistics_helper::run_pending_recalculation_tasks();
 
         return [$quiz1, $quiz2, $questions];
     }
@@ -252,7 +266,6 @@ class statistics_bulk_loader_test extends advanced_testcase {
     private function extract_item_value(all_calculated_for_qubaid_condition $statistics,
                                         int $questionid, string $item): ?float {
         $rcm = new ReflectionMethod(statistics_bulk_loader::class, 'extract_item_value');
-        $rcm->setAccessible(true);
         return $rcm->invoke(null, $statistics, $questionid, $item);
     }
 
@@ -264,7 +277,6 @@ class statistics_bulk_loader_test extends advanced_testcase {
      */
     private function load_quiz_statistics_for_place(context $context): ?all_calculated_for_qubaid_condition {
         $rcm = new ReflectionMethod(statistics_bulk_loader::class, 'load_statistics_for_place');
-        $rcm->setAccessible(true);
         return $rcm->invoke(null, 'mod_quiz', $context);
     }
 
@@ -273,31 +285,31 @@ class statistics_bulk_loader_test extends advanced_testcase {
      *
      * @return Generator
      */
-    public function load_question_facility_provider(): Generator {
+    public static function load_question_facility_provider(): Generator {
         yield 'Facility case 1' => [
             'Quiz 1 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
             ],
             'Expected quiz 1 facilities' => [1.0, 0.0, 0.0, 0.0],
             'Quiz 2 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 0, 0]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 1, 0, 0]),
             ],
             'Expected quiz 2 facilities' => [1.0, 0.5, 0.0, 0.0],
             'Expected average facilities' => [1.0, 0.25, 0.0, 0.0],
         ];
         yield 'Facility case 2' => [
             'Quiz 1 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 1, 0]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 1, 0, 0]),
+                self::generate_attempt_answers([1, 1, 1, 0]),
             ],
             'Expected quiz 1 facilities' => [1.0, 0.6667, 0.3333, 0.0],
             'Quiz 2 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 1, 0]),
-                $this->generate_attempt_answers([1, 1, 1, 1]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 1, 0, 0]),
+                self::generate_attempt_answers([1, 1, 1, 0]),
+                self::generate_attempt_answers([1, 1, 1, 1]),
             ],
             'Expected quiz 2 facilities' => [1.0, 0.75, 0.5, 0.25],
             'Expected average facilities' => [1.0, 0.7083, 0.4167, 0.1250],
@@ -320,8 +332,8 @@ class statistics_bulk_loader_test extends advanced_testcase {
         array $expectedquiz1facilities,
         array $quiz2attempts,
         array $expectedquiz2facilities,
-        array $expectedaveragefacilities)
-    : void {
+        array $expectedaveragefacilities
+    ): void {
         $this->resetAfterTest();
 
         list($quiz1, $quiz2, $questions) = $this->prepare_and_submit_quizzes($quiz1attempts, $quiz2attempts);
@@ -370,20 +382,20 @@ class statistics_bulk_loader_test extends advanced_testcase {
      * Data provider for {@see test_load_question_discriminative_efficiency()}.
      * @return Generator
      */
-    public function load_question_discriminative_efficiency_provider(): Generator {
+    public static function load_question_discriminative_efficiency_provider(): Generator {
         yield 'Discriminative efficiency' => [
             'Quiz 1 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 0, 0]),
-                $this->generate_attempt_answers([1, 0, 1, 0]),
-                $this->generate_attempt_answers([1, 1, 1, 1]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 1, 0, 0]),
+                self::generate_attempt_answers([1, 0, 1, 0]),
+                self::generate_attempt_answers([1, 1, 1, 1]),
             ],
             'Expected quiz 1 discriminative efficiency' => [null, 33.33, 33.33, 100.00],
             'Quiz 2 attempts' => [
-                $this->generate_attempt_answers([1, 1, 1, 1]),
-                $this->generate_attempt_answers([0, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 0, 0, 1]),
-                $this->generate_attempt_answers([0, 1, 1, 0]),
+                self::generate_attempt_answers([1, 1, 1, 1]),
+                self::generate_attempt_answers([0, 0, 0, 0]),
+                self::generate_attempt_answers([1, 0, 0, 1]),
+                self::generate_attempt_answers([0, 1, 1, 0]),
             ],
             'Expected quiz 2 discriminative efficiency' => [50.00, 50.00, 50.00, 50.00],
             'Expected average discriminative efficiency' => [50.00, 41.67, 41.67, 75.00],
@@ -464,20 +476,20 @@ class statistics_bulk_loader_test extends advanced_testcase {
      * Data provider for {@see test_load_question_discrimination_index()}.
      * @return Generator
      */
-    public function load_question_discrimination_index_provider(): Generator {
+    public static function load_question_discrimination_index_provider(): Generator {
         yield 'Discrimination Index' => [
             'Quiz 1 attempts' => [
-                $this->generate_attempt_answers([1, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 1, 0, 0]),
-                $this->generate_attempt_answers([1, 0, 1, 0]),
-                $this->generate_attempt_answers([1, 1, 1, 1]),
+                self::generate_attempt_answers([1, 0, 0, 0]),
+                self::generate_attempt_answers([1, 1, 0, 0]),
+                self::generate_attempt_answers([1, 0, 1, 0]),
+                self::generate_attempt_answers([1, 1, 1, 1]),
             ],
             'Expected quiz 1 Discrimination Index' => [null, 30.15, 30.15, 81.65],
             'Quiz 2 attempts' => [
-                $this->generate_attempt_answers([1, 1, 1, 1]),
-                $this->generate_attempt_answers([0, 0, 0, 0]),
-                $this->generate_attempt_answers([1, 0, 0, 1]),
-                $this->generate_attempt_answers([0, 1, 1, 0]),
+                self::generate_attempt_answers([1, 1, 1, 1]),
+                self::generate_attempt_answers([0, 0, 0, 0]),
+                self::generate_attempt_answers([1, 0, 0, 1]),
+                self::generate_attempt_answers([0, 1, 1, 0]),
             ],
             'Expected quiz 2 discrimination Index' => [44.72, 44.72, 44.72, 44.72],
             'Expected average discrimination Index' => [44.72, 37.44, 37.44, 63.19],
@@ -552,5 +564,32 @@ class statistics_bulk_loader_test extends advanced_testcase {
             $stats[$questions[3]->id]['discriminationindex'], self::PERCENT_DELTA);
         $this->assertEqualsWithDelta($expectedaveragediscriminationindex[3],
             $stats[$questions[4]->id]['discriminationindex'], self::PERCENT_DELTA);
+    }
+
+    /**
+     * Test with question statistics disabled
+     */
+    public function test_statistics_disabled(): void {
+        $this->resetAfterTest();
+
+        // Prepare some quizzes and attempts. Exactly what is not important to this test.
+        $quiz1attempts = [self::generate_attempt_answers([1, 0, 0, 0])];
+        $quiz2attempts = [self::generate_attempt_answers([1, 1, 1, 1])];
+        [, , $questions] = $this->prepare_and_submit_quizzes($quiz1attempts, $quiz2attempts);
+
+        // Prepare some useful arrays.
+        $expectedstats = [
+            $questions[1]->id => [],
+            $questions[2]->id => [],
+            $questions[3]->id => [],
+            $questions[4]->id => [],
+        ];
+        $questionids = array_keys($expectedstats);
+
+        // Ask to load no statistics at all.
+        $stats = statistics_bulk_loader::load_aggregate_statistics($questionids, []);
+
+        // Verify we got the right thing.
+        $this->assertEquals($expectedstats, $stats);
     }
 }

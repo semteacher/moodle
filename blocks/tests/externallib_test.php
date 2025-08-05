@@ -35,15 +35,16 @@ require_once($CFG->dirroot . '/my/lib.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.0
  */
-class externallib_test extends externallib_advanced_testcase {
+final class externallib_test extends externallib_advanced_testcase {
 
     /**
      * Test get_course_blocks
      */
-    public function test_get_course_blocks() {
+    public function test_get_course_blocks(): void {
         global $DB, $FULLME;
 
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         $user = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
@@ -73,10 +74,11 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test get_course_blocks on site home
      */
-    public function test_get_course_blocks_site_home() {
+    public function test_get_course_blocks_site_home(): void {
         global $DB, $FULLME;
 
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         $user = $this->getDataGenerator()->create_user();
 
@@ -102,7 +104,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test get_course_blocks
      */
-    public function test_get_course_blocks_overrides() {
+    public function test_get_course_blocks_overrides(): void {
         global $DB, $CFG, $FULLME;
 
         $this->resetAfterTest(true);
@@ -137,10 +139,11 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test get_course_blocks contents
      */
-    public function test_get_course_blocks_contents() {
+    public function test_get_course_blocks_contents(): void {
         global $DB, $FULLME;
 
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         $user = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
@@ -233,10 +236,11 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test get_course_blocks contents with mathjax.
      */
-    public function test_get_course_blocks_contents_with_mathjax() {
+    public function test_get_course_blocks_contents_with_mathjax(): void {
         global $DB, $CFG;
 
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         // Enable MathJax filter in content and headings.
         $this->configure_filters([
@@ -310,7 +314,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test user get default dashboard blocks.
      */
-    public function test_get_dashboard_blocks_default_dashboard() {
+    public function test_get_dashboard_blocks_default_dashboard(): void {
         global $PAGE, $DB;
         $this->resetAfterTest(true);
 
@@ -359,9 +363,10 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test user get default dashboard blocks including a sticky block.
      */
-    public function test_get_dashboard_blocks_default_dashboard_including_sticky_block() {
+    public function test_get_dashboard_blocks_default_dashboard_including_sticky_block(): void {
         global $PAGE, $DB;
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         $user = $this->getDataGenerator()->create_user();
         $PAGE->set_url('/my/index.php');    // Need this because some internal API calls require the $PAGE url to be set.
@@ -407,9 +412,10 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test admin get user's custom dashboard blocks.
      */
-    public function test_get_dashboard_blocks_custom_user_dashboard() {
+    public function test_get_dashboard_blocks_custom_user_dashboard(): void {
         global $PAGE, $DB;
         $this->resetAfterTest(true);
+        $this->setAdminUser();
 
         $user = $this->getDataGenerator()->create_user();
         $PAGE->set_url('/my/index.php');    // Need this because some internal API calls require the $PAGE url to be set.
@@ -458,7 +464,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test user tries to get other user blocks not having permission.
      */
-    public function test_get_dashboard_blocks_other_user_missing_permissions() {
+    public function test_get_dashboard_blocks_other_user_missing_permissions(): void {
         $this->resetAfterTest(true);
 
         $user1 = $this->getDataGenerator()->create_user();
@@ -473,7 +479,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test user get default dashboard blocks for my courses page.
      */
-    public function test_get_dashboard_blocks_my_courses() {
+    public function test_get_dashboard_blocks_my_courses(): void {
         global $PAGE, $DB;
         $this->resetAfterTest(true);
 
@@ -522,7 +528,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test user passing the wrong page type and getting an exception.
      */
-    public function test_get_dashboard_blocks_incorrect_page() {
+    public function test_get_dashboard_blocks_incorrect_page(): void {
         global $PAGE;
         $this->resetAfterTest(true);
 

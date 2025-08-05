@@ -25,7 +25,7 @@ namespace core\event;
  * @author     Neill Magill <neill.magill@nottingham.ac.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class context_locked_test extends \advanced_testcase {
+final class context_locked_test extends \advanced_testcase {
     /**
      * Locks an unlocked context and checks that a core\event\context_locked event is created.
      *
@@ -51,7 +51,7 @@ class context_locked_test extends \advanced_testcase {
     /**
      * Tests that events are created when contexts are locked and unlocked.
      */
-    public function test_creation() {
+    public function test_creation(): void {
         $this->resetAfterTest();
 
         $category = self::getDataGenerator()->create_category();

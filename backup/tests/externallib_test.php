@@ -37,13 +37,14 @@ require_once($CFG->dirroot . '/backup/externallib.php');
  * @author     Matt Porritt <mattp@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class externallib_test extends externallib_advanced_testcase {
+final class externallib_test extends externallib_advanced_testcase {
 
     /**
      * Set up tasks for all tests.
      */
     protected function setUp(): void {
         global $CFG;
+        parent::setUp();
 
         $this->resetAfterTest(true);
 
@@ -58,7 +59,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test getting course copy progress.
      */
-    public function test_get_copy_progress() {
+    public function test_get_copy_progress(): void {
         global $USER;
 
         $this->setAdminUser();
@@ -124,7 +125,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test ajax submission of course copy process.
      */
-    public function test_submit_copy_form() {
+    public function test_submit_copy_form(): void {
         global $DB;
 
         $this->setAdminUser();

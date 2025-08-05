@@ -31,7 +31,7 @@ defined('MOODLE_INTERNAL') || die();
 
 global $CFG;
 require_once($CFG->dirroot . '/mod/quiz/locallib.php');
-
+require_once($CFG->dirroot . '/mod/quiz/tests/quiz_question_helper_test_trait.php');
 
 /**
  * Unit tests for (some of) mod/quiz/locallib.php.
@@ -39,9 +39,11 @@ require_once($CFG->dirroot . '/mod/quiz/locallib.php');
  * @copyright  2008 Tim Hunt
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class locallib_test extends \advanced_testcase {
+final class locallib_test extends \advanced_testcase {
 
-    public function test_quiz_rescale_grade() {
+    use \quiz_question_helper_test_trait;
+
+    public function test_quiz_rescale_grade(): void {
         $quiz = new \stdClass();
         $quiz->decimalpoints = 2;
         $quiz->questiondecimalpoints = 3;
@@ -58,7 +60,7 @@ class locallib_test extends \advanced_testcase {
             format_float(0.247, 3));
     }
 
-    public function quiz_attempt_state_data_provider() {
+    public static function quiz_attempt_state_data_provider(): array {
         return [
             [quiz_attempt::IN_PROGRESS, null, null, display_options::DURING],
             [quiz_attempt::FINISHED, -90, null, display_options::IMMEDIATELY_AFTER],
@@ -84,7 +86,7 @@ class locallib_test extends \advanced_testcase {
      * @covers ::quiz_attempt_state
      */
     public function test_quiz_attempt_state(string $attemptstate,
-            ?int $relativetimefinish, ?int $relativetimeclose, int $expectedstate) {
+            ?int $relativetimefinish, ?int $relativetimeclose, int $expectedstate): void {
 
         $attempt = new \stdClass();
         $attempt->state = $attemptstate;
@@ -107,7 +109,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * @covers ::quiz_question_tostring
      */
-    public function test_quiz_question_tostring() {
+    public function test_quiz_question_tostring(): void {
         $question = new \stdClass();
         $question->qtype = 'multichoice';
         $question->name = 'The question name';
@@ -120,9 +122,35 @@ class locallib_test extends \advanced_testcase {
     }
 
     /**
+     * Test the method quiz_question_to_string with the tag display.
+     *
      * @covers ::quiz_question_tostring
      */
-    public function test_quiz_question_tostring_does_not_filter() {
+    public function test_quiz_question_tostring_with_tags(): void {
+        $this->resetAfterTest();
+        $context = \context_coursecat::instance($this->getDataGenerator()->create_category()->id);
+        $questiongenerator = $this->getDataGenerator()->get_plugin_generator('core_question');
+        $questioncat = $questiongenerator->create_question_category(['contextid' => $context->id]);
+        // Create a question.
+        $question = $questiongenerator->create_question('shortanswer', null, ['category' => $questioncat->id]);
+        // Add tag to question.
+        \core_tag_tag::set_item_tags('core_question', 'question', $question->id,
+            $context, ['Banana']);
+
+        // Retrieve the question text to display, including the tag, with the tag displayed as a link.
+        $summary = quiz_question_tostring(question: $question, showtags: true);
+        // Ensure the tag is enclosed within a link.
+        $this->assertMatchesRegularExpression('/<a[^>]*>\s*Banana\s*<\/a>/', $summary);
+
+        // Retrieve the question text to display, including the tag, but ensure the tag is not displayed as a link.
+        $summary = quiz_question_tostring(question: $question, showtags: true, displaytaglink: false);
+        $this->assertMatchesRegularExpression('/<span[^>]*>\s*Banana\s*<\/span>/', $summary);
+    }
+
+    /**
+     * @covers ::quiz_question_tostring
+     */
+    public function test_quiz_question_tostring_does_not_filter(): void {
         $question = new \stdClass();
         $question->qtype = 'multichoice';
         $question->name = 'The question name';
@@ -138,7 +166,7 @@ class locallib_test extends \advanced_testcase {
      * Test quiz_view
      * @return void
      */
-    public function test_quiz_view() {
+    public function test_quiz_view(): void {
         global $CFG;
 
         $CFG->enablecompletion = 1;
@@ -178,7 +206,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * Return false when there are not overrides for this quiz instance.
      */
-    public function test_quiz_is_overriden_calendar_event_no_override() {
+    public function test_quiz_is_overriden_calendar_event_no_override(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();
@@ -202,7 +230,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * Return false if the given event isn't an quiz module event.
      */
-    public function test_quiz_is_overriden_calendar_event_no_module_event() {
+    public function test_quiz_is_overriden_calendar_event_no_module_event(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();
@@ -225,7 +253,7 @@ class locallib_test extends \advanced_testcase {
      * Return false if there is overrides for this use but they belong to another quiz
      * instance.
      */
-    public function test_quiz_is_overriden_calendar_event_different_quiz_instance() {
+    public function test_quiz_is_overriden_calendar_event_different_quiz_instance(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();
@@ -257,7 +285,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * Return true if there is a user override for this event and quiz instance.
      */
-    public function test_quiz_is_overriden_calendar_event_user_override() {
+    public function test_quiz_is_overriden_calendar_event_user_override(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();
@@ -288,7 +316,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * Return true if there is a group override for the event and quiz instance.
      */
-    public function test_quiz_is_overriden_calendar_event_group_override() {
+    public function test_quiz_is_overriden_calendar_event_group_override(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();
@@ -322,7 +350,7 @@ class locallib_test extends \advanced_testcase {
     /**
      * Test test_quiz_get_user_timeclose().
      */
-    public function test_quiz_get_user_timeclose() {
+    public function test_quiz_get_user_timeclose(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -523,13 +551,13 @@ class locallib_test extends \advanced_testcase {
                     $tagids[] = $tagobjects[$tagname]->id;
                 }
             }
-            quiz_add_random_questions($quiz, 0, $cat->id, 1, false, $tagids);
+            $this->add_random_questions($quiz->id, 0, $cat->id, 1);
         }
 
         return [$quiz, $tagobjects];
     }
 
-    public function test_quiz_override_summary() {
+    public function test_quiz_override_summary(): void {
         global $DB, $PAGE;
         $this->resetAfterTest();
         $generator = $this->getDataGenerator();
@@ -634,7 +662,7 @@ class locallib_test extends \advanced_testcase {
     /**
      *  Test quiz_send_confirmation function.
      */
-    public function test_quiz_send_confirmation() {
+    public function test_quiz_send_confirmation(): void {
         global $CFG, $DB;
 
         $this->resetAfterTest();

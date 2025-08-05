@@ -976,6 +976,7 @@ function data_get_tag_title_field($dataid) {
         if ($field->addtemplateposition === false) {
             continue;
         }
+        $field->type = clean_param($field->type, PARAM_ALPHA);
         $filepath = $CFG->dirroot . '/mod/data/field/' . $field->type . '/field.class.php';
         if (!file_exists($filepath)) {
             continue;
@@ -1019,6 +1020,7 @@ function data_get_tag_title_for_entry($field, $entry) {
     if (!isset($field->type)) {
         return null;
     }
+    $field->type = clean_param($field->type, PARAM_ALPHA);
     $filepath = $CFG->dirroot . '/mod/data/field/' . $field->type . '/field.class.php';
     if (!file_exists($filepath)) {
         return null;
@@ -1080,11 +1082,7 @@ function data_search_entries($data, $cm, $context, $mode, $currentgroup, $search
     // If a student is not part of a group and seperate groups is enabled, we don't
     // want them seeing all records.
     $groupmode = groups_get_activity_groupmode($cm);
-    if ($currentgroup == 0 && $groupmode == 1 && !$canmanageentries) {
-        $canviewallrecords = false;
-    } else {
-        $canviewallrecords = true;
-    }
+    $canviewallrecords = $groupmode != SEPARATEGROUPS || has_capability('moodle/site:accessallgroups', $context);
 
     $numentries = data_numentries($data);
     $requiredentriesallowed = true;

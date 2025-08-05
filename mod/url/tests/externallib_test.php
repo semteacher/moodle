@@ -35,12 +35,12 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.0
  */
-class externallib_test extends externallib_advanced_testcase {
+final class externallib_test extends externallib_advanced_testcase {
 
     /**
      * Test view_url
      */
-    public function test_view_url() {
+    public function test_view_url(): void {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -110,7 +110,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test test_mod_url_get_urls_by_courses
      */
-    public function test_mod_url_get_urls_by_courses() {
+    public function test_mod_url_get_urls_by_courses(): void {
         global $DB;
 
         $this->resetAfterTest(true);

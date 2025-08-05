@@ -414,7 +414,7 @@ EOD;
             return [];
         }
 
-        $tmpdir = \make_temp_directory('assignfeedback_editpdf/pageimages/' . self::hash($assignment, $userid, $attemptnumber));
+        $tmpdir = \make_request_directory();
         $combined = $tmpdir . '/' . self::COMBINED_PDF_FILENAME;
 
         $document->get_combined_file()->copy_content_to($combined); // Copy the file.
@@ -681,7 +681,7 @@ EOD;
 
         $file = $document->get_combined_file();
 
-        $tmpdir = make_temp_directory('assignfeedback_editpdf/final/' . self::hash($assignment, $userid, $attemptnumber));
+        $tmpdir = make_request_directory();
         $combined = $tmpdir . '/' . self::COMBINED_PDF_FILENAME;
         $file->copy_content_to($combined); // Copy the file.
 
@@ -702,7 +702,7 @@ EOD;
         }
 
         $fs = get_file_storage();
-        $stamptmpdir = make_temp_directory('assignfeedback_editpdf/stamps/' . self::hash($assignment, $userid, $attemptnumber));
+        $stamptmpdir = make_request_directory();
         $grade = $assignment->get_user_grade($userid, true, $attemptnumber);
         // Copy any new stamps to this instance.
         if ($files = $fs->get_area_files($assignment->get_context()->id,
@@ -1004,8 +1004,7 @@ EOD;
                         $degree = ($degree - 90) % 360;
                     }
                     $filename = $matches[0].'png';
-                    $tmpdir = make_temp_directory(self::COMPONENT . '/' . self::PAGE_IMAGE_FILEAREA . '/'
-                        . self::hash($assignment, $userid, $attemptnumber));
+                    $tmpdir = make_request_directory();
                     $tempfile = $tmpdir . '/' . time() . '_' . $filename;
                     imagepng($content, $tempfile);
 
@@ -1034,16 +1033,14 @@ EOD;
      * @param int $attemptnumber Attempt Number
      * @param \stored_file $file file to save
      * @param null|array $size size of image
-     * @return \stored_file
+     * @return null|\stored_file
      * @throws \file_exception
      * @throws \stored_file_creation_exception
      */
     private static function save_jpg_to_pdf($assignment, $userid, $attemptnumber, $file, $size=null) {
         // Temporary file.
         $filename = $file->get_filename();
-        $tmpdir = make_temp_directory('assignfeedback_editpdf' . DIRECTORY_SEPARATOR
-            . self::TMP_JPG_TO_PDF_FILEAREA . DIRECTORY_SEPARATOR
-            . self::hash($assignment, $userid, $attemptnumber));
+        $tmpdir = make_request_directory();
         $tempfile = $tmpdir . DIRECTORY_SEPARATOR . $filename . ".pdf";
         // Determine orientation.
         $orientation = 'P';
@@ -1062,14 +1059,21 @@ EOD;
         $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
         $pdf->AddPage($orientation);
         $pdf->SetAutoPageBreak(false);
-        // Width has to be define here to fit into A4 page. Otherwise the image will be inserted with original size.
-        if ($orientation == 'P') {
-            $pdf->Image('@' . $file->get_content(), 0, 0, 210);
-        } else {
-            $pdf->Image('@' . $file->get_content(), 0, 0, 297);
+        try {
+            // Width has to be defined here to fit into an A4 page, otherwise the image will be inserted with original size.
+            if ($orientation == 'P') {
+                $pdf->Image('@' . $file->get_content(), 0, 0, 210);
+            } else {
+                $pdf->Image('@' . $file->get_content(), 0, 0, 297);
+            }
+            $pdf->setPageMark();
+            $pdf->save_pdf($tempfile);
+        } catch (\Exception $e) {
+            // Trim off the binary image data in the exception message for debugging output.
+            $exceptionmsg = strstr($e->getMessage(), '@', true) ?: $e->getMessage();
+            debugging("Could not convert {$file->get_contenthash()} jpg to pdf: {$exceptionmsg}", DEBUG_ALL);
+            return null;
         }
-        $pdf->setPageMark();
-        $pdf->save_pdf($tempfile);
         $filearea = self::TMP_JPG_TO_PDF_FILEAREA;
         $pdffile = self::save_file($assignment, $userid, $attemptnumber, $filearea, $tempfile);
         if (file_exists($tempfile)) {
@@ -1092,9 +1096,7 @@ EOD;
      */
     private static function save_rotated_image_file($assignment, $userid, $attemptnumber, $rotateddata, $filename) {
         $filearea = self::TMP_ROTATED_JPG_FILEAREA;
-        $tmpdir = make_temp_directory('assignfeedback_editpdf' . DIRECTORY_SEPARATOR
-            . $filearea . DIRECTORY_SEPARATOR
-            . self::hash($assignment, $userid, $attemptnumber));
+        $tmpdir = make_request_directory();
         $tempfile = $tmpdir . DIRECTORY_SEPARATOR . basename($filename);
         imagejpeg($rotateddata, $tempfile);
         $newfile = self::save_file($assignment, $userid, $attemptnumber, $filearea, $tempfile);
@@ -1104,5 +1106,4 @@ EOD;
         }
         return $newfile;
     }
-
 }

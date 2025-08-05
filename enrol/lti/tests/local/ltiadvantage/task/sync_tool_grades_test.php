@@ -37,7 +37,7 @@ require_once(__DIR__ . '/../lti_advantage_testcase.php');
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @coversDefaultClass \enrol_lti\local\ltiadvantage\task\sync_tool_grades
  */
-class sync_tool_grades_test extends \lti_advantage_testcase {
+final class sync_tool_grades_test extends \lti_advantage_testcase {
     /**
      * Get a task which has a mocked ags instance injected, meaning no real calls will be made to the platform.
      *
@@ -149,11 +149,75 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
     }
 
     /**
+     * Data provider for test_grade_sync_positive_case.
+     *
+     * @return array
+     */
+    public static function grade_sync_positive_cases(): array {
+        return [
+            [200],
+            [201],
+            [202],
+            [204],
+        ];
+    }
+
+    /**
+     * Test the sync grades task works correct when platform responses with given status code.
+     *
+     * @covers ::execute
+     * @param string $statuscode the response status code with which the job should work correctly
+     * @dataProvider grade_sync_positive_cases
+     */
+    public function test_grade_sync_positive_case($statuscode): void {
+        $this->resetAfterTest();
+
+        [$course, $resource] = $this->create_test_environment();
+        $launchservice = $this->get_tool_launch_service();
+        $task = $this->get_task_with_mocked_grade_service($statuscode);
+
+        // Launch the resource for an instructor which will create the domain objects needed for service calls.
+        $teachermocklaunch = $this->get_mock_launch($resource, $this->get_mock_launch_users_with_ids(['1'], false)[0]);
+        $instructoruser = $this->getDataGenerator()->create_user();
+        [$teacherid, $resource] = $launchservice->user_launches_tool($instructoruser, $teachermocklaunch);
+
+        // Launch the resource for a few more users, creating those enrolments and allowing grading to take place.
+        $studentusers = $this->get_mock_launch_users_with_ids(['2'], false,
+            'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner');
+
+        $student1mocklaunch = $this->get_mock_launch($resource, $studentusers[0]);
+        $student1user = $this->getDataGenerator()->create_user();
+        [$student1id] = $launchservice->user_launches_tool($student1user, $student1mocklaunch);
+
+        // Grade student1.
+        $expectedstudent1grade = $this->set_user_grade_for_resource($student1id, 65, $resource);
+
+        // Sync and verify that only student1's grade is sent.
+        ob_start();
+        $task->set_custom_data($resource);
+        $task->execute();
+        $ob = ob_get_contents();
+        ob_end_clean();
+        $expectedtraces = [
+            "Starting - LTI Advantage grade sync for shared resource '$resource->id' in course '$course->id'.",
+            "Skipping - Invalid grade for the user '$teacherid', for the resource '$resource->id' and the course ".
+                "'$course->id'.",
+            "Success - The grade '$expectedstudent1grade' for the user '$student1id', for the resource ".
+                "'$resource->id' and the course '$course->id' was sent.",
+            "Completed - Synced grades for tool '$resource->id' in the course '$course->id'. ".
+                "Processed 2 users; sent 1 grades."
+        ];
+        foreach ($expectedtraces as $expectedtrace) {
+            $this->assertStringContainsString($expectedtrace, $ob);
+        }
+    }
+
+    /**
      * Test the sync grades task during several runs and for a series of grade changes.
      *
      * @covers ::execute
      */
-    public function test_grade_sync_chronological_syncs() {
+    public function test_grade_sync_chronological_syncs(): void {
         $this->resetAfterTest();
 
         [$course, $resource] = $this->create_test_environment();
@@ -252,7 +316,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_grade_sync_multiple_resource_links() {
+    public function test_grade_sync_multiple_resource_links(): void {
         $this->resetAfterTest();
 
         [$course, $resource] = $this->create_test_environment();
@@ -325,7 +389,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_no_service_endpoint() {
+    public function test_sync_grades_no_service_endpoint(): void {
         $this->resetAfterTest();
         [$course, $resource] = $this->create_test_environment();
         $launchservice = $this->get_tool_launch_service();
@@ -356,7 +420,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_disabled_instance() {
+    public function test_sync_grades_disabled_instance(): void {
         $this->resetAfterTest();
         global $DB;
 
@@ -386,7 +450,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_deleted_context() {
+    public function test_sync_grades_deleted_context(): void {
         $this->resetAfterTest();
         global $DB;
 
@@ -423,7 +487,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_completion_required() {
+    public function test_sync_grades_completion_required(): void {
         $this->resetAfterTest();
         global $CFG;
         require_once($CFG->libdir . '/completionlib.php');
@@ -617,7 +681,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_failed_service_call() {
+    public function test_sync_grades_failed_service_call(): void {
         $this->resetAfterTest();
         [$course, $resource] = $this->create_test_environment();
         $launchservice = $this->get_tool_launch_service();
@@ -679,7 +743,7 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
      *
      * @covers ::execute
      */
-    public function test_sync_grades_coupled_lineitem() {
+    public function test_sync_grades_coupled_lineitem(): void {
         $this->resetAfterTest();
 
         [$course, $resource] = $this->create_test_environment();
@@ -749,14 +813,91 @@ class sync_tool_grades_test extends \lti_advantage_testcase {
     }
 
     /**
-     * Test the sync when only the lineitems URL is provided and when line item creation/query is expected.
+     * Test the sync for an activity context when only the lineitems URL is provided and when line item creation/query is expected.
      *
      * @covers ::execute
      */
-    public function test_sync_grades_none_or_many_lineitems() {
+    public function test_sync_grades_none_or_many_lineitems_activity_context(): void {
         $this->resetAfterTest();
 
         [$course, $resource] = $this->create_test_environment();
+        $launchservice = $this->get_tool_launch_service();
+
+        // The launches omit the 'lineitem' claim, meaning the item may have none (or many) line items.
+        $agsclaim = [
+            "scope" => [
+                "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+                "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+            ],
+            "lineitems" => "https://platform.example.com/10/lineitems"
+        ];
+
+        // Launch the resource for an instructor which will create the domain objects needed for service calls.
+        $teachermocklaunch = $this->get_mock_launch($resource, $this->get_mock_launch_users_with_ids(['1'], false)[0], null,
+            $agsclaim);
+        $instructoruser = $this->getDataGenerator()->create_user();
+        [$teacherid, $resource] = $launchservice->user_launches_tool($instructoruser, $teachermocklaunch);
+
+        // Launch the resource for a few more users, creating those enrolments and allowing grading to take place.
+        $studentusers = $this->get_mock_launch_users_with_ids(['2', '3'], false,
+            'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner');
+
+        $student1mocklaunch = $this->get_mock_launch($resource, $studentusers[0], null, $agsclaim);
+        $student2mocklaunch = $this->get_mock_launch($resource, $studentusers[1], null, $agsclaim);
+        $student1user = $this->getDataGenerator()->create_user();
+        $student2user = $this->getDataGenerator()->create_user();
+        [$student1id] = $launchservice->user_launches_tool($student1user, $student1mocklaunch);
+        [$student2id] = $launchservice->user_launches_tool($student2user, $student2mocklaunch);
+
+        // Grade student1 only.
+        $expectedstudent1grade = $this->set_user_grade_for_resource($student1id, 65, $resource);
+
+        // Mock task, asserting that line item creation takes place via a mock grade service object.
+        $mockgradeservice = $this->createMock(LtiAssignmentsGradesService::class);
+        $mockgradeservice->method('putGrade')->willReturnCallback(function() {
+            return ['headers' => ['httpstatus' => "HTTP/2 200 OK"], 'body' => '', 'status' => 200];
+        });
+        $mockgradeservice->expects($this->once())
+            ->method('findOrCreateLineitem');
+        $mockgradeservice->expects($this->once())
+            ->method('putGrade')
+            ->with($this->isInstanceOf(LtiGrade::class), $this->isInstanceOf(LtiLineitem::class));
+        $mocktask = $this->getMockBuilder(sync_tool_grades::class)
+            ->onlyMethods(['get_ags'])
+            ->getMock();
+        $mocktask->method('get_ags')->willReturn($mockgradeservice);
+
+        // Sync and verify that only student1's grade is sent.
+        ob_start();
+        $mocktask->set_custom_data($resource);
+        $mocktask->execute();
+        $ob = ob_get_contents();
+        ob_end_clean();
+        $expectedtraces = [
+            "Starting - LTI Advantage grade sync for shared resource '$resource->id' in course '$course->id'.",
+            "Skipping - Invalid grade for the user '$teacherid', for the resource '$resource->id' and the course ".
+            "'$course->id'.",
+            "Success - The grade '$expectedstudent1grade' for the user '$student1id', for the resource ".
+            "'$resource->id' and the course '$course->id' was sent.",
+            "Skipping - Invalid grade for the user '$student2id', for the resource '$resource->id' and the course ".
+            "'$course->id'.",
+            "Completed - Synced grades for tool '$resource->id' in the course '$course->id'. ".
+            "Processed 3 users; sent 1 grades."
+        ];
+        foreach ($expectedtraces as $expectedtrace) {
+            $this->assertStringContainsString($expectedtrace, $ob);
+        }
+    }
+
+    /**
+     * Test the sync for a course context when only the lineitems URL is provided and when line item creation/query is expected.
+     *
+     * @covers ::execute
+     */
+    public function test_sync_grades_none_or_many_lineitems_course_context(): void {
+        $this->resetAfterTest();
+
+        [$course, $tool1, $tool2, $resource] = $this->create_test_environment();
         $launchservice = $this->get_tool_launch_service();
 
         // The launches omit the 'lineitem' claim, meaning the item may have none (or many) line items.

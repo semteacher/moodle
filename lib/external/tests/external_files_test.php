@@ -25,7 +25,7 @@ namespace core_external;
  * @license     http://www.gnu.org/copyleft/gpl.html GNU Public License
  * @covers      \core_external\external_files
  */
-class external_files_test extends \advanced_testcase {
+final class external_files_test extends \advanced_testcase {
     /**
      * Text external files structure.
      *
@@ -37,7 +37,7 @@ class external_files_test extends \advanced_testcase {
         // First check that the expected default values and keys are returned.
         $expectedkeys = array_flip([
             'filename', 'filepath', 'filesize', 'fileurl', 'timemodified', 'mimetype',
-            'isexternalfile', 'repositorytype',
+            'isexternalfile', 'repositorytype', 'icon',
         ]);
         $returnedkeys = array_flip(array_keys($description->content->keys));
         $this->assertEquals($expectedkeys, $returnedkeys);

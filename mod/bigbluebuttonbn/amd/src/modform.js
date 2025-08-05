@@ -21,7 +21,7 @@
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {get_string as getString} from 'core/str';
+import {getString} from 'core/str';
 import Notification from 'core/notification';
 import Templates from "core/templates";
 
@@ -163,6 +163,9 @@ const applyInstanceTypeProfile = (profileType, isFeatureEnabled) => {
     // Competencies validation.
     showFieldset('id_competenciessection', showAll ||
         isFeatureEnabled(profileType, 'competenciessection'));
+    // Completion validation.
+    showFieldset('id_activitycompletionheader', showAll ||
+        isFeatureEnabled(profileType, 'activitycompletionheader'));
     // Completion validation.
     showFormGroup('completionattendancegroup', showAll ||
         isFeatureEnabled(profileType, 'completionattendance'));

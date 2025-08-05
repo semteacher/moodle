@@ -100,6 +100,8 @@ if ($accessmanager->is_preflight_check_required($attemptobj->get_attemptid())) {
 // Set up auto-save if required.
 $autosaveperiod = get_config('quiz', 'autosaveperiod');
 if ($autosaveperiod) {
+    $PAGE->requires->string_for_js('strftimedatetimeshortaccurate', 'langconfig');
+    $PAGE->requires->string_for_js('lastautosave', 'quiz');
     $PAGE->requires->yui_module('moodle-mod_quiz-autosave',
             'M.mod_quiz.autosave.init', [$autosaveperiod]);
 }
@@ -120,6 +122,10 @@ if (!$attemptobj->set_currentpage($page)) {
     redirect($attemptobj->start_attempt_url(null, $attemptobj->get_currentpage()));
 }
 
+if ($attemptobj->is_own_preview()) {
+    $attemptobj->update_questions_to_new_version_if_changed();
+}
+
 // Initialise the JavaScript.
 $headtags = $attemptobj->get_html_head_contributions($page);
 $PAGE->requires->js_init_call('M.mod_quiz.init_attempt_form', null, false, quiz_get_js_module());
@@ -134,7 +140,9 @@ $headtags = $attemptobj->get_html_head_contributions($page);
 $PAGE->set_title($attemptobj->attempt_page_title($page));
 $PAGE->add_body_class('limitedwidth');
 $PAGE->set_heading($attemptobj->get_course()->fullname);
-$PAGE->activityheader->disable();
+if ($PAGE->pagelayout !== 'secure') {
+    $PAGE->activityheader->disable();
+}
 if ($attemptobj->is_last_page($page)) {
     $nextpage = -1;
 } else {

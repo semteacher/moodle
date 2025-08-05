@@ -28,12 +28,10 @@ use advanced_testcase;
  * @copyright   2023 Andrew Lyons <andrew@nicols.co.uk>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class block_test extends advanced_testcase {
+final class block_test extends advanced_testcase {
 
     /**
      * Test the get_enabled_plugins method.
-     *
-     * @covers ::get_enabled_plugins
      */
     public function test_get_enabled_plugins(): void {
         $this->resetAfterTest();
@@ -70,7 +68,7 @@ class block_test extends advanced_testcase {
         $this->assertEquals($expected, $plugininfo->is_uninstall_allowed());
     }
 
-    public function is_uninstall_allowed_provider(): array {
+    public static function is_uninstall_allowed_provider(): array {
         $plugins = block::get_enabled_plugins();
         return array_map(function ($plugin) {
             $expected = true;

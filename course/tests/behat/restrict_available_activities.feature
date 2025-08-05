@@ -15,30 +15,29 @@ Feature: Restrict activities availability
       | user | course | role |
       | teacher1 | C1 | editingteacher |
     And the following "activities" exist:
-      | activity | course | name           |
-      | chat     | C1     | Test chat name |
+      | activity | course | name             |
+      | assign   | C1     | Test assign name |
 
-  @javascript
   Scenario: Activities can be added with the default permissions
     Given I log in as "teacher1"
-    And I am on "Course 1" course homepage with editing mode on
-    When I add a "Glossary" to section "1" and I fill the form with:
+    When I add a glossary activity to course "Course 1" section "1" and I fill the form with:
       | Name | Test glossary name |
       | Description | Test glossary description |
     Then I should see "Test glossary name"
-    And I should see "Test chat name"
+    And I should see "Test assign name"
 
   @javascript @skip_chrome_zerosize
   Scenario: Activities can not be added when the admin restricts the permissions
-    Given I log in as "admin"
-    And I set the following system permissions of "Teacher" role:
-      | mod/chat:addinstance | Prohibit |
+    Given the following "role capability" exists:
+      | role                 | editingteacher  |
+      | mod/assign:addinstance | prohibit        |
+    And I log in as "admin"
     And I am on the "Course 1" "permissions" page
     And I override the system permissions of "Teacher" role with:
       | mod/glossary:addinstance | Prohibit |
     And I log out
     And I log in as "teacher1"
     When I am on "Course 1" course homepage with editing mode on
-    And I press "Add an activity or resource"
-    Then "Add a new Chat" "link" should not exist in the "Add an activity or resource" "dialogue"
+    And I click on "Add an activity or resource" "button" in the "New section" "section"
+    Then "Add a new Assignment" "link" should not exist in the "Add an activity or resource" "dialogue"
     Then "Add a new Glossary" "link" should not exist in the "Add an activity or resource" "dialogue"

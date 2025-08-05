@@ -27,6 +27,6 @@
 defined('MOODLE_INTERNAL') || die();
 
 
-$plugin->version   = 2023042400;
-$plugin->requires  = 2023041800;
+$plugin->version   = 2024100700;
+$plugin->requires  = 2024100100;
 $plugin->component = 'ltiservice_memberships';

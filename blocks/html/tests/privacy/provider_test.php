@@ -37,7 +37,7 @@ use block_html\privacy\provider;
  * @copyright  2018 Andrew Nicols <andrew@nicols.co.uk>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider_test extends \core_privacy\tests\provider_testcase {
+final class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Get the list of standard format options for comparison.
      *
@@ -163,7 +163,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that a block on the dashboard is exported.
      */
-    public function test_user_block() {
+    public function test_user_block(): void {
         $this->resetAfterTest();
 
         $title = 'Example title';
@@ -206,7 +206,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that a block on the dashboard which is not configured is _not_ exported.
      */
-    public function test_user_block_unconfigured() {
+    public function test_user_block_unconfigured(): void {
         global $DB;
 
         $this->resetAfterTest();
@@ -242,7 +242,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that a block on the dashboard is exported.
      */
-    public function test_user_multiple_blocks_exported() {
+    public function test_user_multiple_blocks_exported(): void {
         $this->resetAfterTest();
 
         $title = 'Example title';
@@ -286,7 +286,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that a block on the dashboard is not exported.
      */
-    public function test_course_blocks_not_exported() {
+    public function test_course_blocks_not_exported(): void {
         $this->resetAfterTest();
 
         $title = 'Example title';
@@ -297,6 +297,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $user = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
         $this->setUser($user);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
 
         $block = $this->create_course_block($course, $title, $content, $format);
         $context = \context_block::instance($block->instance->id);
@@ -311,7 +312,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that a block on the dashboard is exported.
      */
-    public function test_mixed_multiple_blocks_exported() {
+    public function test_mixed_multiple_blocks_exported(): void {
         $this->resetAfterTest();
 
         $title = 'Example title';
@@ -324,6 +325,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $user = $this->getDataGenerator()->create_user();
         $course = $this->getDataGenerator()->create_course();
         $this->setUser($user);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'editingteacher');
 
         $block = $this->create_course_block($course, $title, $content, $format);
         $context = \context_block::instance($block->instance->id);
@@ -349,7 +351,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that only users with a user context HTML block are fetched.
      */
-    public function test_get_users_in_context() {
+    public function test_get_users_in_context(): void {
         $this->resetAfterTest();
 
         $component = 'block_html';
@@ -369,6 +371,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
         $this->setUser($user2);
 
         $course = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($user2->id, $course->id, 'editingteacher');
         $courseblock = $this->create_course_block($course, $title, $content, $blockformat);
         $coursecontext = \context_block::instance($courseblock->instance->id);
 
@@ -392,7 +395,7 @@ class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Test that data for users in approved userlist is deleted.
      */
-    public function test_delete_data_for_users() {
+    public function test_delete_data_for_users(): void {
         $this->resetAfterTest();
 
         $component = 'block_html';

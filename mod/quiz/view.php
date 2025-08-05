@@ -24,6 +24,7 @@
  */
 
 use mod_quiz\access_manager;
+use mod_quiz\output\list_of_attempts;
 use mod_quiz\output\renderer;
 use mod_quiz\output\view_page;
 use mod_quiz\quiz_attempt;
@@ -67,6 +68,8 @@ quiz_view($quiz, $course, $cm, $context);
 
 // Initialize $PAGE, compute blocks.
 $PAGE->set_url('/mod/quiz/view.php', ['id' => $cm->id]);
+// On the quiz view page, the browser back/forwards buttons should force a reload.
+$PAGE->set_cacheable(false);
 
 // Create view object which collects all the information the renderer will need.
 $viewobj = new view_page();
@@ -95,13 +98,24 @@ if ($unfinishedattempt = quiz_get_user_attempt_unfinished($quiz->id, $USER->id))
 }
 $numattempts = count($attempts);
 
+$gradeitemmarks = $quizobj->get_grade_calculator()->compute_grade_item_totals_for_attempts(
+    array_column($attempts, 'uniqueid'));
+
 $viewobj->attempts = $attempts;
 $viewobj->attemptobjs = [];
 foreach ($attempts as $attempt) {
-    $viewobj->attemptobjs[] = new quiz_attempt($attempt, $quiz, $cm, $course, false);
+    $attemptobj = new quiz_attempt($attempt, $quiz, $cm, $course, false);
+    $attemptobj->set_grade_item_totals($gradeitemmarks[$attempt->uniqueid]);
+    $viewobj->attemptobjs[] = $attemptobj;
+
+}
+$viewobj->attemptslist = new list_of_attempts($timenow);
+foreach (array_reverse($viewobj->attemptobjs) as $attemptobj) {
+    $viewobj->attemptslist->add_attempt($attemptobj);
 }
 
 // Work out the final grade, checking whether it was overridden in the gradebook.
+// First, get an initial grade to display.
 if (!$canpreview) {
     $mygrade = quiz_get_best_grade($quiz, $USER->id);
 } else if ($lastfinishedattempt) {
@@ -112,24 +126,35 @@ if (!$canpreview) {
     $mygrade = null;
 }
 
+// Now, check the grade in the gradebook, if there is one.
 $mygradeoverridden = false;
 $gradebookfeedback = '';
 
-$item = null;
+$gradeitem = grade_item::fetch([
+    'itemtype' => 'mod',
+    'itemmodule' => 'quiz',
+    'iteminstance' => $quiz->id,
+    'itemnumber' => 0,
+    'courseid' => $course->id,
+]);
 
-$gradinginfo = grade_get_grades($course->id, 'mod', 'quiz', $quiz->id, $USER->id);
-if (!empty($gradinginfo->items)) {
-    $item = $gradinginfo->items[0];
-    if (isset($item->grades[$USER->id])) {
-        $grade = $item->grades[$USER->id];
+// If there's a grade item grade, then get that grade for this user.
+// Users who can preview the quiz (eg teachers) won't have a proper grade,
+// so no point getting their grades here.
+if (!$canpreview && $gradeitem) {
+    $grade = $gradeitem->get_grade($USER->id, false);
+    $mygrade = $grade->finalgrade; // Use this grade to display in the view page.
 
-        if ($grade->overridden) {
-            $mygrade = $grade->grade + 0; // Convert to number.
-            $mygradeoverridden = true;
+    if ($grade->overridden) {
+        if ($gradeitem->needsupdate) {
+            // It is Error, but let's be consistent with the old code.
+            $mygrade = 0;
         }
-        if (!empty($grade->str_feedback)) {
-            $gradebookfeedback = $grade->str_feedback;
-        }
+        $mygradeoverridden = true;
+    }
+
+    if (!empty($grade->feedback)) {
+        $gradebookfeedback = $grade->feedback;
     }
 }
 
@@ -143,7 +168,7 @@ $PAGE->add_body_class('limitedwidth');
 /** @var renderer $output */
 $output = $PAGE->get_renderer('mod_quiz');
 
-// Print table with existing attempts.
+// Print overall stats and table with existing attempts.
 if ($attempts) {
     // Work out which columns we need, taking account what data is available in each attempt.
     list($someoptions, $alloptions) = quiz_get_combined_reviewoptions($quiz, $attempts);
@@ -186,9 +211,9 @@ if ($quiz->attempts != 1) {
 }
 
 // Inform user of the grade to pass if non-zero.
-if ($item && grade_floats_different($item->gradepass, 0)) {
+if ($gradeitem && grade_floats_different($gradeitem->gradepass, 0)) {
     $a = new stdClass();
-    $a->grade = quiz_format_grade($quiz, $item->gradepass);
+    $a->grade = quiz_format_grade($quiz, $gradeitem->gradepass);
     $a->maxgrade = quiz_format_grade($quiz, $quiz->grade);
     $viewobj->infomessages[] = get_string('gradetopassoutof', 'quiz', $a);
 }

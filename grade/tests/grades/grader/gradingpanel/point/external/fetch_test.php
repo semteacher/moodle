@@ -33,7 +33,7 @@ use moodle_exception;
  * @copyright 2019 Andrew Nicols <andrew@nicols.co.uk>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class fetch_test extends advanced_testcase {
+final class fetch_test extends advanced_testcase {
 
     /**
      * Ensure that an execute with an invalid component is rejected.
@@ -190,7 +190,7 @@ class fetch_test extends advanced_testcase {
     /**
      * Executes the fetch method with the given users and returns the result.
      */
-    private function execute_and_assert_fetch ($forum, $fetcheruser, $grader, $gradeduser) {
+    private function execute_and_assert_fetch($forum, $fetcheruser, $grader, $gradeduser) {
         $this->setUser($grader);
 
         $gradeitem = component_gradeitem::instance('mod_forum', $forum->get_context(), 'forum');

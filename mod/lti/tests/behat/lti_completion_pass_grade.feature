@@ -21,20 +21,19 @@ Feature: Pass grade activity completion information in the LTI activity
       | activity | name           | course | gradepass | completion | completionview | completionusegrade | completionpassgrade |
       | lti      | Music history  | C1     | 50        | 2          | 1              | 1                  | 1                   |
 
-  Scenario: View automatic completion items as a teacher
+  Scenario: Verify that the LTI completion conditions are displayed to teachers
     Given I am on the "Music history" "lti activity" page logged in as teacher1
     Then "Music history" should have the "View" completion condition
     And "Music history" should have the "Receive a grade" completion condition
     And "Music history" should have the "Receive a passing grade" completion condition
 
   @javascript
-  Scenario: View automatic completion items as a student
+  Scenario: Verify that students can complete an LTI activity by achieving a passing grade
     Given I am on the "Music history" "lti activity" page logged in as student1
     And the "View" completion condition of "Music history" is displayed as "done"
     And the "Receive a grade" completion condition of "Music history" is displayed as "todo"
     And the "Receive a passing grade" completion condition of "Music history" is displayed as "todo"
-    And I am on the "Course 1" course page logged in as teacher1
-    And I navigate to "View > Grader report" in the course gradebook
+    And I am on the "Course 1" "grades > Grader report > View" page logged in as "teacher1"
     And I turn editing mode on
     And I give the grade "90.00" to the user "Vinnie Student1" for the grade item "Music history"
     And I give the grade "20.00" to the user "Vinnie Student2" for the grade item "Music history"

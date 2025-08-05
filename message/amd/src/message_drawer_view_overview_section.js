@@ -65,6 +65,7 @@ function(
         SECTION_TOTAL_COUNT: '[data-region="section-total-count"]',
         SECTION_TOTAL_COUNT_CONTAINER: '[data-region="section-total-count-container"]',
         SECTION_UNREAD_COUNT: '[data-region="section-unread-count"]',
+        SECTION_UNREAD_COUNT_CONTAINER: '[data-region="section-unread-count-container"]',
         PLACEHOLDER_CONTAINER: '[data-region="placeholder-container"]'
     };
 
@@ -120,7 +121,7 @@ function(
         countElement.text(count);
         container.removeClass('hidden');
         Str.get_string('totalconversations', 'core_message', count).done(function(string) {
-            container.attr('aria-label', string);
+            $('#' + container.attr('aria-labelledby')).text(string);
         });
 
         var numPlaceholders = count > 20 ? 20 : count;
@@ -149,15 +150,18 @@ function(
      * @param {Number} count The unread count
      */
     var renderUnreadCount = function(root, count) {
-        var countElement = root.find(SELECTORS.SECTION_UNREAD_COUNT);
+        var container = root.find(SELECTORS.SECTION_UNREAD_COUNT_CONTAINER);
+        var countElement = container.find(SELECTORS.SECTION_UNREAD_COUNT);
         countElement.text(count);
 
         Str.get_string('unreadconversations', 'core_message', count).done(function(string) {
-            countElement.attr('aria-label', string);
+            $('#' + container.attr('aria-labelledby')).text(string);
         });
 
         if (count > 0) {
-            countElement.removeClass('hidden');
+            container.removeClass('hidden');
+        } else {
+            container.addClass('hidden');
         }
     };
 
@@ -444,11 +448,8 @@ function(
             var element = getTotalUnreadConversationCountElement(root);
             var count = parseInt(element.text());
             count = count - 1;
-            element.text(count);
-
-            if (count < 1) {
-                element.addClass('hidden');
-            }
+            // Re-render the unread count.
+            renderUnreadCount(root, count);
         }
     };
 
@@ -605,10 +606,6 @@ function(
             return true;
         };
 
-        // Set the minimum height of the section to the height of the toggle. This
-        // smooths out the collapse animation.
-        var toggle = root.find(SELECTORS.TOGGLE);
-        root.css('min-height', toggle.outerHeight());
 
         root.on('show.bs.collapse', function() {
             setExpanded(root);

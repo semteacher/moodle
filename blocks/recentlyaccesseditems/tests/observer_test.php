@@ -29,7 +29,7 @@ require_once($CFG->dirroot . '/mod/assign/tests/generator.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.6
  */
-class observer_test extends \advanced_testcase {
+final class observer_test extends \advanced_testcase {
     use \mod_assign_test_generator;
 
     /** @var string Table name. */
@@ -64,6 +64,7 @@ class observer_test extends \advanced_testcase {
      */
     public function setUp(): void {
         global $DB;
+        parent::setUp();
 
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -95,7 +96,7 @@ class observer_test extends \advanced_testcase {
      *
      * When items events are triggered they are stored in the block_recentlyaccesseditems table.
      */
-    public function test_item_view_recorded_testcase() {
+    public function test_item_view_recorded_testcase(): void {
         global $DB;
 
         // Empty table at the beggining.
@@ -140,7 +141,7 @@ class observer_test extends \advanced_testcase {
      *
      * When a course module is removed, the records associated in the block_recentlyaccesseditems table are deleted.
      */
-    public function test_item_delete_record_testcase() {
+    public function test_item_delete_record_testcase(): void {
         global $DB;
 
         // Empty table at the beggining.

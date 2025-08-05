@@ -864,6 +864,8 @@ class external extends external_api {
 
         $context = context_system::instance();
         self::validate_context($context);
+        require_capability('moodle/competency:templatemanage', $context);
+
         $output = $PAGE->get_renderer('tool_lp');
 
         list($filtercapsql, $filtercapparams) = api::filter_users_with_capability_on_user_context_sql($cap,
@@ -874,7 +876,7 @@ class external extends external_api {
         $fields = $userfieldsapi->get_sql('u', false, '', '', false)->selects;
         $extrasearchfields = $userfieldsapi->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
 
-        list($wheresql, $whereparams) = users_search_sql($query, 'u', true, $extrasearchfields);
+        list($wheresql, $whereparams) = users_search_sql($query, 'u', USER_SEARCH_CONTAINS, $extrasearchfields);
         list($sortsql, $sortparams) = users_order_by_sql('u', $query, $context);
 
         $countsql = "SELECT COUNT('x') FROM {user} u WHERE $wheresql AND u.id $filtercapsql";
