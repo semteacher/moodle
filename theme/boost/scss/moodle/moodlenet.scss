@@ -9,6 +9,7 @@
                 display: flex;
 
                 .icon {
+                    max-width: initial;
                     width: auto;
                     height: 1.3rem;
                 }
@@ -53,16 +54,16 @@
         }
 
         .moodlenet-share-notice {
-            background-color: #f8f9fa;
+            background-color: $moodlenet-share-notice-bg;
             padding: 1rem;
         }
 
         .moodlenet-share-modal-content {
             .loading-icon {
                 .icon {
-                    width: 60px;
-                    height: 60px;
-                    font-size: 60px;
+                    max-width: 4em;
+                    max-height: 4em;
+                    font-size: 4em;
                 }
             }
 
@@ -85,7 +86,7 @@
                     &.status-icon {
                         .icon {
                             font-size: 8rem;
-                            width: auto;
+                            max-width: initial;
                             margin: 0;
                         }
                     }

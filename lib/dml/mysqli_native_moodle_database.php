@@ -41,6 +41,12 @@ class mysqli_native_moodle_database extends moodle_database {
         can_use_readonly as read_slave_can_use_readonly;
     }
 
+    /** @var array $sslmodes */
+    private static $sslmodes = [
+        'require',
+        'verify-full'
+    ];
+
     /** @var mysqli $mysqli */
     protected $mysqli = null;
     /** @var bool is compressed row format supported cache */
@@ -59,7 +65,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return bool success
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function create_database($dbhost, $dbuser, $dbpass, $dbname, array $dboptions=null) {
+    public function create_database($dbhost, $dbuser, $dbpass, $dbname, ?array $dboptions=null) {
         $driverstatus = $this->driver_installed();
 
         if ($driverstatus !== true) {
@@ -398,6 +404,10 @@ class mysqli_native_moodle_database extends moodle_database {
         } else if ($this->get_row_format() !== 'Barracuda') {
             $this->compressedrowformatsupported = false;
 
+        } else if ($this->get_dbtype() === 'auroramysql') {
+            // Aurora MySQL doesn't support COMPRESSED and falls back to COMPACT if you try to use it.
+            $this->compressedrowformatsupported = false;
+
         } else {
             // All the tests passed, we can safely use ROW_FORMAT=Compressed in sql statements.
             $this->compressedrowformatsupported = true;
@@ -491,40 +501,6 @@ class mysqli_native_moodle_database extends moodle_database {
     }
 
     /**
-     * Diagnose database and tables, this function is used
-     * to verify database and driver settings, db engine types, etc.
-     *
-     * @return string null means everything ok, string means problem found.
-     */
-    public function diagnose() {
-        $sloppymyisamfound = false;
-        $prefix = str_replace('_', '\\_', $this->prefix);
-        $sql = "SELECT COUNT('x')
-                  FROM INFORMATION_SCHEMA.TABLES
-                 WHERE table_schema = DATABASE()
-                       AND table_name LIKE BINARY '$prefix%'
-                       AND Engine = 'MyISAM'";
-        $this->query_start($sql, null, SQL_QUERY_AUX);
-        $result = $this->mysqli->query($sql);
-        $this->query_end($result);
-        if ($result) {
-            if ($arr = $result->fetch_assoc()) {
-                $count = reset($arr);
-                if ($count) {
-                    $sloppymyisamfound = true;
-                }
-            }
-            $result->close();
-        }
-
-        if ($sloppymyisamfound) {
-            return get_string('myisamproblem', 'error');
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Connect to db
      * @param string $dbhost The database host.
      * @param string $dbuser The database username.
@@ -533,8 +509,10 @@ class mysqli_native_moodle_database extends moodle_database {
      * @param mixed $prefix string means moodle db prefix, false used for external databases where prefix not used
      * @param array $dboptions driver specific options
      * @return bool success
+     * @throws moodle_exception
+     * @throws dml_connection_exception if error
      */
-    public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, array $dboptions=null): bool {
+    public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, ?array $dboptions=null): bool {
         $driverstatus = $this->driver_installed();
 
         if ($driverstatus !== true) {
@@ -573,16 +551,31 @@ class mysqli_native_moodle_database extends moodle_database {
             $this->mysqli->options(MYSQLI_OPT_CONNECT_TIMEOUT, $this->dboptions['connecttimeout']);
         }
 
+        $flags = 0;
+        if ($this->dboptions['clientcompress'] ?? false) {
+            $flags |= MYSQLI_CLIENT_COMPRESS;
+        }
+        if (isset($this->dboptions['ssl'])) {
+            $sslmode = $this->dboptions['ssl'];
+            if (!in_array($sslmode, self::$sslmodes, true)) {
+                throw new moodle_exception("Invalid 'dboptions''ssl' value '$sslmode'");
+            }
+            $flags |= MYSQLI_CLIENT_SSL;
+            if ($sslmode === 'verify-full') {
+                $flags |= MYSQLI_CLIENT_SSL_VERIFY_SERVER_CERT;
+            }
+        }
+
         $conn = null;
         $dberr = null;
         try {
             // real_connect() is doing things we don't expext.
-            $conn = @$this->mysqli->real_connect($dbhost, $dbuser, $dbpass, $dbname, $dbport, $dbsocket);
+            $conn = @$this->mysqli->real_connect($dbhost, $dbuser, $dbpass, $dbname, $dbport, $dbsocket, $flags);
         } catch (\Exception $e) {
             $dberr = "$e";
         }
         if (!$conn) {
-            $dberr = $dberr ?: $this->mysqli->connect_error;
+            $dberr = $dberr ?: "{$this->mysqli->connect_error} ({$this->mysqli->connect_errno})";
             $this->mysqli = null;
             throw new dml_connection_exception($dberr);
         }
@@ -1218,7 +1211,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * Very ugly hack which emulates bound parameters in queries
      * because prepared statements do not use query cache.
      */
-    protected function emulate_bound_params($sql, array $params=null) {
+    protected function emulate_bound_params($sql, ?array $params=null) {
         if (empty($params)) {
             return $sql;
         }
@@ -1251,7 +1244,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function execute($sql, array $params=null) {
+    public function execute($sql, ?array $params=null) {
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);
 
         if (strpos($sql, ';') !== false) {
@@ -1290,7 +1283,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return moodle_recordset instance
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_recordset_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
+    public function get_recordset_sql($sql, ?array $params=null, $limitfrom=0, $limitnum=0) {
 
         list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
 
@@ -1352,7 +1345,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return array of objects, or empty array if no records were found
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_records_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
+    public function get_records_sql($sql, ?array $params=null, $limitfrom=0, $limitnum=0) {
 
         list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
 
@@ -1394,7 +1387,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return array of values
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_fieldset_sql($sql, array $params=null) {
+    public function get_fieldset_sql($sql, ?array $params=null) {
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);
         $rawsql = $this->emulate_bound_params($sql, $params);
 
@@ -1737,7 +1730,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function set_field_select($table, $newfield, $newvalue, $select, array $params=null) {
+    public function set_field_select($table, $newfield, $newvalue, $select, ?array $params=null) {
         if ($select) {
             $select = "WHERE $select";
         }
@@ -1778,7 +1771,7 @@ class mysqli_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function delete_records_select($table, $select, array $params=null) {
+    public function delete_records_select($table, $select, ?array $params=null) {
         if ($select) {
             $select = "WHERE $select";
         }
@@ -1900,12 +1893,11 @@ class mysqli_native_moodle_database extends moodle_database {
      * Returns the proper SQL to do CONCAT between the elements passed
      * Can take many parameters
      *
-     * @param string $str,... 1 or more fields/strings to concat
+     * @param string $arr,... 1 or more fields/strings to concat
      *
      * @return string The concat sql
      */
-    public function sql_concat() {
-        $arr = func_get_args();
+    public function sql_concat(...$arr) {
         $s = implode(', ', $arr);
         if ($s === '') {
             return "''";

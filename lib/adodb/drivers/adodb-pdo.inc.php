@@ -82,8 +82,16 @@ class ADODB_pdo extends ADOConnection {
 	var $_errormsg = false;
 	var $_errorno = false;
 
-	var $stmt = false;
+	var $_stmt = false;
+
+	/** @var ADODB_pdo_base */
 	var $_driver;
+
+	/** @var PDO */
+	var $_connectionID;
+
+	/** @var PDOStatement */
+	var $_queryID;
 
 	/*
 	* Describe parameters passed directly to the PDO driver
@@ -570,7 +578,6 @@ class ADODB_pdo extends ADOConnection {
 	}
 
 
-	/* returns queryID or false */
 	function _query($sql,$inputarr=false)
 	{
 		$ok = false;
@@ -661,6 +668,9 @@ class ADODB_pdo extends ADOConnection {
 
 }
 
+/**
+ * Base class for Database-specific PDO drivers.
+ */
 class ADODB_pdo_base extends ADODB_pdo {
 
 	var $sysDate = "'?'";
@@ -778,6 +788,9 @@ class ADORecordSet_pdo extends ADORecordSet {
 	var $bind = false;
 	var $databaseType = "pdo";
 	var $dataProvider = "pdo";
+
+	/** @var PDOStatement */
+	var $_queryID;
 
 	function __construct($id,$mode=false)
 	{
@@ -919,4 +932,7 @@ class ADORecordSet_pdo extends ADORecordSet {
 
 }
 
-class ADORecordSet_array_pdo extends ADORecordSet_array {}
+class ADORecordSet_array_pdo extends ADORecordSet_array {
+	/** @var PDOStatement */
+	var $_queryID;
+}

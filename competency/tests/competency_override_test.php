@@ -23,7 +23,7 @@ namespace core_competency;
  * @copyright  2022 Matthew Hilton <matthewhilton@catalyst-au.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class competency_override_test extends \advanced_testcase {
+final class competency_override_test extends \advanced_testcase {
 
     /** @var \stdClass course record. */
     protected $course;
@@ -56,6 +56,7 @@ class competency_override_test extends \advanced_testcase {
     protected $context;
 
     public function setUp(): void {
+        parent::setUp();
         $this->resetAfterTest(true);
         $this->setAdminUser();
         $dg = $this->getDataGenerator();

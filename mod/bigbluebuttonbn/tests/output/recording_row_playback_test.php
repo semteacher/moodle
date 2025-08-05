@@ -28,7 +28,7 @@ use mod_bigbluebuttonbn\test\testcase_helper_trait;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @author    Laurent David  (laurent.david [at] call-learning [dt] fr)
  */
-class recording_row_playback_test extends \advanced_testcase {
+final class recording_row_playback_test extends \advanced_testcase {
     use testcase_helper_trait;
 
     /**
@@ -95,7 +95,7 @@ class recording_row_playback_test extends \advanced_testcase {
      * @covers       \recording_row_playback::should_be_included
      * @dataProvider should_be_included_data_provider
      */
-    public function test_should_be_included(string $role, array $canview, object $globalsettings = null) {
+    public function test_should_be_included(string $role, array $canview, ?object $globalsettings = null): void {
         global $PAGE;
         $this->resetAfterTest();
         ['recordings' => $recordingsdata, 'activity' => $activity] = $this->create_activity_with_recordings(
@@ -130,7 +130,7 @@ class recording_row_playback_test extends \advanced_testcase {
      *
      * @return array
      */
-    public function should_be_included_data_provider() {
+    public static function should_be_included_data_provider(): array {
         return [
             'editingteacher user should see all' => [
                 'role' => 'editingteacher',
@@ -147,5 +147,40 @@ class recording_row_playback_test extends \advanced_testcase {
             ]
 
         ];
+    }
+
+    /**
+     * Test recording link is rendered for imported recordings.
+     *
+     * @return void
+     * @covers       \recording_row_playback::should_be_included
+     */
+    public function test_show_recording_links(): void {
+        global $PAGE;
+        $this->resetAfterTest();
+        set_config('bigbluebuttonbn_importrecordings_enabled', 1);
+        $plugingenerator = $this->getDataGenerator()->get_plugin_generator('mod_bigbluebuttonbn');
+        ['recordings' => $recordingsdata, 'activity' => $activity] = $this->create_activity_with_recordings(
+            $this->get_course(),
+            instance::TYPE_ALL,
+            self::RECORDING_DATA
+        );
+        $recording = new recording(0, $recordingsdata[0]);
+        $instance = instance::get_from_instanceid($activity->id);
+        // Now create a new activity and import the recording.
+        $newactivity = $plugingenerator->create_instance([
+            'course' => $instance->get_course_id(),
+            'type' => instance::TYPE_ALL,
+            'name' => 'Example 2',
+        ]);
+        $plugingenerator->create_meeting([
+            'instanceid' => $newactivity->id,
+        ]);
+        $newinstance = instance::get_from_instanceid($newactivity->id);
+        // Import recording into new instance.
+        $importedrecording = $recording->create_imported_recording($newinstance);
+        $importedrowplayback = new recording_row_playback($importedrecording, $newinstance);
+        $importedrowinfo = $importedrowplayback->export_for_template($PAGE->get_renderer('mod_bigbluebuttonbn'));
+        $this->assertNotEmpty($importedrowinfo->playbacks);
     }
 }

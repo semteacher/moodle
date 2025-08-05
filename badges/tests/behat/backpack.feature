@@ -54,8 +54,7 @@ Feature: Backpack badges
     When I log in as "student1"
     And I follow "Preferences" in the user menu
     And I follow "Backpack settings"
-    Then I should see "https://dc.imsglobal.org"
-    And I should see "Not connected"
+    Then I should see "Choose..." in the "Backpack provider" "select"
 
   @javascript
   Scenario: User has been connected backpack
@@ -151,13 +150,9 @@ Feature: Backpack badges
     Then "Include authentication details with the backpack" "checkbox" should not be visible
     And I should not see "Badge issuer email address"
     And I should not see "Badge issuer password"
-    And I set the field "apiversion" to "1"
-    And "Include authentication details with the backpack" "checkbox" should be visible
-    And I click on "includeauthdetails" "checkbox"
-    And I should see "Badge issuer email address"
-    And I should not see "Badge issuer password"
     And I set the field "apiversion" to "2"
     And "Include authentication details with the backpack" "checkbox" should be visible
+    And I click on "includeauthdetails" "checkbox"
     And I should see "Badge issuer email address"
     And I should see "Badge issuer password"
     And I set the field "backpackemail" to "test@test.com"
@@ -172,7 +167,6 @@ Feature: Backpack badges
     And the field "Include authentication details with the backpack" matches value "0"
     And I click on "includeauthdetails" "checkbox"
     And I should not see "test@test.com"
-    And I log out
 
   @javascript
   Scenario: View backpack form as a student
@@ -180,8 +174,27 @@ Feature: Backpack badges
     And I follow "Preferences" in the user menu
     And I follow "Backpack settings"
     When I set the field "externalbackpackid" to "https://dc.imsglobal.org"
-    Then I should not see "Email address"
+    Then I should not see "Log in to your backpack"
+    And I should not see "Email address"
     And I should not see "Password"
-    And I set the field "externalbackpackid" to "https://test.com/"
+    But I set the field "externalbackpackid" to "https://test.com/"
+    And I should see "Log in to your backpack"
     And I should see "Email address"
     And I should see "Password"
+
+  @javascript
+  Scenario: Check backpack form validation as a student
+    Given I log in as "student1"
+    And I follow "Preferences" in the user menu
+    And I follow "Backpack settings"
+    When I click on "Connect to backpack" "button"
+    Then I should see "Backpack provider can't be blank"
+    And I set the field "externalbackpackid" to "https://test.com/"
+    And I set the field "password" to ""
+    When I click on "Connect to backpack" "button"
+    Then I should see "Password can't be blank"
+    And I should not see "Email address can't be blank"
+    And I set the field "backpackemail" to ""
+    And I click on "Connect to backpack" "button"
+    And I should see "Email address can't be blank"
+    And I should see "Password can't be blank"

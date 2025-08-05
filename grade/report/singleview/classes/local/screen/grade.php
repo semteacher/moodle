@@ -24,6 +24,8 @@
 
 namespace gradereport_singleview\local\screen;
 
+use context_course;
+use grade_report;
 use gradereport_singleview\local\ui\range;
 use gradereport_singleview\local\ui\bulk_insert;
 use grade_grade;
@@ -151,11 +153,21 @@ class grade extends tablelike implements selectable_items, filterable_items {
      */
     public function init($selfitemisempty = false) {
 
-        $this->items = $this->load_users();
+        $this->items = grade_report::get_gradable_users($this->courseid, $this->groupid);
         $this->totalitemcount = count($this->items);
 
         if ($selfitemisempty) {
             return;
+        }
+
+        // If we change perpage on pagination we might end up with a page that doesn't exist.
+        if ($this->perpage) {
+            $numpages = intval($this->totalitemcount / $this->perpage) + 1;
+            if ($numpages <= $this->page) {
+                $this->page = 0;
+            }
+        } else {
+            $this->page = 0;
         }
 
         $params = [
@@ -186,7 +198,7 @@ class grade extends tablelike implements selectable_items, filterable_items {
         return [
             get_string('fullnameuser', 'core'),
             '', // For filter icon.
-            get_string('grade', 'grades'),
+            get_string('gradenoun'),
             get_string('range', 'grades'),
             get_string('feedback', 'grades'),
             get_string('override', 'gradereport_singleview'),
@@ -205,24 +217,26 @@ class grade extends tablelike implements selectable_items, filterable_items {
 
         $grade = $this->fetch_grade_or_default($this->item, $item->id);
 
-        $lockicon = '';
+        $gradestatus = '';
 
-        $lockedgrade = $lockedgradeitem = 0;
-        if (!empty($grade->locked)) {
-            $lockedgrade = 1;
-        }
-        if (!empty($grade->grade_item->locked)) {
-            $lockedgradeitem = 1;
-        }
-        // Check both grade and grade item.
-        if ( $lockedgrade || $lockedgradeitem ) {
-            $lockicon = $OUTPUT->pix_icon('t/locked', 'grade is locked') . ' ';
+        // Show hidden icon if the grade is hidden and the user has permission to view hidden grades.
+        $showhiddenicon = $grade->is_hidden() &&
+            has_capability('moodle/grade:viewhidden', context_course::instance($this->courseid));
+
+        $context = [
+            'hidden' => $showhiddenicon,
+            'locked' => $grade->is_locked(),
+        ];
+
+        if (in_array(true, $context)) {
+            $context['classes'] = 'gradestatus';
+            $gradestatus = $OUTPUT->render_from_template('core_grades/status_icons', $context);
         }
 
         if (has_capability('moodle/site:viewfullnames', \context_course::instance($this->courseid))) {
-            $fullname = $lockicon . fullname($item, true);
+            $fullname = fullname($item, true);
         } else {
-            $fullname = $lockicon . fullname($item);
+            $fullname = fullname($item);
         }
 
         $item->imagealt = $fullname;
@@ -235,7 +249,7 @@ class grade extends tablelike implements selectable_items, filterable_items {
         $line = [
             html_writer::link($url, $userpic . $fullname),
             $this->get_user_action_menu($item),
-            $formatteddefinition['finalgrade'],
+            $formatteddefinition['finalgrade'] . $gradestatus,
             $this->item_range(),
             $formatteddefinition['feedback'],
             $formatteddefinition['override'],
@@ -313,7 +327,9 @@ class grade extends tablelike implements selectable_items, filterable_items {
      * @return string
      */
     public function heading(): string {
-        return get_string('gradeitem', 'gradereport_singleview', $this->item->get_name());
+        global $PAGE;
+        $headinglangstring = $PAGE->user_is_editing() ? 'gradeitemedit' : 'gradeitem';
+        return get_string($headinglangstring, 'gradereport_singleview', $this->item->get_name());
     }
 
     /**
@@ -411,6 +427,7 @@ class grade extends tablelike implements selectable_items, filterable_items {
         $extraclasses = 'btn btn-link btn-icon icon-size-3 d-flex align-items-center justify-content-center';
         $menu->set_menu_trigger($icon, $extraclasses);
         $menu->set_menu_left();
+        $menu->set_boundary('window');
 
         return $OUTPUT->render($menu);
     }

@@ -30,8 +30,6 @@ use moodle_url;
 
 /**
  * Base class providing access to the information about a plugin
- *
- * @property-read string component the component name, type_name
  */
 abstract class base {
 
@@ -76,6 +74,15 @@ abstract class base {
 
     /** @var int Move a plugin down in the plugin order */
     public const MOVE_DOWN = 1;
+
+    /** @var array hold $plugin->supported in version.php */
+    public $supported;
+
+    /** @var int hold $plugin->incompatible in version.php  */
+    public $incompatible;
+
+    /** @var string Name of the plugin */
+    public $component = '';
 
     /**
      * Whether this plugintype supports its plugins being disabled.
@@ -153,6 +160,7 @@ abstract class base {
             $plugin->type        = $type;
             $plugin->typerootdir = $typerootdir;
             $plugin->name        = $name;
+            $plugin->component   = $plugin->type.'_'.$plugin->name;
             $plugin->rootdir     = null;
             $plugin->displayname = $name;
             $plugin->versiondb   = $version;
@@ -183,6 +191,7 @@ abstract class base {
         $plugin->name        = $name;
         $plugin->rootdir     = $namerootdir;
         $plugin->pluginman   = $pluginman;
+        $plugin->component   = $plugin->type.'_'.$plugin->name;
 
         $plugin->init_display_name();
         $plugin->load_disk_version();
@@ -417,7 +426,7 @@ abstract class base {
      * @param int $branch the moodle branch number
      * @return bool true if not incompatible with moodle branch
      */
-    public function is_core_compatible_satisfied(int $branch) : bool {
+    public function is_core_compatible_satisfied(int $branch): bool {
         if (!empty($this->pluginincompatible) && ($branch >= $this->pluginincompatible)) {
             return false;
         } else {
@@ -613,7 +622,7 @@ abstract class base {
     public function get_dir() {
         global $CFG;
 
-        if (!isset($pluginfo->rootdir)) {
+        if (!isset($this->rootdir)) {
             return '';
         }
 
@@ -664,7 +673,7 @@ abstract class base {
      * @param string $return either 'overview' or 'manage'
      * @return moodle_url
      */
-    public final function get_default_uninstall_url($return = 'overview') {
+    final public function get_default_uninstall_url($return = 'overview') {
         return new moodle_url('/admin/plugins.php', array(
             'uninstall' => $this->component,
             'confirm' => 0,

@@ -49,7 +49,7 @@ class provider implements
      * @param   collection     $itemcollection The initialised item collection to add items to.
      * @return  collection     A listing of user data stored through this system.
      */
-    public static function get_metadata(collection $items) : collection {
+    public static function get_metadata(collection $items): collection {
         // There are several user preferences (shared between different courses).
         // Show/hide toggles preferences.
         $items->add_user_preference('grade_report_showaverages', 'privacy:metadata:preference:grade_report_showaverages');
@@ -140,17 +140,21 @@ class provider implements
                     break;
                 default:
                     if (strpos($name, 'grade_report_grader_collapsed_categories') === 0) {
-                        $prefname = 'grade_report_grader_collapsed_categories';
+                        $prefname = $name;
                         $courseid = substr($name, strlen('grade_report_grader_collapsed_categories'));
                         $transformedvalue = $value;
-                        $course = get_course($courseid);
-                        $prefdescription = get_string(
-                            'privacy:request:preference:'.$prefname,
-                            'gradereport_grader',
-                            (object) [
-                                'name' => $course->fullname,
-                            ]
-                        );
+                        try {
+                            $course = get_course($courseid);
+                            $prefdescription = get_string(
+                                'privacy:request:preference:grade_report_grader_collapsed_categories',
+                                'gradereport_grader',
+                                (object) [
+                                    'name' => $course->fullname,
+                                ]
+                            );
+                        } catch (\dml_missing_record_exception $exception) {
+                            continue 2;
+                        }
                     }
             }
 

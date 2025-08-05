@@ -41,6 +41,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+use core_question\output\question_version_info;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -88,7 +89,7 @@ abstract class question_definition {
     /** @var integer question test format. */
     public $generalfeedbackformat;
 
-    /** @var number what this quetsion is marked out of, by default. */
+    /** @var float what this quetsion is marked out of, by default. */
     public $defaultmark = 1;
 
     /** @var integer How many question numbers this question consumes. */
@@ -130,6 +131,9 @@ abstract class question_definition {
     /** @var int Bank entry id for the question */
     public $questionbankentryid;
 
+    /** @var ?int The latest version of the question. null if we haven't checked yet. */
+    protected $latestversion = null;
+
     /**
      * @var array of array of \core_customfield\data_controller objects indexed by fieldid for the questions custom fields.
      */
@@ -141,6 +145,21 @@ abstract class question_definition {
      * directly, for example in unit test code.
      */
     public function __construct() {
+    }
+
+    /**
+     * When a pending definition tries to read its latest version, fill in the latest version for all pending definitions
+     *
+     * @param string $name
+     * @return mixed
+     */
+    public function __get($name) {
+        if ($name === 'latestversion') {
+            if (isset(question_version_info::$pendingdefinitions[$this->id])) {
+                question_version_info::populate_latest_versions();
+            }
+            return $this->latestversion;
+        }
     }
 
     /**
@@ -350,7 +369,7 @@ abstract class question_definition {
      *      that should only be used in unavoidable, the constant question_attempt::USE_RAW_DATA
      *      meaning take all the raw submitted data belonging to this question.
      */
-    public abstract function get_expected_data();
+    abstract public function get_expected_data();
 
     /**
      * What data would need to be submitted to get this question correct.
@@ -360,7 +379,7 @@ abstract class question_definition {
      *
      * @return array|null parameter name => value.
      */
-    public abstract function get_correct_response();
+    abstract public function get_correct_response();
 
 
     /**
@@ -440,14 +459,14 @@ abstract class question_definition {
 
     /** @return the result of applying {@link format_text()} to the question text. */
     public function format_questiontext($qa) {
-        return $this->format_text($this->questiontext, $this->questiontextformat,
-                $qa, 'question', 'questiontext', $this->id);
+        return html_writer::tag('div', $this->format_text($this->questiontext, $this->questiontextformat,
+            $qa, 'question', 'questiontext', $this->id), ['class' => 'clearfix']);
     }
 
     /** @return the result of applying {@link format_text()} to the general feedback. */
     public function format_generalfeedback($qa) {
-        return $this->format_text($this->generalfeedback, $this->generalfeedbackformat,
-                $qa, 'question', 'generalfeedback', $this->id);
+        return html_writer::tag('div', $this->format_text($this->generalfeedback, $this->generalfeedbackformat,
+                $qa, 'question', 'generalfeedback', $this->id), ['class' => 'clearfix']);
     }
 
     /**
@@ -511,6 +530,18 @@ abstract class question_definition {
         debugging('This question does not implement the get_question_definition_for_external_rendering() method yet.',
             DEBUG_DEVELOPER);
         return null;
+    }
+
+    /**
+     * Set the latest version.
+     *
+     * Making $this->latestversion public would break the magic __get() behaviour above, so allow it to be set externally.
+     *
+     * @param int $latestversion
+     * @return void
+     */
+    public function set_latest_version(int $latestversion): void {
+        $this->latestversion = $latestversion;
     }
 }
 
@@ -807,6 +838,10 @@ abstract class question_graded_automatically extends question_with_responses
             return false;
         }
         $hint = $qa->get_applicable_hint();
+        // If there is no applicable hint, that means access should not be granted.
+        if (is_null($hint)) {
+            return false;
+        }
         $hintid = reset($args); // Itemid is hint id.
         return $hintid == $hint->id;
     }

@@ -32,7 +32,7 @@ use Psr\Http\Message\ResponseInterface;
  * @copyright 2023 Jake Dallimore <jrhdallimore@gmail.com>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class auth_server_config_reader_test extends \advanced_testcase {
+final class auth_server_config_reader_test extends \advanced_testcase {
 
     /**
      * Test reading the config for an auth server.
@@ -46,7 +46,7 @@ class auth_server_config_reader_test extends \advanced_testcase {
      * @return void
      */
     public function test_read_configuration(string $issuerurl, ResponseInterface $httpresponse, ?string $altwellknownsuffix = null,
-            array $expected = []) {
+            array $expected = []): void {
 
         $mock = new MockHandler([$httpresponse]);
         $handlerstack = HandlerStack::create($mock);
@@ -83,7 +83,7 @@ class auth_server_config_reader_test extends \advanced_testcase {
      *
      * @return array test data.
      */
-    public function config_provider(): array {
+    public static function config_provider(): array {
         return [
             'Valid, good issuer URL, good config' => [
                 'issuer_url' => 'https://app.example.com',

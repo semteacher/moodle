@@ -25,12 +25,12 @@ namespace tool_admin_presets\event;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers     \tool_admin_presets\event\preset_deleted
  */
-class preset_deleted_test extends \advanced_testcase {
+final class preset_deleted_test extends \advanced_testcase {
 
     /**
      * Test preset_deleted event.
      */
-    public function test_preset_deleted_event() {
+    public function test_preset_deleted_event(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 

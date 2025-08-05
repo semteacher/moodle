@@ -34,11 +34,11 @@ namespace core\event;
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @covers    \core\event\draft_file_deleted
  */
-class draft_file_deleted_test extends \advanced_testcase {
+final class draft_file_deleted_test extends \advanced_testcase {
     /**
      * Test draft file deleted event.
      */
-    public function test_event() {
+    public function test_event(): void {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
         $this->setUser($user);

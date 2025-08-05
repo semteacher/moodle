@@ -31,12 +31,13 @@ namespace mod_resource\event;
  * @copyright  2014 Rajesh Taneja <rajesh@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class events_test extends \advanced_testcase {
+final class events_test extends \advanced_testcase {
 
     /**
      * Setup is called before calling test case.
      */
     public function setUp(): void {
+        parent::setUp();
         $this->resetAfterTest();
 
         // Must be a non-guest user to create resources.
@@ -46,7 +47,7 @@ class events_test extends \advanced_testcase {
     /**
      * Test course_module_instance_list_viewed event.
      */
-    public function test_course_module_instance_list_viewed() {
+    public function test_course_module_instance_list_viewed(): void {
         // There is no proper API to call to trigger this event, so what we are
         // doing here is simply making sure that the events returns the right information.
 
@@ -72,7 +73,7 @@ class events_test extends \advanced_testcase {
     /**
      * Test course_module_viewed event.
      */
-    public function test_course_module_viewed() {
+    public function test_course_module_viewed(): void {
         // There is no proper API to call to trigger this event, so what we are
         // doing here is simply making sure that the events returns the right information.
 

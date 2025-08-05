@@ -37,7 +37,7 @@ use core_privacy\tests\provider_testcase;
  * @copyright 2018 David Mudrák <david@moodle.com>
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class provider_test extends provider_testcase {
+final class provider_test extends provider_testcase {
 
     /** @var \testing_data_generator data generator. */
     protected $generator;
@@ -72,7 +72,7 @@ class provider_test extends provider_testcase {
     /**
      * Test {@link workshopform_numerrors\privacy\provider::export_assessment_form()} implementation.
      */
-    public function test_export_assessment_form() {
+    public function test_export_assessment_form(): void {
         global $DB;
         $this->resetAfterTest();
         $this->setAdminUser();

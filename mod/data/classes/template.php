@@ -93,7 +93,7 @@ class template {
      * @param array $options an array of extra diplay options
      * @param array $fields alternative array of fields (for preview presets)
      */
-    public function __construct(manager $manager, string $templatecontent, array $options = [], array $fields = null) {
+    public function __construct(manager $manager, string $templatecontent, array $options = [], ?array $fields = null) {
         $this->manager = $manager;
         $this->instance = $manager->get_instance();
         $this->templatecontent = $templatecontent;
@@ -479,6 +479,8 @@ class template {
             'name' => 'delcheck[]',
             'classes' => 'recordcheckbox',
             'value' => $entry->id,
+            'label' => get_string('selectfordeletion', 'data'),
+            'labelclasses' => 'sr-only',
         ]);
         return $OUTPUT->render($checkbox);
     }
@@ -584,7 +586,7 @@ class template {
         return html_writer::tag(
             'span',
             userdate($entry->timemodified, get_string('strftimedatemonthabbr', 'langconfig')),
-            ['title' => userdate($entry->timecreated)]
+            ['title' => userdate($entry->timemodified)]
         );
     }
 
@@ -799,7 +801,6 @@ class template {
             $editurl = new moodle_url('/mod/data/edit.php', $this->baseurl->params());
             $editurl->params([
                 'rid' => $entry->id,
-                'sesskey' => sesskey(),
                 'backto' => urlencode($backurl->out(false))
             ]);
 
@@ -812,7 +813,6 @@ class template {
             // Delete entry.
             $deleteurl = new moodle_url($this->baseurl, [
                 'delete' => $entry->id,
-                'sesskey' => sesskey(),
                 'mode' => 'single',
             ]);
 
@@ -993,7 +993,7 @@ class template {
                 $errors .= $renderer->notification(get_string(
                     'missingfieldtype',
                     'data',
-                    (object)['name' => $field->field->name]
+                    (object)['name' => s($field->field->name)]
                 ));
             }
         } else {

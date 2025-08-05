@@ -135,17 +135,17 @@ define('CONTEXT_MODULE', 70);
  */
 define('CONTEXT_BLOCK', 80);
 
-/** Capability allow management of trusts - NOT IMPLEMENTED YET - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** Capability allow management of trusts - NOT IMPLEMENTED YET - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_MANAGETRUST', 0x0001);
-/** Capability allows changes in system configuration - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** Capability allows changes in system configuration - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_CONFIG',      0x0002);
-/** Capability allows user to add scripted content - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** Capability allows user to add scripted content - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_XSS',         0x0004);
-/** Capability allows access to personal user information - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** Capability allows access to personal user information - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_PERSONAL',    0x0008);
-/** Capability allows users to add content others may see - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** Capability allows users to add content others may see - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_SPAM',        0x0010);
-/** capability allows mass delete of data belonging to other users - see {@link http://docs.moodle.org/dev/Hardening_new_Roles_system} */
+/** capability allows mass delete of data belonging to other users - see {@link https://moodledev.io/docs/apis/subsystems/roles} */
 define('RISK_DATALOSS',    0x0020);
 
 /** rolename displays - the name as defined in the role definition, localised if name empty */
@@ -383,7 +383,7 @@ function get_role_definitions_uncached(array $roleids) {
  * Get the default guest role, this is used for guest account,
  * search engine spiders, etc.
  *
- * @return stdClass role record
+ * @return stdClass|false role record
  */
 function get_guest_role() {
     global $CFG, $DB;
@@ -970,13 +970,22 @@ function get_empty_accessdata() {
  * @access private
  * @param int $userid
  * @param bool $preloadonly true means do not return access array
- * @return array accessdata
+ * @return ?array accessdata
  */
 function get_user_accessdata($userid, $preloadonly=false) {
     global $CFG, $ACCESSLIB_PRIVATE, $USER;
 
     if (isset($USER->access)) {
         $ACCESSLIB_PRIVATE->accessdatabyuser[$USER->id] = $USER->access;
+    }
+
+    // Unfortunately, we can't use the $ACCESSLIB_PRIVATE->dirtyusers array because it is not available in CLI.
+    // So we need to check if the user has been marked as dirty or not in the cache directly.
+    // This will add additional queries to the database, but it is the best we can do.
+    if (CLI_SCRIPT && !empty($ACCESSLIB_PRIVATE->accessdatabyuser[$userid])) {
+        if (get_cache_flag('accesslib/dirtyusers', $userid, $ACCESSLIB_PRIVATE->accessdatabyuser[$userid]['time'])) {
+            unset($ACCESSLIB_PRIVATE->accessdatabyuser[$userid]);
+        }
     }
 
     if (!isset($ACCESSLIB_PRIVATE->accessdatabyuser[$userid])) {
@@ -1471,13 +1480,14 @@ function assign_capability($capability, $permission, $roleid, $contextid, $overw
  * @param string $capability the name of the capability
  * @param int $roleid the role id
  * @param int|context $contextid null means all contexts
+ * @param bool $showdebug if true, will show debugging messages
  * @return boolean true or exception
  */
-function unassign_capability($capability, $roleid, $contextid = null) {
+function unassign_capability($capability, $roleid, $contextid = null, bool $showdebug = true) {
     global $DB, $USER;
 
     // Capability must exist.
-    if (!$capinfo = get_capability_info($capability)) {
+    if (!get_capability_info($capability, $showdebug)) {
         throw new coding_exception("Capability '{$capability}' was not found! This has to be fixed in code.");
     }
 
@@ -1658,6 +1668,13 @@ function role_assign($roleid, $userid, $contextid, $component = '', $itemid = 0,
     $event->add_record_snapshot('role_assignments', $ra);
     $event->trigger();
 
+    // Dispatch the hook for post role assignment actions.
+    $hook = new \core\hook\access\after_role_assigned(
+        context: $context,
+        userid: $userid,
+    );
+    \core\di::get(\core\hook\manager::class)->dispatch($hook);
+
     return $ra->id;
 }
 
@@ -1750,6 +1767,13 @@ function role_unassign_all(array $params, $subcontexts = false, $includemanual =
             $event->add_record_snapshot('role_assignments', $ra);
             $event->trigger();
             core_course_category::role_assignment_changed($ra->roleid, $context);
+
+            // Dispatch the hook for post role assignment actions.
+            $hook = new \core\hook\access\after_role_unassigned(
+                context: $context,
+                userid: $ra->userid,
+            );
+            \core\di::get(\core\hook\manager::class)->dispatch($hook);
         }
     }
     unset($ras);
@@ -2437,7 +2461,11 @@ function capabilities_cleanup($component, $newcapdef = null) {
                 // Delete from roles.
                 if ($roles = get_roles_with_capability($cachedcap->name)) {
                     foreach ($roles as $role) {
-                        if (!unassign_capability($cachedcap->name, $role->id)) {
+                        if (!unassign_capability(
+                            capability: $cachedcap->name,
+                            roleid: $role->id,
+                            showdebug: false, // Suppress debugging messages in the get_capability_info().
+                        )) {
                             throw new \moodle_exception('cannotunassigncap', 'error', '',
                                 (object)array('cap' => $cachedcap->name, 'role' => $role->name));
                         }
@@ -2572,10 +2600,11 @@ function is_inside_frontpage(context $context) {
 /**
  * Returns capability information (cached)
  *
- * @param string $capabilityname
- * @return stdClass or null if capability not found
+ * @param string $capabilityname the capability name.
+ * @param bool $showdebug if true, will show debugging messages.
+ * @return ?stdClass object or null if capability not found
  */
-function get_capability_info($capabilityname) {
+function get_capability_info(string $capabilityname, bool $showdebug = true): ?stdClass {
     $caps = get_all_capabilities();
 
     // Check for deprecated capability.
@@ -2585,12 +2614,17 @@ function get_capability_info($capabilityname) {
             if (isset($caps[$deprecatedinfo['replacement']])) {
                 $capabilityname = $deprecatedinfo['replacement'];
             } else {
-                debugging("Capability '{$capabilityname}' was supposed to be replaced with ".
-                    "'{$deprecatedinfo['replacement']}', which does not exist !");
+                if ($showdebug) {
+                    debugging("Capability '{$capabilityname}' was supposed to be replaced with ".
+                        "'{$deprecatedinfo['replacement']}', which does not exist !");
+                }
             }
         }
-        $fullmessage = $deprecatedinfo['fullmessage'];
-        debugging($fullmessage, DEBUG_DEVELOPER);
+
+        if ($showdebug) {
+            $fullmessage = $deprecatedinfo['fullmessage'];
+            debugging($fullmessage, DEBUG_DEVELOPER);
+        }
     }
     if (!isset($caps[$capabilityname])) {
         return null;
@@ -2605,40 +2639,44 @@ function get_capability_info($capabilityname) {
  * Do not use this function except in the get_capability_info
  *
  * @param string $capabilityname
- * @return stdClass|null with deprecation message and potential replacement if not null
+ * @return array|null with deprecation message and potential replacement if not null
  */
 function get_deprecated_capability_info($capabilityname) {
-    // Here if we do like get_all_capabilities, we run into performance issues as the full array is unserialised each time.
-    // We could have used an adhoc task but this also had performance issue. Last solution was to create a cache using
-    // the official caches.php file. The performance issue shows in test_permission_evaluation.
-    $cache = cache::make('core', 'deprecatedcapabilities');
-    // Cache has not be initialised.
-    if (!$cache->get('deprecated_capabilities_initialised')) {
-        // Look for deprecated capabilities in each components.
+    $cache = cache::make('core', 'capabilities');
+    $alldeprecatedcaps = $cache->get('deprecated_capabilities');
+    if ($alldeprecatedcaps === false) {
+        // Look for deprecated capabilities in each component.
         $allcaps = get_all_capabilities();
         $components = [];
         $alldeprecatedcaps = [];
         foreach ($allcaps as $cap) {
             if (!in_array($cap['component'], $components)) {
                 $components[] = $cap['component'];
-                $defpath = core_component::get_component_directory($cap['component']).'/db/access.php';
+
+                $componentdir = core_component::get_component_directory($cap['component']);
+                if ($componentdir === null) {
+                    continue;
+                }
+
+                $defpath = "{$componentdir}/db/access.php";
                 if (file_exists($defpath)) {
                     $deprecatedcapabilities = [];
                     require($defpath);
                     if (!empty($deprecatedcapabilities)) {
                         foreach ($deprecatedcapabilities as $cname => $cdef) {
-                            $cache->set($cname, $cdef);
+                            $alldeprecatedcaps[$cname] = $cdef;
                         }
                     }
                 }
             }
         }
-        $cache->set('deprecated_capabilities_initialised', true);
+        $cache->set('deprecated_capabilities', $alldeprecatedcaps);
     }
-    if (!$cache->has($capabilityname)) {
+
+    if (!isset($alldeprecatedcaps[$capabilityname])) {
         return null;
     }
-    $deprecatedinfo = $cache->get($capabilityname);
+    $deprecatedinfo = $alldeprecatedcaps[$capabilityname];
     $deprecatedinfo['fullmessage'] = "The capability '{$capabilityname}' is deprecated.";
     if (!empty($deprecatedinfo['message'])) {
         $deprecatedinfo['fullmessage'] .= $deprecatedinfo['message'];
@@ -2945,7 +2983,7 @@ function user_can_assign(context $context, $targetroleid) {
  * @param context $context optional context for course role name aliases
  * @return array of role records with optional coursealias property
  */
-function get_all_roles(context $context = null) {
+function get_all_roles(?context $context = null) {
     global $DB;
 
     if (!$context or !$coursecontext = $context->get_course_context(false)) {
@@ -4620,7 +4658,7 @@ function role_get_description(stdClass $role) {
  * @param bool $returnmenu true means id=>localname, false means id=>rolerecord
  * @return array Array of context-specific role names, or role objects with a ->localname field added.
  */
-function role_get_names(context $context = null, $rolenamedisplay = ROLENAME_ALIAS, $returnmenu = null) {
+function role_get_names(?context $context = null, $rolenamedisplay = ROLENAME_ALIAS, $returnmenu = null) {
     return role_fix_names(get_all_roles($context), $context, $rolenamedisplay, $returnmenu);
 }
 
@@ -4633,7 +4671,7 @@ function role_get_names(context $context = null, $rolenamedisplay = ROLENAME_ALI
  * @param bool $returnmenu null means keep the same format as $roleoptions, true means id=>localname, false means id=>rolerecord
  * @return array Array of context-specific role names, or role objects with a ->localname field added.
  */
-function role_fix_names($roleoptions, context $context = null, $rolenamedisplay = ROLENAME_ALIAS, $returnmenu = null) {
+function role_fix_names($roleoptions, ?context $context = null, $rolenamedisplay = ROLENAME_ALIAS, $returnmenu = null) {
     global $DB;
 
     if (empty($roleoptions)) {

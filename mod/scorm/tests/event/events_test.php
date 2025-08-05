@@ -37,7 +37,7 @@ require_once($CFG->dirroot . '/mod/scorm/lib.php');
  * @copyright  2013 onwards Ankit Agarwal
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class events_test extends \advanced_testcase {
+final class events_test extends \advanced_testcase {
 
     /** @var stdClass store course object */
     protected $eventcourse;
@@ -52,6 +52,7 @@ class events_test extends \advanced_testcase {
     protected $eventcm;
 
     protected function setUp(): void {
+        parent::setUp();
         $this->setAdminUser();
         $this->eventcourse = $this->getDataGenerator()->create_course();
         $this->eventuser = $this->getDataGenerator()->create_user();
@@ -64,7 +65,7 @@ class events_test extends \advanced_testcase {
     /**
      * Tests for attempt deleted event
      */
-    public function test_attempt_deleted_event() {
+    public function test_attempt_deleted_event(): void {
 
         global $USER;
 
@@ -96,7 +97,7 @@ class events_test extends \advanced_testcase {
     /**
      * Tests for interactions viewed validations.
      */
-    public function test_interactions_viewed_event_validations() {
+    public function test_interactions_viewed_event_validations(): void {
         $this->resetAfterTest();
         try {
             \mod_scorm\event\interactions_viewed::create(array(
@@ -125,7 +126,7 @@ class events_test extends \advanced_testcase {
     /**
      * Tests for tracks viewed event validations.
      */
-    public function test_tracks_viewed_event_validations() {
+    public function test_tracks_viewed_event_validations(): void {
         $this->resetAfterTest();
         try {
             \mod_scorm\event\tracks_viewed::create(array(
@@ -166,7 +167,7 @@ class events_test extends \advanced_testcase {
     /**
      * Tests for userreport viewed event validations.
      */
-    public function test_user_report_viewed_event_validations() {
+    public function test_user_report_viewed_event_validations(): void {
         $this->resetAfterTest();
         try {
             \mod_scorm\event\user_report_viewed::create(array(
@@ -219,7 +220,7 @@ class events_test extends \advanced_testcase {
     /**
      * dataProvider for test_scoreraw_submitted_event_validations().
      */
-    public function get_scoreraw_submitted_event_validations() {
+    public static function get_scoreraw_submitted_event_validations(): array {
         return array(
             'scoreraw_submitted => missing cmielement' => array(
                 null, '50',
@@ -255,7 +256,7 @@ class events_test extends \advanced_testcase {
      * @param string $failmessage the message used to fail the test in case of missing to violate a validation rule
      * @param string $excmessage the exception message when violating the validations rules
      */
-    public function test_scoreraw_submitted_event_validations($cmielement, $cmivalue, $failmessage, $excmessage) {
+    public function test_scoreraw_submitted_event_validations($cmielement, $cmivalue, $failmessage, $excmessage): void {
         $this->resetAfterTest();
         try {
             $data = array(
@@ -306,7 +307,7 @@ class events_test extends \advanced_testcase {
     /**
      * dataProvider for test_status_submitted_event_validations().
      */
-    public function get_status_submitted_event_validations() {
+    public static function get_status_submitted_event_validations(): array {
         return array(
             'status_submitted => missing cmielement' => array(
                 null, 'passed',
@@ -349,7 +350,7 @@ class events_test extends \advanced_testcase {
      * @param string $failmessage the message used to fail the test in case of missing to violate a validation rule
      * @param string $excmessage the exception message when violating the validations rules
      */
-    public function test_status_submitted_event_validations($cmielement, $cmivalue, $failmessage, $excmessage) {
+    public function test_status_submitted_event_validations($cmielement, $cmivalue, $failmessage, $excmessage): void {
         $this->resetAfterTest();
         try {
             $data = array(

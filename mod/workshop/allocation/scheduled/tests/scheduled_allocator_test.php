@@ -23,7 +23,7 @@ namespace workshopallocation_scheduled;
  * @copyright 2020 Jaume I University <https://www.uji.es/>
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class scheduled_allocator_test extends \advanced_testcase {
+final class scheduled_allocator_test extends \advanced_testcase {
 
     /** @var \stdClass $course The course where the tests will be run */
     private $course;
@@ -135,7 +135,6 @@ class scheduled_allocator_test extends \advanced_testcase {
         $allocator = new \workshop_scheduled_allocator($this->workshop);
 
         $storesettingsmethod = new \ReflectionMethod('workshop_scheduled_allocator', 'store_settings');
-        $storesettingsmethod->setAccessible(true);
         $storesettingsmethod->invoke($allocator, true, true, $settings, new \workshop_allocation_result($allocator));
     }
 

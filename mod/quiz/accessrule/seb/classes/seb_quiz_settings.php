@@ -63,7 +63,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return array
      */
-    protected static function define_properties() : array {
+    protected static function define_properties(): array {
         return [
             'quizid' => [
                 'type' => PARAM_INT,
@@ -130,6 +130,16 @@ class seb_quiz_settings extends persistent {
                 'null' => NULL_ALLOWED,
             ],
             'muteonstartup' => [
+                'type' => PARAM_INT,
+                'default' => 0,
+                'null' => NULL_ALLOWED,
+            ],
+            'allowcapturecamera' => [
+                'type' => PARAM_INT,
+                'default' => 0,
+                'null' => NULL_ALLOWED,
+            ],
+            'allowcapturemicrophone' => [
                 'type' => PARAM_INT,
                 'default' => 0,
                 'null' => NULL_ALLOWED,
@@ -209,7 +219,7 @@ class seb_quiz_settings extends persistent {
      * @param int $quizid Quiz id.
      * @return string|null
      */
-    public static function get_config_by_quiz_id(int $quizid) : ?string {
+    public static function get_config_by_quiz_id(int $quizid): ?string {
         $config = self::get_config_cache()->get($quizid);
 
         if ($config !== false) {
@@ -231,7 +241,7 @@ class seb_quiz_settings extends persistent {
      * @param int $quizid Quiz id.
      * @return string|null
      */
-    public static function get_config_key_by_quiz_id(int $quizid) : ?string {
+    public static function get_config_key_by_quiz_id(int $quizid): ?string {
         $configkey = self::get_config_key_cache()->get($quizid);
 
         if ($configkey !== false) {
@@ -252,7 +262,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return \cache_application
      */
-    private static function get_config_key_cache() : \cache_application {
+    private static function get_config_key_cache(): \cache_application {
         return \cache::make('quizaccess_seb', 'configkey');
     }
 
@@ -261,7 +271,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return \cache_application
      */
-    private static function get_config_cache() : \cache_application {
+    private static function get_config_cache(): \cache_application {
         return \cache::make('quizaccess_seb', 'config');
     }
 
@@ -270,7 +280,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return \cache_application
      */
-    private static function get_quiz_settings_cache() : \cache_application {
+    private static function get_quiz_settings_cache(): \cache_application {
         return \cache::make('quizaccess_seb', 'quizsettings');
     }
 
@@ -333,7 +343,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return array
      */
-    protected function get_allowedbrowserexamkeys() : array {
+    protected function get_allowedbrowserexamkeys(): array {
         $keysstring = $this->raw_get('allowedbrowserexamkeys');
         $keysstring = empty($keysstring) ? '' : $keysstring;
         return $this->split_keys($keysstring);
@@ -420,7 +430,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return string|null
      */
-    public function get_config_key() : ?string {
+    public function get_config_key(): ?string {
         $this->process_configs();
 
         return $this->configkey;
@@ -431,7 +441,7 @@ class seb_quiz_settings extends persistent {
      *
      * @return string|null
      */
-    public function get_config() : ?string {
+    public function get_config(): ?string {
         $this->process_configs();
 
         return $this->config;
@@ -622,7 +632,7 @@ class seb_quiz_settings extends persistent {
      * @param bool $isregex Regex or simple.
      * @return CFDictionary A PList dictionary.
      */
-    private function create_filter_rule(string $rulestring, bool $allowed, bool $isregex) : CFDictionary {
+    private function create_filter_rule(string $rulestring, bool $allowed, bool $isregex): CFDictionary {
         $action = $allowed ? 1 : 0;
         return new CFDictionary([
                     'action' => new CFNumber($action),
@@ -637,13 +647,15 @@ class seb_quiz_settings extends persistent {
      *
      * @return array Moodle setting as key, SEB setting as value.
      */
-    private function get_bool_seb_setting_map() : array {
+    private function get_bool_seb_setting_map(): array {
         return [
             'activateurlfiltering' => 'URLFilterEnable',
             'allowspellchecking' => 'allowSpellCheck',
             'allowreloadinexam' => 'browserWindowAllowReload',
             'allowuserquitseb' => 'allowQuit',
             'enableaudiocontrol' => 'audioControlEnabled',
+            'allowcapturecamera' => 'browserMediaCaptureCamera',
+            'allowcapturemicrophone' => 'browserMediaCaptureMicrophone',
             'filterembeddedcontent' => 'URLFilterEnableContentFilter',
             'muteonstartup' => 'audioMute',
             'showkeyboardlayout' => 'showInputLanguage',
@@ -661,7 +673,7 @@ class seb_quiz_settings extends persistent {
      * @param string|null $keys the allowed keys.
      * @return array of string, the separate keys.
      */
-    private function split_keys($keys) : array {
+    private function split_keys($keys): array {
         $keys = preg_split('~[ \t\n\r,;]+~', $keys ?? '', -1, PREG_SPLIT_NO_EMPTY);
         foreach ($keys as $i => $key) {
             $keys[$i] = strtolower($key);

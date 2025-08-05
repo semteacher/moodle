@@ -34,14 +34,14 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @copyright  2023 Mathew May <Mathew.solutions>
  * @covers     \core_grades\external\get_gradeitems
  */
-class get_gradeitems_test extends \externallib_advanced_testcase {
+final class get_gradeitems_test extends \externallib_advanced_testcase {
     public function test_execute(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
         $course = $this->getDataGenerator()->create_course();
         $this->getDataGenerator()->create_module('forum', ['course' => $course->id]);
         $this->getDataGenerator()->create_module('h5pactivity', ['course' => $course->id]);
-        $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'name' => 'Assignment & grade items']);
 
         $result = get_gradeitems::execute($course->id);
         $result = external_api::clean_returnvalue(get_gradeitems::execute_returns(), $result);

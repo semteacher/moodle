@@ -18,17 +18,12 @@ declare(strict_types=1);
 
 namespace core_reportbuilder\local\aggregation;
 
-use core_reportbuilder_testcase;
 use core_reportbuilder_generator;
 use core_reportbuilder\manager;
 use core_reportbuilder\local\report\column;
+use core_reportbuilder\tests\core_reportbuilder_testcase;
 use core_user\reportbuilder\datasource\users;
 use stdClass;
-
-defined('MOODLE_INTERNAL') || die();
-
-global $CFG;
-require_once("{$CFG->dirroot}/reportbuilder/tests/helpers.php");
 
 /**
  * Unit tests for group concatenation distinct aggregation
@@ -39,13 +34,14 @@ require_once("{$CFG->dirroot}/reportbuilder/tests/helpers.php");
  * @copyright   2021 Paul Holden <paulh@moodle.com>
  * @license     http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class groupconcatdistinct_test extends core_reportbuilder_testcase {
+final class groupconcatdistinct_test extends core_reportbuilder_testcase {
 
     /**
      * Test setup, we need to skip these tests on non-supported databases
      */
     public function setUp(): void {
         global $DB;
+        parent::setUp();
 
         if (!groupconcatdistinct::compatible(column::TYPE_TEXT)) {
             $this->markTestSkipped('Distinct group concatenation not supported in ' . $DB->get_dbfamily());
@@ -67,28 +63,22 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
         $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
         $report = $generator->create_report(['name' => 'Users', 'source' => users::class, 'default' => 0]);
 
-        // First column, sorted.
-        $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:firstname', 'sortenabled' => 1]);
-
-        // This is the column we'll aggregate.
+        // Report columns, aggregated/sorted by user lastname.
+        $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:firstname']);
         $generator->create_column([
             'reportid' => $report->get('id'),
             'uniqueidentifier' => 'user:lastname',
             'aggregation' => groupconcatdistinct::get_class_name(),
+            'sortenabled' => 1,
+            'sortdirection' => SORT_ASC,
         ]);
 
-        // Assert lastname column was aggregated, and sorted predictably.
+        // Assert lastname column was aggregated, and itself also sorted predictably.
         $content = $this->get_custom_report_content($report->get('id'));
         $this->assertEquals([
-            [
-                'c0_firstname' => 'Admin',
-                'c1_lastname' => 'User',
-            ],
-            [
-                'c0_firstname' => 'Bob',
-                'c1_lastname' => 'Apple, Banana',
-            ],
-        ], $content);
+            ['Bob', 'Apple, Banana'],
+            ['Admin', 'User'],
+        ], array_map('array_values', $content));
     }
 
     /**

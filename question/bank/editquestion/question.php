@@ -287,8 +287,8 @@ if ($mform->is_cancelled()) {
         }
     }
 
-    // If this is a new question, save defaults for user in user_preferences table.
-    if (empty($question->id)) {
+    // If this is a new question and question defaults save is enabled, save defaults for user in user_preferences table.
+    if (empty($question->id) && !empty($CFG->questiondefaultssave)) {
         $qtypeobj->save_defaults_for_new_questions($fromform);
     }
     $question = $qtypeobj->save_question($question, $fromform);
@@ -328,6 +328,14 @@ if ($mform->is_cancelled()) {
                 $returnurl->param('sesskey', sesskey());
                 $returnurl->param('cmid', $cmid);
             }
+            // Update the filter param to the updated category if the return have any.
+            if (!empty($returnurl->param('filter'))) {
+                $filter = json_decode($returnurl->param('filter'), true);
+                if (isset($filter['category']['values'])) {
+                    $filter['category']['values'][0] = $question->category;
+                    $returnurl->param('filter', json_encode($filter));
+                }
+            }
             redirect($returnurl);
         }
 
@@ -348,6 +356,14 @@ if ($mform->is_cancelled()) {
             $nexturl->param('cmid', $cmid);
         } else {
             $nexturl->param('courseid', $COURSE->id);
+        }
+        // Update the filter param to the updated category if the return url have any.
+        if (!empty($nexturl->param('filter'))) {
+            $filter = json_decode($nexturl->param('filter'), true);
+            if (isset($filter['category']['values'])) {
+                $filter['category']['values'][0] = $question->category;
+                $nexturl->param('filter', json_encode($filter));
+            }
         }
         redirect($nexturl);
     }

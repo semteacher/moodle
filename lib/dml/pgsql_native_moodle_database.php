@@ -44,6 +44,14 @@ class pgsql_native_moodle_database extends moodle_database {
         query_end as read_slave_query_end;
     }
 
+    /** @var array $sslmodes */
+    private static $sslmodes = [
+        'disable',
+        'prefer',
+        'require',
+        'verify-full'
+    ];
+
     /** @var array $serverinfo cache */
     private $serverinfo = [];
 
@@ -130,9 +138,10 @@ class pgsql_native_moodle_database extends moodle_database {
      * @param mixed $prefix string means moodle db prefix, false used for external databases where prefix not used
      * @param array $dboptions driver specific options
      * @return bool true
+     * @throws moodle_exception
      * @throws dml_connection_exception if error
      */
-    public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, array $dboptions=null): bool {
+    public function raw_connect(string $dbhost, string $dbuser, string $dbpass, string $dbname, $prefix, ?array $dboptions=null): bool {
         if ($prefix == '' and !$this->external) {
             //Enforce prefixes for everybody but mysql
             throw new dml_exception('prefixcannotbeempty', $this->get_dbfamily());
@@ -185,6 +194,14 @@ class pgsql_native_moodle_database extends moodle_database {
             }
 
             $connection .= " options='" . implode(' ', $options) . "'";
+        }
+
+        if (isset($this->dboptions['ssl'])) {
+            $sslmode = $this->dboptions['ssl'];
+            if (!in_array($sslmode, self::$sslmodes, true)) {
+                throw new moodle_exception('validateerrorlist', 'admin', '', "'dboptions''ssl': $sslmode");
+            }
+            $connection .= " sslmode=$sslmode";
         }
 
         ob_start();
@@ -834,7 +851,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function execute($sql, array $params=null) {
+    public function execute($sql, ?array $params=null) {
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);
 
         if (strpos($sql, ';') !== false) {
@@ -866,7 +883,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return moodle_recordset instance
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_recordset_sql($sql, array $params=null, $limitfrom=0, $limitnum=0) {
+    public function get_recordset_sql($sql, ?array $params=null, $limitfrom=0, $limitnum=0) {
 
         list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
 
@@ -1011,7 +1028,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return array of objects, or empty array if no records were found
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_records_sql($sql, array $params = null, $limitfrom = 0, $limitnum = 0) {
+    public function get_records_sql($sql, ?array $params = null, $limitfrom = 0, $limitnum = 0) {
         list($limitfrom, $limitnum) = $this->normalise_limit_from_num($limitfrom, $limitnum);
 
         if ($limitnum) {
@@ -1062,7 +1079,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return array of values
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function get_fieldset_sql($sql, array $params=null) {
+    public function get_fieldset_sql($sql, ?array $params=null) {
         list($sql, $params, $type) = $this->fix_sql_params($sql, $params);
 
         $this->query_start($sql, $params, SQL_QUERY_SELECT);
@@ -1388,7 +1405,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function set_field_select($table, $newfield, $newvalue, $select, array $params=null) {
+    public function set_field_select($table, $newfield, $newvalue, $select, ?array $params=null) {
 
         if ($select) {
             $select = "WHERE $select";
@@ -1427,7 +1444,7 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return bool true
      * @throws dml_exception A DML specific exception is thrown for any errors.
      */
-    public function delete_records_select($table, $select, array $params=null) {
+    public function delete_records_select($table, $select, ?array $params=null) {
         if ($select) {
             $select = "WHERE $select";
         }
@@ -1491,8 +1508,7 @@ class pgsql_native_moodle_database extends moodle_database {
         return " $fieldname::real ";
     }
 
-    public function sql_concat() {
-        $arr = func_get_args();
+    public function sql_concat(...$arr) {
         $s = implode(' || ', $arr);
         if ($s === '') {
             return " '' ";
@@ -1704,6 +1720,15 @@ class pgsql_native_moodle_database extends moodle_database {
      * @return bool
      */
     public function is_fulltext_search_supported() {
+        return true;
+    }
+
+    /**
+     * Postgresql supports the COUNT() window function and provides a performance improvement.
+     *
+     * @return bool
+     */
+    public function is_count_window_function_supported(): bool {
         return true;
     }
 }

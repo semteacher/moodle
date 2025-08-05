@@ -35,12 +35,12 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.0
  */
-class externallib_test extends externallib_advanced_testcase {
+final class externallib_test extends externallib_advanced_testcase {
 
     /**
      * Test view_imscp
      */
-    public function test_view_imscp() {
+    public function test_view_imscp(): void {
         global $DB;
 
         $this->resetAfterTest(true);
@@ -111,7 +111,7 @@ class externallib_test extends externallib_advanced_testcase {
     /**
      * Test get_imscps_by_courses
      */
-    public function test_get_imscps_by_courses() {
+    public function test_get_imscps_by_courses(): void {
         global $DB, $USER;
         $this->resetAfterTest(true);
         // As admin.

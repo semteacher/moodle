@@ -31,12 +31,13 @@ namespace report_questioninstances\event;
  * @copyright  2014 Petr Skoda
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
-class events_test extends \advanced_testcase {
+final class events_test extends \advanced_testcase {
 
     /**
      * Setup testcase.
      */
     public function setUp(): void {
+        parent::setUp();
         $this->setAdminUser();
         $this->resetAfterTest();
     }
@@ -44,7 +45,7 @@ class events_test extends \advanced_testcase {
     /**
      * Test the report viewed event.
      */
-    public function test_report_viewed() {
+    public function test_report_viewed(): void {
         $requestedqtype = 'all';
         $event = \report_questioninstances\event\report_viewed::create(array('other' => array('requestedqtype' => $requestedqtype)));
 

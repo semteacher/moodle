@@ -44,12 +44,12 @@ require_once($CFG->dirroot . '/webservice/tests/helpers.php');
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  * @since      Moodle 3.1
  */
-class external_test extends externallib_advanced_testcase {
+final class external_test extends externallib_advanced_testcase {
 
     /**
      * Test get_instance_info
      */
-    public function test_get_instance_info() {
+    public function test_get_instance_info(): void {
         global $DB;
 
         $this->resetAfterTest(true);

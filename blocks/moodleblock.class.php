@@ -71,7 +71,7 @@ class block_base {
 
     /**
      * An object to contain the information to be displayed in the block.
-     * @var stdClass $content
+     * @var stdClass|null $content
      */
     var $content       = NULL;
 
@@ -88,7 +88,7 @@ class block_base {
     public $page       = NULL;
 
     /**
-     * This blocks's context.
+     * This block's context.
      * @var context
      */
     public $context    = NULL;
@@ -141,7 +141,7 @@ class block_base {
      * This should be implemented by the derived class to return
      * the content object.
      *
-     * @return stdObject
+     * @return stdClass
      */
     function get_content() {
         // This should be implemented by the derived class.
@@ -167,7 +167,7 @@ class block_base {
      * Intentionally doesn't check if content_type is set.
      * This is already done in {@link _self_test()}
      *
-     * @return string $this->content_type
+     * @return int $this->content_type
      */
     function get_content_type() {
         // Intentionally doesn't check if a content_type is set. This is already done in _self_test()
@@ -178,7 +178,7 @@ class block_base {
      * Returns true or false, depending on whether this block has any content to display
      * and whether the user has permission to view the block
      *
-     * @return boolean
+     * @return bool
      */
     function is_empty() {
         if ( !has_capability('moodle/block:view', $this->context) ) {
@@ -194,7 +194,7 @@ class block_base {
      * then calls the block's {@link get_content()} function
      * to set its value back.
      *
-     * @return stdObject
+     * @return stdClass
      */
     function refresh_content() {
         // Nothing special here, depends on content()
@@ -211,7 +211,7 @@ class block_base {
      * {@link html_attributes()}, {@link formatted_contents()} or {@link get_content()},
      * {@link hide_header()}, {@link (get_edit_controls)}, etc.
      *
-     * @return block_contents a representation of the block, for rendering.
+     * @return block_contents|null a representation of the block, for rendering.
      * @since Moodle 2.0.
      */
     public function get_content_for_output($output) {
@@ -446,8 +446,11 @@ class block_base {
         $attributes = array(
             'id' => 'inst' . $this->instance->id,
             'class' => 'block_' . $this->name() . ' block',
-            'role' => $this->get_aria_role()
         );
+        $ariarole = $this->get_aria_role();
+        if ($ariarole) {
+            $attributes['role'] = $ariarole;
+        }
         if ($this->hide_header()) {
             $attributes['class'] .= ' no-header';
         }
@@ -739,20 +742,19 @@ EOD;
      * a landmark child.
      *
      * Options are as follows:
+     *    - application
      *    - landmark
-     *      - application
-     *      - banner
-     *      - complementary
-     *      - contentinfo
      *      - form
-     *      - main
      *      - navigation
      *      - search
+     *
+     * Please do not use top-level landmark roles such as 'banner', 'complementary', 'contentinfo', or 'main'. Read more at
+     * {@link https://www.w3.org/WAI/ARIA/apg/practices/landmark-regions/ ARIA Authoring Practices Guide - Landmark Regions}
      *
      * @return string
      */
     public function get_aria_role() {
-        return 'complementary';
+        return 'region';
     }
 
     /**
