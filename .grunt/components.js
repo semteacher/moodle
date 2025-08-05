@@ -40,23 +40,48 @@ const fetchComponentData = () => {
     if (!Object.entries(componentData).length) {
         componentData.subsystems = {};
         componentData.pathList = [];
+        componentData.components = {};
+        componentData.standardComponents = {};
 
         // Fetch the component definiitions from the distributed JSON file.
         const components = JSON.parse(fs.readFileSync(`${gruntFilePath}/lib/components.json`));
+        const pluginData = JSON.parse(fs.readFileSync(`${gruntFilePath}/lib/plugins.json`));
+
+        componentData.pluginTypes = components.plugintypes
+
+        const standardPlugins = Object.entries(pluginData.standard).map(
+            ([pluginType, pluginNames]) => {
+                return pluginNames.map(pluginName => `${pluginType}_${pluginName}`);
+            }
+        ).reduce((acc, val) => acc.concat(val), []);
 
         // Build the list of moodle subsystems.
-        componentData.subsystems.lib = 'core';
-        componentData.pathList.push(process.cwd() + path.sep + 'lib');
+        componentData.subsystems['public/lib'] = 'core';
+        componentData.pathList.push(`${process.cwd()}/public/lib`);
         for (const [component, thisPath] of Object.entries(components.subsystems)) {
             if (thisPath) {
                 // Prefix "core_" to the front of the subsystems.
                 componentData.subsystems[thisPath] = `core_${component}`;
-                componentData.pathList.push(process.cwd() + path.sep + thisPath);
+                componentData.pathList.push(`${process.cwd()}/${thisPath}`);
             }
         }
 
-        // The list of components incldues the list of subsystems.
-        componentData.components = componentData.subsystems;
+        // The list of components includes the list of subsystems.
+        componentData.components = Object.fromEntries(
+            Object.entries(componentData.subsystems)
+            .map(([path, name]) => ([path, name]))
+        );
+
+        const subpluginAdder = (subpluginType, subpluginTypePath) => {
+            glob.sync(`${subpluginTypePath}/*/version.php`).forEach(versionPath => {
+                const componentPath = fs.realpathSync(path.dirname(versionPath));
+                const componentName = path.basename(componentPath);
+                const frankenstyleName = `${subpluginType}_${componentName}`;
+
+                componentData.components[`${subpluginTypePath}/${componentName}`] = frankenstyleName;
+                componentData.pathList.push(componentPath);
+            });
+        };
 
         // Go through each of the plugintypes.
         Object.entries(components.plugintypes).forEach(([pluginType, pluginTypePath]) => {
@@ -73,20 +98,36 @@ const fetchComponentData = () => {
                 if (fs.existsSync(subPluginConfigurationFile)) {
                     const subpluginList = JSON.parse(fs.readFileSync(fs.realpathSync(subPluginConfigurationFile)));
 
-                    Object.entries(subpluginList.plugintypes).forEach(([subpluginType, subpluginTypePath]) => {
-                        glob.sync(`${subpluginTypePath}/*/version.php`).forEach(versionPath => {
-                            const componentPath = fs.realpathSync(path.dirname(versionPath));
-                            const componentName = path.basename(componentPath);
-                            const frankenstyleName = `${subpluginType}_${componentName}`;
-
-                            componentData.components[`${subpluginTypePath}/${componentName}`] = frankenstyleName;
-                            componentData.pathList.push(componentPath);
+                    if (subpluginList.subplugintypes) {
+                        Object.entries(subpluginList.subplugintypes).forEach(([subpluginType, subpluginTypePath]) => {
+                            subpluginAdder(
+                                subpluginType,
+                                `${pluginTypePath}/${componentName}/${subpluginTypePath}`
+                            );
                         });
-                    });
+                    } else if (subpluginList.plugintypes) {
+                        Object.entries(subpluginList.plugintypes).forEach(([subpluginType, subpluginTypePath]) => {
+                            subpluginAdder(subpluginType, `public/${subpluginTypePath}`);
+                        });
+                    }
                 }
             });
         });
 
+
+        // Create a list of the standard subsystem and plugins.
+        componentData.standardComponents = Object.fromEntries(
+            Object.entries(componentData.components).filter(([, name]) => {
+                if (name === 'core' || name.startsWith('core_')) {
+                    return true;
+                }
+                return standardPlugins.indexOf(name) !== -1;
+            })
+        );
+
+        componentData.componentMapping = Object.fromEntries(
+            Object.entries(componentData.components).map(([path, name]) => [name, path])
+        );
     }
 
     return componentData;
