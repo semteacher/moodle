@@ -39,7 +39,6 @@ class core_renderer extends \theme_boost\output\core_renderer {
         );
 
         $sitekey = $this->get_turnstile_sitekey();
-        $this->require_turnstile_assets($sitekey);
         $context->turnstileenabled = !empty($sitekey);
         $context->turnstilesitekey = $sitekey;
 
@@ -67,7 +66,6 @@ class core_renderer extends \theme_boost\output\core_renderer {
         );
 
         $sitekey = $this->get_turnstile_sitekey();
-        $this->require_turnstile_assets($sitekey);
         $context['turnstileenabled'] = !empty($sitekey);
         $context['turnstilesitekey'] = $sitekey;
 
@@ -86,20 +84,6 @@ class core_renderer extends \theme_boost\output\core_renderer {
         return $this->render_from_template('core/signup_form_layout', $context);
     }
 
-
-    /**
-     * Require Cloudflare Turnstile assets when configured.
-     *
-     * @param string $sitekey
-     * @return void
-     */
-    protected function require_turnstile_assets(string $sitekey): void {
-        if ($sitekey === '') {
-            return;
-        }
-
-        $this->page->requires->js('https://challenges.cloudflare.com/turnstile/v0/api.js', true);
-    }
 
     /**
      * Turnstile site key for widget rendering.
