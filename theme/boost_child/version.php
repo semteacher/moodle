@@ -17,7 +17,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'theme_boost_child';
-$plugin->version = 2026022800;
+$plugin->version = 2026022801;
 $plugin->requires = 2024051700;
 $plugin->base = 'boost';
 $plugin->maturity = MATURITY_ALPHA;

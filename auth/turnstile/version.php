@@ -9,7 +9,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version = 2026022800;
+$plugin->version = 2026022801;
 $plugin->requires = 2024051700;
 $plugin->component = 'auth_turnstile';
 $plugin->maturity = MATURITY_ALPHA;

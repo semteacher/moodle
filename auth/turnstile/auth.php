@@ -49,7 +49,7 @@ class auth_plugin_turnstile extends auth_plugin_base {
      * Hook into login page before credential authentication.
      */
     public function loginpage_hook() {
-        global $errormsg, $errorcode, $frm;
+        global $errormsg, $errorcode;
 
         if (!is_enabled_auth($this->authtype)) {
             return;
@@ -63,7 +63,8 @@ class auth_plugin_turnstile extends auth_plugin_base {
             return;
         }
 
-        if (empty($frm) || !isset($frm->username) || $frm->username === 'guest') {
+        $data = data_submitted();
+        if (empty($data) || !isset($data->username) || $data->username === 'guest') {
             return;
         }
 
