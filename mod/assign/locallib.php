@@ -6597,6 +6597,8 @@ class assign {
         }
         $info->assignment = format_string($assignmentname, true, array('context'=>$context));
         $info->url = $CFG->wwwroot.'/mod/assign/view.php?id='.$coursemodule->id;
+        $info->gradingurl = $CFG->wwwroot.'/mod/assign/view.php?id='.$coursemodule->id.'&action=grading';
+        $info->usergradingurl = $CFG->wwwroot.'/mod/assign/view.php?id='.$coursemodule->id.'&action=grader&userid='.$userfrom->id;
         $info->timeupdated = userdate($updatetime);
 
         $postsubject = get_string($messagetype . 'small', 'assign', $info);

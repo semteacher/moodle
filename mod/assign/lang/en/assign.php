@@ -273,7 +273,9 @@ It is available here:
     {$a->url}';
 $string['gradersubmissionupdatedhtml'] = '{$a->username} has updated their assignment submission
 for <i>\'{$a->assignment}\'  at {$a->timeupdated}</i><br /><br />
-It is <a href="{$a->url}">available on the web site</a>.';
+It is <a href="{$a->url}">available on the web site</a>.
+Grading page for all students <a href="{$a->gradingurl}">is there</a>.
+Grading page for {$a->username} <a href="{$a->usergradingurl}">is there</a>.';
 $string['gradersubmissionupdatedsmall'] = '{$a->username} has updated their submission for assignment {$a->assignment}.';
 $string['gradeuser'] = 'Grade {$a}';
 $string['grantextension'] = 'Grant extension';
